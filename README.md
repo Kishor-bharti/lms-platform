@@ -1,6 +1,6 @@
-# EduFlix
+# ClassOrbit
 
-EduFlix is an enterprise-grade Learning Management System (LMS) designed and developed for an EdTech startup in 2026. The platform delivers a secure, scalable, and role-based digital learning ecosystem for administrators, educators, and students.
+ClassOrbit is an enterprise-grade Learning Management System (LMS) designed and developed for an EdTech startup in 2026. The platform delivers a secure, scalable, and role-based digital learning ecosystem for administrators, educators, and students.
 
 ## Project Structure
 
