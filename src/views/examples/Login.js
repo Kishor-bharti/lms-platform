@@ -13,8 +13,10 @@ import {
   Row,
   Col,
 } from "reactstrap";
+import { useState } from "react";
 
 const Login = () => {
+  const [selectedRole, setSelectedRole] = useState(null);
   return (
     <>
       <Col lg="5" md="7">
@@ -25,10 +27,17 @@ const Login = () => {
             </div>
             <div className="btn-wrapper text-center">
               <Button
-                className="btn-neutral btn-icon"
-                color="primary"
+                className={`btn-neutral btn-icon ${selectedRole === "student" ? "active" : ""}`}
+                color={selectedRole === "student" ? "primary" : "default"}
                 href="#pablo"
-                onClick={(e) => e.preventDefault()}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setSelectedRole("student");
+                }}
+                style={selectedRole === "student" ? { 
+                  boxShadow: "0 0 20px rgba(67, 103, 228, 0.8)",
+                  transform: "scale(1.05)"
+                } : {}}
               >
                 <span className="btn-inner--icon">
                   <i className="ni ni-single-02" />
@@ -36,15 +45,40 @@ const Login = () => {
                 <span className="btn-inner--text">Student</span>
               </Button>
               <Button
-                className="btn-neutral btn-icon"
-                color="success"
+                className={`btn-neutral btn-icon ${selectedRole === "teacher" ? "active" : ""}`}
+                color={selectedRole === "teacher" ? "success" : "default"}
                 href="#pablo"
-                onClick={(e) => e.preventDefault()}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setSelectedRole("teacher");
+                }}
+                style={selectedRole === "teacher" ? { 
+                  boxShadow: "0 0 20px rgba(39, 174, 96, 0.8)",
+                  transform: "scale(1.05)"
+                } : {}}
               >
                 <span className="btn-inner--icon">
                   <i className="ni ni-briefcase-24" />
                 </span>
                 <span className="btn-inner--text">Teacher</span>
+              </Button>
+              <Button
+                className={`btn-neutral btn-icon ${selectedRole === "admin" ? "active" : ""}`}
+                color={selectedRole === "admin" ? "danger" : "default"}
+                href="#pablo"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setSelectedRole("admin");
+                }}
+                style={selectedRole === "admin" ? { 
+                  boxShadow: "0 0 20px rgba(226, 46, 36, 0.8)",
+                  transform: "scale(1.05)"
+                } : {}}
+              >
+                <span className="btn-inner--icon">
+                  <i className="ni ni-circle-08" />
+                </span>
+                <span className="btn-inner--text">Admin</span>
               </Button>
             </div>
           </CardHeader>
@@ -102,26 +136,6 @@ const Login = () => {
             </Form>
           </CardBody>
         </Card>
-        <Row className="mt-3">
-          <Col xs="6">
-            <a
-              className="text-light"
-              href="#pablo"
-              onClick={(e) => e.preventDefault()}
-            >
-              <small>Forgot password?</small>
-            </a>
-          </Col>
-          <Col className="text-right" xs="6">
-            <a
-              className="text-light"
-              href="#pablo"
-              onClick={(e) => e.preventDefault()}
-            >
-              <small>Create new account</small>
-            </a>
-          </Col>
-        </Row>
       </Col>
     </>
   );
