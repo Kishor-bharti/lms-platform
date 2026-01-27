@@ -49,7 +49,7 @@ const AdminNavbar = () => {
               <NavItem>
                 <NavLink
                   className="nav-link-icon"
-                  to="/auth/register"
+                  to="/auth/admin-login"
                   tag={Link}
                 >
                   <i className="ni ni-circle-08" />

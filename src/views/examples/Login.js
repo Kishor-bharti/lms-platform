@@ -10,7 +10,6 @@ import {
   InputGroupAddon,
   InputGroupText,
   InputGroup,
-  Row,
   Col,
 } from "reactstrap";
 import { useState } from "react";
@@ -61,24 +60,6 @@ const Login = () => {
                   <i className="ni ni-briefcase-24" />
                 </span>
                 <span className="btn-inner--text">Teacher</span>
-              </Button>
-              <Button
-                className={`btn-neutral btn-icon ${selectedRole === "admin" ? "active" : ""}`}
-                color={selectedRole === "admin" ? "danger" : "default"}
-                href="#pablo"
-                onClick={(e) => {
-                  e.preventDefault();
-                  setSelectedRole("admin");
-                }}
-                style={selectedRole === "admin" ? { 
-                  boxShadow: "0 0 20px rgba(226, 46, 36, 0.8)",
-                  transform: "scale(1.05)"
-                } : {}}
-              >
-                <span className="btn-inner--icon">
-                  <i className="ni ni-circle-08" />
-                </span>
-                <span className="btn-inner--text">Admin</span>
               </Button>
             </div>
           </CardHeader>

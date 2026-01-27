@@ -2,6 +2,7 @@ import Index from "views/Index.js";
 import Report from "views/examples/Report.js";
 import Resources from "views/examples/Resources.js";
 import Login from "views/examples/Login.js";
+import AdminLogin from "views/examples/AdminLogin.js";
 import SAT from "views/examples/SAT.js";
 import Sessions from "views/examples/Sessions.js";
 
@@ -46,6 +47,13 @@ var routes = [
     name: "Login",
     icon: "ni ni-key-25 text-info",
     component: <Login />,
+    layout: "/auth",
+  },
+  {
+    path: "/admin-login",
+    name: "Admin Login",
+    icon: "ni ni-circle-08 text-danger",
+    component: <AdminLogin />,
     layout: "/auth",
   },
 ];
