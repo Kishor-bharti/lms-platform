@@ -1,88 +1,63 @@
 import React from "react";
-import { Card, CardHeader, CardBody } from "reactstrap";
+import { Card, CardHeader, CardBody, CardTitle, Table, Badge, Button } from "reactstrap";
 
-const sampleClasses = [
-  {
-    dow: "Wed",
-    day: 21,
-    time: "04:00 pm",
-    title: "AP Chemistry by Harmanpreet",
-    subtitle: "AP Chemistry",
-    recurring: true,
-    online: true,
-  },
-  {
-    dow: "Wed",
-    day: 21,
-    time: "07:00 pm",
-    title: "IB Chemistry HL by Harmanpreet",
-    subtitle: "IBDP Chemistry",
-    recurring: true,
-    online: true,
-  },
-  {
-    dow: "Wed",
-    day: 21,
-    time: "06:01 pm",
-    title: "AP Chemistry by Harmanpreet",
-    subtitle: "AP Chemistry",
-    recurring: true,
-    online: true,
-  },
-  {
-    dow: "Thu",
-    day: 22,
-    time: "07:00 pm",
-    title: "IBDP Chemistry SL by Harmanpreet",
-    subtitle: "IBDP Chemistry",
-    recurring: true,
-    online: true,
-  },
+const rows = [
+  { cls: "AP Chemistry", instructor: "Harmanpreet", date: "Jan 29, 2026", time: "04:00 PM", status: "Today" },
+  { cls: "IBDP Chemistry", instructor: "Harmanpreet", date: "Jan 29, 2026", time: "07:00 PM", status: "Today" },
+  { cls: "AP Chemistry", instructor: "Harmanpreet", date: "Jan 30, 2026", time: "06:01 PM", status: "Tomorrow" },
+  { cls: "IBDP Chemistry", instructor: "Harmanpreet", date: "Jan 30, 2026", time: "07:00 PM", status: "Tomorrow" },
 ];
 
-export default function UpcomingClasses({ classes = sampleClasses }) {
+export default function UpcomingClasses() {
   return (
-    <Card className="shadow upcoming-card" style={{ borderRadius: 18, background: "#e5dfd2" }}>
-      <CardHeader className="d-flex align-items-center" style={{ background: "#d9d2c2", borderTopLeftRadius: 18, borderTopRightRadius: 18 }}>
-        <h3 className="mb-0" style={{ fontWeight: 700 }}>Upcoming Classes</h3>
+    <Card className="shadow upcoming-legacy" style={{ borderRadius: 12, background: "#f8fbff" }}>
+      <CardHeader className="border-0" style={{ background: "#eaf3ff", borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
+        <CardTitle className="mb-0" style={{ fontWeight: 700 }}>Upcoming Classes</CardTitle>
       </CardHeader>
-      <CardBody>
-        <div className="upcoming-list" style={{ display: "grid", gap: 16 }}>
-          {classes.map((c, idx) => (
-            <div key={idx} className="upcoming-item" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#f5f2ea", borderRadius: 16, padding: "14px 16px", boxShadow: "0 2px 6px rgba(0,0,0,0.06)" }}>
-              <div className="upcoming-left" style={{ display: "flex", alignItems: "center" }}>
-                <div className="date-pill" style={{ width: 82, height: 82, borderRadius: 16, background: "#36c37e", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontWeight: 700, marginRight: 16 }}>
-                  <div className="date-dow" style={{ fontSize: 16 }}>{c.dow}</div>
-                  <div className="date-day" style={{ fontSize: 22 }}>{c.day}</div>
-                  <div className="date-time" style={{ fontSize: 13 }}>{c.time}</div>
-                </div>
-                <div className="upcoming-info" style={{ display: "flex", flexDirection: "column" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12, color: "#6b6b6b", fontSize: 12 }}>
-                    {c.recurring && (<span title="Recurring"><i className="ni ni-time-alarm" /></span>)}
-                    {c.online && (<span title="Online"><i className="ni ni-world" /></span>)}
-                  </div>
-                  <div style={{ fontWeight: 700, color: "#1f1f1f" }}>{c.title}</div>
-                  <div style={{ color: "#888" }}>{c.subtitle}</div>
-                </div>
-              </div>
-              <button type="button" className="btn details-btn" style={{ background: "#212529", color: "#fff", borderRadius: 24, padding: "8px 18px" }}>Details</button>
-            </div>
-          ))}
+      <CardBody style={{ paddingTop: 0 }}>
+        <div className="table-responsive">
+          <Table className="align-items-center table-flush mb-0">
+            <thead className="thead-light">
+              <tr>
+                <th scope="col">Class</th>
+                <th scope="col">Instructor</th>
+                <th scope="col">Date</th>
+                <th scope="col">Time</th>
+                <th scope="col">Status</th>
+                <th scope="col" className="text-right">Details</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, i) => (
+                <tr key={i}>
+                  <th scope="row" style={{ fontWeight: 700, color: "#3b4a67" }}>{r.cls}</th>
+                  <td>{r.instructor}</td>
+                  <td>{r.date}</td>
+                  <td>{r.time}</td>
+                  <td>
+                    <Badge color={r.status === "Today" ? "info" : "warning"} style={{ borderRadius: 12, padding: "4px 8px" }}>
+                      {r.status.toUpperCase()}
+                    </Badge>
+                  </td>
+                  <td className="text-right">
+                    <Button size="sm" style={{ background: "#212529", color: "#fff", borderRadius: 20, padding: "6px 12px" }}>
+                      Details
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
         </div>
       </CardBody>
       <style>{`
-        @media (max-width: 991.98px) {
-          .upcoming-card { margin-bottom: 1rem; }
-        }
+        .upcoming-legacy { box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+        .thead-light th { color: #7f8da7; font-weight: 700; letter-spacing: .02em; }
         @media (max-width: 767.98px) {
-          .upcoming-list { gap: 12px; }
-          .upcoming-item { flex-direction: column; align-items: stretch; }
-          .upcoming-left { margin-bottom: 10px; }
-          .date-pill { width: 64px; height: 64px; border-radius: 12px; margin-right: 12px; }
-          .date-dow { font-size: 14px; }
-          .date-day { font-size: 18px; }
-          .date-time { font-size: 12px; }
-          .details-btn { align-self: flex-end; padding: 6px 14px; border-radius: 20px; }
+          .upcoming-legacy { border-radius: 10px; }
+          .upcoming-legacy .card-header { padding: .75rem 1rem; }
+          .table-responsive { overflow-x: auto; }
+          table { font-size: .9rem; }
         }
       `}</style>
     </Card>
