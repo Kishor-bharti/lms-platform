@@ -264,6 +264,14 @@ const Sidebar = (props) => {
             z-index: 1040;
           }
           #sidenav-main .sidebar-edge-toggle:hover { background: #f8f9fa; }
+          /* Mobile: compact sidebar and no content offset */
+          @media (max-width: 767.98px) {
+            #sidenav-main { width: 70px; }
+            #sidenav-main.sidebar-mini { width: 70px; }
+            .main-content { margin-left: 0; }
+            #sidenav-main.sidebar-mini ~ .main-content { margin-left: 0; }
+            #sidenav-main .sidebar-edge-toggle { display: none; }
+          }
         `}</style>
       </Container>
       {/* Absolute positioned edge toggle */}
