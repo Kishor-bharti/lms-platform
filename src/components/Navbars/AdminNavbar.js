@@ -40,7 +40,7 @@ const AdminNavbar = (props) => {
               </InputGroup>
             </FormGroup>
           </Form>
-          <Nav className="align-items-center d-none d-md-flex" navbar>
+          <Nav className="align-items-center ml-auto" navbar>
             <UncontrolledDropdown nav>
               <DropdownToggle className="pr-0" nav>
                 <Media className="align-items-center">

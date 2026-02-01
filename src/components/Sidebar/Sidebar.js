@@ -51,7 +51,15 @@ const Sidebar = (props) => {
   };
   // toggles collapse between opened and closed (true/false)
   const toggleCollapse = () => {
-    setCollapseOpen((data) => !data);
+    const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+    setCollapseOpen((prev) => {
+      const next = !prev;
+      if (isMobile && next) {
+        setMini(false);
+        localStorage.setItem("sidebar-mini", "false");
+      }
+      return next;
+    });
   };
   // closes the collapse
   const closeCollapse = () => {
@@ -92,7 +100,7 @@ const Sidebar = (props) => {
 
   return (
     <Navbar
-      className={`navbar-vertical fixed-left navbar-light bg-white ${mini ? 'sidebar-mini' : ''}`}
+      className={`navbar-vertical fixed-left navbar-light bg-white ${mini ? 'sidebar-mini' : ''} ${collapseOpen ? 'sidebar-open' : ''}`}
       expand="md"
       id="sidenav-main"
     >
@@ -268,6 +276,7 @@ const Sidebar = (props) => {
           @media (max-width: 767.98px) {
             #sidenav-main { width: 70px; }
             #sidenav-main.sidebar-mini { width: 70px; }
+            #sidenav-main.sidebar-open { width: 250px; }
             .main-content { margin-left: 0; }
             #sidenav-main.sidebar-mini ~ .main-content { margin-left: 0; }
             #sidenav-main .sidebar-edge-toggle { display: none; }
