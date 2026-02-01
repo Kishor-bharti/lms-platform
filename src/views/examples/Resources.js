@@ -15,65 +15,6 @@ import Header from "components/Headers/Header.js";
 
 const Resources = () => {
   const [query, setQuery] = useState("");
-  const subjects = useMemo(
-    () => [
-    {
-      name: "Mathematics",
-      summary: "Strengthen algebra, geometry, and calculus fundamentals with curated exercises.",
-      tags: ["Core", "STEM"],
-        accent: "primary",
-      materials: [
-        { title: "Algebra Mastery Guide", type: "PDF" },
-        { title: "Interactive Geometry Workshop", type: "Video" },
-        { title: "Calculus Problem Bank", type: "Practice" },
-      ],
-      quizzes: [
-        "Linear Equations Diagnostic",
-        "Geometry Proofs Challenge",
-      ],
-      assignments: [
-        "Applied Calculus Project",
-        "Statistics in Real Life Case Study",
-      ],
-      extras: ["Weekly math lab sessions", "Peer tutoring calendar"],
-    },
-    {
-      name: "Science",
-      summary: "Explore biology, chemistry, and physics through lab simulations and experiments.",
-      tags: ["Core", "Lab"],
-        accent: "success",
-      materials: [
-        { title: "Biology Concept Maps", type: "Slides" },
-        { title: "Chemistry Lab Safety Kit", type: "Checklist" },
-        { title: "Physics Simulation Library", type: "Interactive" },
-      ],
-      quizzes: [
-        "Cell Processes Quiz",
-        "Chemical Reactions Foundations",
-      ],
-      assignments: ["Physics Data Analysis Report"],
-      extras: ["Virtual lab access", "Science fair guidelines"],
-    },
-    {
-      name: "Humanities",
-      summary: "Build critical thinking with literature reviews, historical analysis, and writing labs.",
-      tags: ["Core", "Writing"],
-        accent: "warning",
-      materials: [
-        { title: "World History Timeline Toolkit", type: "PDF" },
-        { title: "Literature Discussion Prompts", type: "Workbook" },
-        { title: "Academic Writing Lab", type: "Module" },
-      ],
-      quizzes: ["Renaissance Literature Check-in"],
-      assignments: [
-        "Comparative Essay Draft",
-        "Primary Source Reflection Journal",
-      ],
-      extras: ["Writing center appointments", "Discussion board calendar"],
-    },
-    ],
-    []
-  );
 
   // Simple resource list to mirror the attached design
   const resourceItems = useMemo(
@@ -157,19 +98,19 @@ const Resources = () => {
                               <div className="p-3" style={{ background: "#faf7f2", borderTop: "1px solid #eee" }}>
                                 <ol className="mb-0" style={{ paddingLeft: 18 }}>
                                   <li className="py-1">
-                                    <a href="#" className="text-body text-decoration-none" onClick={(e) => { e.preventDefault(); handleAction(name, "assignments"); }}>
+                                    <button type="button" className="link-action" onClick={() => handleAction(name, "assignments")} style={{ background: 'none', border: 'none', padding: 0, color: 'inherit', textDecoration: 'none', cursor: 'pointer' }}>
                                       Assignments
-                                    </a>
+                                    </button>
                                   </li>
                                   <li className="py-1">
-                                    <a href="#" className="text-body text-decoration-none" onClick={(e) => { e.preventDefault(); handleAction(name, "quizzes"); }}>
+                                    <button type="button" className="link-action" onClick={() => handleAction(name, "quizzes")} style={{ background: 'none', border: 'none', padding: 0, color: 'inherit', textDecoration: 'none', cursor: 'pointer' }}>
                                       Quizzes
-                                    </a>
+                                    </button>
                                   </li>
                                   <li className="py-1">
-                                    <a href="#" className="text-body text-decoration-none" onClick={(e) => { e.preventDefault(); handleAction(name, "materials"); }}>
+                                    <button type="button" className="link-action" onClick={() => handleAction(name, "materials")} style={{ background: 'none', border: 'none', padding: 0, color: 'inherit', textDecoration: 'none', cursor: 'pointer' }}>
                                       Materials
-                                    </a>
+                                    </button>
                                   </li>
                                 </ol>
                               </div>
@@ -190,3 +131,4 @@ const Resources = () => {
 };
 
 export default Resources;
+

@@ -1,5 +1,5 @@
 /*eslint-disable*/
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink as NavLinkRRD, Link } from "react-router-dom";
 // nodejs library to set properties for components
 import { PropTypes } from "prop-types";
@@ -39,6 +39,12 @@ var ps;
 
 const Sidebar = (props) => {
   const [collapseOpen, setCollapseOpen] = useState();
+  const [mini, setMini] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("sidebar-mini");
+    if (saved === "true") setMini(true);
+  }, []);
   // verifies if routeName is the one active (in browser input)
   const activeRoute = (routeName) => {
     return props.location.pathname.indexOf(routeName) > -1 ? "active" : "";
@@ -60,9 +66,10 @@ const Sidebar = (props) => {
             to={prop.layout + prop.path}
             tag={NavLinkRRD}
             onClick={closeCollapse}
+            title={prop.name}
           >
             <i className={prop.icon} />
-            {prop.name}
+            <span className="nav-link-text" style={mini ? { display: "none" } : undefined}>{prop.name}</span>
           </NavLink>
         </NavItem>
       );
@@ -85,7 +92,7 @@ const Sidebar = (props) => {
 
   return (
     <Navbar
-      className="navbar-vertical fixed-left navbar-light bg-white"
+      className={`navbar-vertical fixed-left navbar-light bg-white ${mini ? 'sidebar-mini' : ''}`}
       expand="md"
       id="sidenav-main"
     >
@@ -98,6 +105,21 @@ const Sidebar = (props) => {
         >
           <span className="navbar-toggler-icon" />
         </button>
+        {/* Collapse/expand labels toggle (desktop) */}
+        <Button
+          color="link"
+          className="p-0 ms-2"
+          onClick={() => {
+            setMini((v) => {
+              const next = !v;
+              localStorage.setItem("sidebar-mini", String(next));
+              return next;
+            });
+          }}
+          aria-label="Toggle sidebar labels"
+        >
+          <i className={mini ? 'ni ni-bold-right' : 'ni ni-bold-left'} />
+        </Button>
         {/* Brand */}
         {logo ? (
           <NavbarBrand className="pt-0" {...navbarBrandProps}>
@@ -215,25 +237,33 @@ const Sidebar = (props) => {
           {/* Navigation */}
           <Nav className="mb-md-3" navbar>
             <NavItem>
-              <NavLink href="#">
+              <NavLink href="#" title="Course Guide">
                 <i className="ni ni-spaceship" />
-                Course Guide
+                <span className="nav-link-text" style={mini ? { display: "none" } : undefined}>Course Guide</span>
               </NavLink>
             </NavItem>
             <NavItem>
-              <NavLink href="#">
+              <NavLink href="#" title="Student Support">
                 <i className="ni ni-palette" />
-                Student Support
+                <span className="nav-link-text" style={mini ? { display: "none" } : undefined}>Student Support</span>
               </NavLink>
             </NavItem>
             <NavItem>
-              <NavLink href="#">
+              <NavLink href="#" title="Help Center">
                 <i className="ni ni-ui-04" />
-                Help Center
+                <span className="nav-link-text" style={mini ? { display: "none" } : undefined}>Help Center</span>
               </NavLink>
             </NavItem>
           </Nav>
         </Collapse>
+        <style>{`
+          /* Smooth width transition on the whole sidebar */
+          #sidenav-main { width: 250px; transition: width 0.2s ease; }
+          #sidenav-main.sidebar-mini { width: 90px; }
+          /* Adjust main-content when sidebar shrinks/expands */
+          .main-content { margin-left: 250px; transition: margin-left 0.2s ease; }
+          #sidenav-main.sidebar-mini ~ .main-content { margin-left: 90px; }
+        `}</style>
       </Container>
     </Navbar>
   );
