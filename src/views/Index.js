@@ -1,4 +1,6 @@
 import Header from "components/Headers/Header.js";
+import UpcomingClasses from "components/Dashboard/UpcomingClasses";
+import CalendarWidget from "components/Dashboard/CalendarWidget";
 import {
   Container,
   Row,
@@ -8,7 +10,6 @@ import {
   CardBody,
   CardTitle,
   Table,
-  Badge,
 } from "reactstrap";
 
 const Index = (props) => {
@@ -18,58 +19,15 @@ const Index = (props) => {
       {/* Page content */}
       <Container className="mt--7" fluid style={{ backgroundColor: "rgb(196, 214, 226)", minHeight: "100vh", paddingTop: "30px", paddingBottom: "30px" }}>
         <Row>
-          <Col lg="6">
-            <Card className="shadow mb-4" style={{ backgroundColor: "#f0f4f8", borderRadius: "8px" }}>
-              <CardHeader className="border-0" style={{ backgroundColor: "#e8f0f6", borderTopLeftRadius: "8px", borderTopRightRadius: "8px" }}>
-                <CardTitle className="mb-0">Upcoming Classes</CardTitle>
-              </CardHeader>
-              <Table className="align-items-center table-flush" responsive>
-                <thead className="thead-light">
-                  <tr>
-                    <th scope="col">Class</th>
-                    <th scope="col">Instructor</th>
-                    <th scope="col">Time</th>
-                    <th scope="col">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <th scope="row">Mathematics 101</th>
-                    <td>Dr. Smith</td>
-                    <td>10:00 AM</td>
-                    <td>
-                      <Badge color="info">Today</Badge>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th scope="row">English Literature</th>
-                    <td>Prof. Johnson</td>
-                    <td>2:30 PM</td>
-                    <td>
-                      <Badge color="info">Today</Badge>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th scope="row">Physics Lab</th>
-                    <td>Dr. Brown</td>
-                    <td>11:00 AM</td>
-                    <td>
-                      <Badge color="warning">Tomorrow</Badge>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th scope="row">Chemistry Advanced</th>
-                    <td>Prof. Davis</td>
-                    <td>3:00 PM</td>
-                    <td>
-                      <Badge color="warning">Tomorrow</Badge>
-                    </td>
-                  </tr>
-                </tbody>
-              </Table>
-            </Card>
+          <Col lg="8" className="mb-4">
+            <UpcomingClasses />
           </Col>
-          <Col lg="6">
+          <Col lg="4" className="mb-4">
+            <CalendarWidget />
+          </Col>
+        </Row>
+        <Row>
+          <Col lg="12">
             <Card className="shadow mb-4" style={{ backgroundColor: "#f0f4f8", borderRadius: "8px" }}>
               <CardHeader className="border-0" style={{ backgroundColor: "#e8f0f6", borderTopLeftRadius: "8px", borderTopRightRadius: "8px" }}>
                 <CardTitle className="mb-0">Announcements</CardTitle>
