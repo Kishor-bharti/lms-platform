@@ -138,8 +138,8 @@ const Sidebar = (props) => {
               <Media className="align-items-center">
                 <span className="avatar avatar-sm rounded-circle">
                   <img
-                    alt="..."
-                    src={require("../../assets/img/theme/team-1-800x800.jpg")}
+                    alt="Profile"
+                    src={require("../../assets/img/theme/team-4-800x800.jpg")}
                   />
                 </span>
               </Media>
