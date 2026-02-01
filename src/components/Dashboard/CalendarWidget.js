@@ -33,7 +33,7 @@ export default function CalendarWidget() {
     <Card className="shadow" style={{ borderRadius: 18, background: "#232a34", color: "#fff" }}>
       <CardHeader style={{ background: "#2b313b", borderTopLeftRadius: 18, borderTopRightRadius: 18 }}>
         <div className="d-flex align-items-center justify-content-between">
-          <h4 className="mb-0" style={{ fontWeight: 700 }}>{fmtMonth(current)} {current.getFullYear()}</h4>
+          <h4 className="mb-0" style={{ fontWeight: 700, color: "#fff" }}>{fmtMonth(current)} {current.getFullYear()}</h4>
           <div className="d-flex align-items-center" style={{ gap: 8 }}>
             <button className="btn btn-sm" style={{ background: "#3c4450", color: "#fff" }} onClick={() => setCurrent(new Date())}>today</button>
             <button className="btn btn-sm" style={{ background: "#3c4450", color: "#fff" }} onClick={() => setCurrent(new Date(current.getFullYear(), current.getMonth() - 1, 1))}>{"<"}</button>

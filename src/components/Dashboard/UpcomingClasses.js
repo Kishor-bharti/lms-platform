@@ -2,10 +2,10 @@ import React from "react";
 import { Card, CardHeader, CardBody, CardTitle, Table, Badge, Button } from "reactstrap";
 
 const rows = [
-  { cls: "AP Chemistry", instructor: "Harmanpreet", date: "Jan 29, 2026", time: "04:00 PM", status: "Today" },
-  { cls: "IBDP Chemistry", instructor: "Harmanpreet", date: "Jan 29, 2026", time: "07:00 PM", status: "Today" },
-  { cls: "AP Chemistry", instructor: "Harmanpreet", date: "Jan 30, 2026", time: "06:01 PM", status: "Tomorrow" },
-  { cls: "IBDP Chemistry", instructor: "Harmanpreet", date: "Jan 30, 2026", time: "07:00 PM", status: "Tomorrow" },
+  { cls: "AP Chemistry", instructor: "Harmanpreet", date: "Jan 29, 2026", time: "04:00 PM", status: "Today", live: true },
+  { cls: "IBDP Chemistry", instructor: "Harmanpreet", date: "Jan 29, 2026", time: "07:00 PM", status: "Today", live: false },
+  { cls: "AP Chemistry", instructor: "Harmanpreet", date: "Jan 30, 2026", time: "06:01 PM", status: "Tomorrow", live: false },
+  { cls: "IBDP Chemistry", instructor: "Harmanpreet", date: "Jan 30, 2026", time: "07:00 PM", status: "Tomorrow", live: false },
 ];
 
 export default function UpcomingClasses() {
@@ -35,11 +35,23 @@ export default function UpcomingClasses() {
                   <td>{r.date}</td>
                   <td>{r.time}</td>
                   <td>
-                    <Badge color={r.status === "Today" ? "info" : "warning"} style={{ borderRadius: 12, padding: "4px 8px" }}>
-                      {r.status.toUpperCase()}
-                    </Badge>
+                    {r.live ? (
+                      <span className="badge-live" style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#ffe2e6", color: "#dc3545", borderRadius: 12, padding: "4px 8px", fontWeight: 700 }}>
+                        <span style={{ width: 8, height: 8, borderRadius: 4, background: "#dc3545", display: "inline-block" }}></span>
+                        LIVE
+                      </span>
+                    ) : (
+                      <Badge color={r.status === "Today" ? "info" : "warning"} style={{ borderRadius: 12, padding: "4px 8px" }}>
+                        {r.status.toUpperCase()}
+                      </Badge>
+                    )}
                   </td>
                   <td className="text-right">
+                    {r.live && (
+                      <Button size="sm" style={{ background: "#28a745", color: "#fff", borderRadius: 20, padding: "6px 12px", marginRight: 8 }} aria-label="Join Live Session">
+                        Join
+                      </Button>
+                    )}
                     <Button size="sm" style={{ background: "#212529", color: "#fff", borderRadius: 20, padding: "6px 12px" }}>
                       Details
                     </Button>
