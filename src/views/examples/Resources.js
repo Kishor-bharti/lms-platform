@@ -9,6 +9,7 @@ import {
   Col,
   Input,
   Table,
+  Collapse,
 } from "reactstrap";
 import Header from "components/Headers/Header.js";
 
@@ -91,6 +92,13 @@ const Resources = () => {
     [resourceItems, query]
   );
 
+  const [openRow, setOpenRow] = useState(null);
+  const toggleRow = (idx) => setOpenRow((prev) => (prev === idx ? null : idx));
+  const handleAction = (subject, action) => {
+    // TODO: wire these to routes or modals
+    console.log(`Action: ${action} for ${subject}`);
+  };
+
   return (
     <>
       <Header />
@@ -128,14 +136,47 @@ const Resources = () => {
                   </thead>
                   <tbody>
                     {filtered.map((name, idx) => (
-                      <tr key={name} style={{ background: idx % 2 === 0 ? "#f5f1eb" : "transparent" }}>
-                        <td>{name}</td>
-                        <td className="text-right">
-                          <Button color="link" className="text-muted p-0">
-                            <span className="ni ni-zoom-split-in" />
-                          </Button>
-                        </td>
-                      </tr>
+                      <React.Fragment key={name}>
+                        <tr style={{ background: idx % 2 === 0 ? "#f5f1eb" : "transparent" }}>
+                          <td>{name}</td>
+                          <td className="text-right">
+                            <Button
+                              color="link"
+                              className="text-muted p-0"
+                              aria-label={`Show options for ${name}`}
+                              onClick={() => toggleRow(idx)}
+                              aria-expanded={openRow === idx}
+                            >
+                              <span className="ni ni-zoom-split-in" />
+                            </Button>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td colSpan="2" className="p-0">
+                            <Collapse isOpen={openRow === idx}>
+                              <div className="p-3" style={{ background: "#faf7f2", borderTop: "1px solid #eee" }}>
+                                <ol className="mb-0" style={{ paddingLeft: 18 }}>
+                                  <li className="py-1">
+                                    <a href="#" className="text-body text-decoration-none" onClick={(e) => { e.preventDefault(); handleAction(name, "assignments"); }}>
+                                      Assignments
+                                    </a>
+                                  </li>
+                                  <li className="py-1">
+                                    <a href="#" className="text-body text-decoration-none" onClick={(e) => { e.preventDefault(); handleAction(name, "quizzes"); }}>
+                                      Quizzes
+                                    </a>
+                                  </li>
+                                  <li className="py-1">
+                                    <a href="#" className="text-body text-decoration-none" onClick={(e) => { e.preventDefault(); handleAction(name, "materials"); }}>
+                                      Materials
+                                    </a>
+                                  </li>
+                                </ol>
+                              </div>
+                            </Collapse>
+                          </td>
+                        </tr>
+                      </React.Fragment>
                     ))}
                   </tbody>
                 </Table>
