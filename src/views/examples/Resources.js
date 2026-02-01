@@ -1,23 +1,19 @@
 import React, { useMemo, useState } from "react";
 import {
-  Badge,
   Button,
   Card,
   CardBody,
   CardHeader,
-  CardTitle,
-  Collapse,
   Container,
-  ListGroup,
-  ListGroupItem,
   Row,
   Col,
-  UncontrolledTooltip,
+  Input,
+  Table,
 } from "reactstrap";
 import Header from "components/Headers/Header.js";
 
 const Resources = () => {
-  const [openSubject, setOpenSubject] = useState(null);
+  const [query, setQuery] = useState("");
   const subjects = useMemo(
     () => [
     {
@@ -78,137 +74,73 @@ const Resources = () => {
     []
   );
 
-  const toggleSubject = (index) => {
-    setOpenSubject((prev) => (prev === index ? null : index));
-  };
+  // Simple resource list to mirror the attached design
+  const resourceItems = useMemo(
+    () => [
+      "AP Chemistry",
+      "AP Chemistry FLTs 2025",
+      "ESAT",
+      "ESAT FLTs 2025",
+      "IBDP Chemistry",
+      "IGCSE Chemistry",
+    ],
+    []
+  );
+  const filtered = useMemo(
+    () => resourceItems.filter((r) => r.toLowerCase().includes(query.toLowerCase())),
+    [resourceItems, query]
+  );
 
   return (
     <>
       <Header />
       <Container className="mt--7" fluid>
         <Row
-          className="justify-content-center"
+          className="justify-content-start"
           style={{
-            background: "linear-gradient(180deg, #f8fbff 0%, #eef2ff 50%, #f9f9ff 100%)",
+            background: "#f4efe7",
             minHeight: "calc(100vh - 180px)",
-            borderRadius: "0 0 40px 40px",
-            paddingBottom: "60px",
+            paddingBottom: "40px",
             margin: "0 12px",
           }}
         >
-          <Col lg="10">
-            <Card className="shadow border-0 mb-4 overflow-hidden">
-              <div
-                className="w-100"
-                style={{
-                  height: "160px",
-                  background: "linear-gradient(135deg, #6d5dfc 0%, #a575ff 50%, #4cd4f0 100%)",
-                }}
-              />
-              <CardBody className="pb-3 position-relative" style={{ marginTop: "-100px" }}>
-                <div className="rounded-4 shadow-sm bg-white p-4">
-                  <CardTitle tag="h2" className="mb-3">
-                    Learning Resources
-                  </CardTitle>
-                  <p className="text-muted mb-0">
-                    Browse curated subject collections, track assigned work, and access support hubs. Expand each card to launch materials and stay organized.
-                  </p>
+          <Col lg="9" md="10">
+            <Card className="shadow border-0">
+              <CardHeader className="d-flex justify-content-between align-items-center bg-white border-0">
+                <h3 className="mb-0">Resources</h3>
+                <div style={{ maxWidth: 280 }}>
+                  <Input
+                    type="search"
+                    placeholder="Search"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    className="form-control-alternative"
+                  />
                 </div>
+              </CardHeader>
+              <CardBody className="pt-0">
+                <Table className="table align-items-center" responsive>
+                  <thead className="thead-light">
+                    <tr>
+                      <th scope="col">Name</th>
+                      <th scope="col" className="text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((name, idx) => (
+                      <tr key={name} style={{ background: idx % 2 === 0 ? "#f5f1eb" : "transparent" }}>
+                        <td>{name}</td>
+                        <td className="text-right">
+                          <Button color="link" className="text-muted p-0">
+                            <span className="ni ni-zoom-split-in" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
               </CardBody>
             </Card>
-            {subjects.map((subject, index) => (
-              <Card key={subject.name} className="shadow border-0 mb-4">
-                <CardHeader className="d-flex justify-content-between align-items-center flex-wrap gap-2 border-0 bg-white">
-                  <div className="d-flex align-items-start">
-                    <div
-                      className={`icon icon-shape bg-gradient-${subject.accent} text-white rounded-circle shadow`}
-                      style={{ width: 48, height: 48, display: "grid", placeItems: "center" }}
-                    >
-                      <span className="ni ni-books" />
-                    </div>
-                    <div className="ms-3" style={{ marginLeft: 16 }}>
-                      <h4 className="mb-1">{subject.name}</h4>
-                      <div className="text-muted small">{subject.summary}</div>
-                      <div className="mt-3">
-                        {subject.tags.map((tag) => (
-                          <Badge key={tag} color={subject.accent} pill className="me-2 opacity-75">
-                            {tag}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  <Button
-                    color={openSubject === index ? "secondary" : subject.accent}
-                    onClick={() => toggleSubject(index)}
-                    id={`toggle-${index}`}
-                  >
-                    {openSubject === index ? "Hide Details" : "View Details"}
-                  </Button>
-                  <UncontrolledTooltip placement="left" target={`toggle-${index}`}>
-                    {openSubject === index ? "Collapse subject overview" : "Expand to explore materials"}
-                  </UncontrolledTooltip>
-                </CardHeader>
-                <Collapse isOpen={openSubject === index}>
-                  <CardBody>
-                    <Row>
-                      <Col md="6" className="mb-4">
-                        <h5 className={`text-${subject.accent}`}>Materials</h5>
-                        <ListGroup flush>
-                          {subject.materials.map((item) => (
-                            <ListGroupItem
-                              key={item.title}
-                              className="d-flex justify-content-between align-items-center"
-                            >
-                              <div>
-                                <div className="fw-semibold">{item.title}</div>
-                                <small className="text-muted">Download and review before class</small>
-                              </div>
-                              <Badge color={subject.accent} className="text-uppercase">
-                                {item.type}
-                              </Badge>
-                            </ListGroupItem>
-                          ))}
-                        </ListGroup>
-                      </Col>
-                      <Col md="6" className="mb-4">
-                        <h5 className={`text-${subject.accent}`}>Upcoming Work</h5>
-                        <ListGroup flush>
-                          {subject.quizzes.map((quiz) => (
-                            <ListGroupItem key={quiz} className="d-flex justify-content-between align-items-center">
-                              <span>{quiz}</span>
-                              <Badge color="warning" className="text-uppercase">Quiz</Badge>
-                            </ListGroupItem>
-                          ))}
-                          {subject.assignments.map((assignment) => (
-                            <ListGroupItem
-                              key={assignment}
-                              className="d-flex justify-content-between align-items-center"
-                            >
-                              <span>{assignment}</span>
-                              <Badge color="success" className="text-uppercase">Assignment</Badge>
-                            </ListGroupItem>
-                          ))}
-                        </ListGroup>
-                      </Col>
-                    </Row>
-                    <Row>
-                      <Col>
-                        <h5 className={`text-${subject.accent}`}>Additional Support</h5>
-                        <ListGroup flush className="list-group-flush">
-                          {subject.extras.map((item) => (
-                            <ListGroupItem key={item} className="d-flex align-items-center">
-                              <span className="ni ni-bullet-list-67 text-muted me-2" />
-                              {item}
-                            </ListGroupItem>
-                          ))}
-                        </ListGroup>
-                      </Col>
-                    </Row>
-                  </CardBody>
-                </Collapse>
-              </Card>
-            ))}
           </Col>
         </Row>
       </Container>
