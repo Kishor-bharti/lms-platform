@@ -86,7 +86,16 @@ const Resources = () => {
     <>
       <Header />
       <Container className="mt--7" fluid>
-        <Row className="justify-content-center">
+        <Row
+          className="justify-content-center"
+          style={{
+            background: "linear-gradient(180deg, #f8fbff 0%, #eef2ff 50%, #f9f9ff 100%)",
+            minHeight: "calc(100vh - 180px)",
+            borderRadius: "0 0 40px 40px",
+            paddingBottom: "60px",
+            margin: "0 12px",
+          }}
+        >
           <Col lg="10">
             <Card className="shadow border-0 mb-4 overflow-hidden">
               <div
@@ -110,17 +119,17 @@ const Resources = () => {
             {subjects.map((subject, index) => (
               <Card key={subject.name} className="shadow border-0 mb-4">
                 <CardHeader className="d-flex justify-content-between align-items-center flex-wrap gap-2 border-0 bg-white">
-                  <div className="d-flex align-items-start gap-3">
+                  <div className="d-flex align-items-start">
                     <div
                       className={`icon icon-shape bg-gradient-${subject.accent} text-white rounded-circle shadow`}
                       style={{ width: 48, height: 48, display: "grid", placeItems: "center" }}
                     >
                       <span className="ni ni-books" />
                     </div>
-                    <div>
+                    <div className="ms-3" style={{ marginLeft: 16 }}>
                       <h4 className="mb-1">{subject.name}</h4>
                       <div className="text-muted small">{subject.summary}</div>
-                      <div className="mt-2">
+                      <div className="mt-3">
                         {subject.tags.map((tag) => (
                           <Badge key={tag} color={subject.accent} pill className="me-2 opacity-75">
                             {tag}
