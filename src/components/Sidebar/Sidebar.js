@@ -105,21 +105,7 @@ const Sidebar = (props) => {
         >
           <span className="navbar-toggler-icon" />
         </button>
-        {/* Collapse/expand labels toggle (desktop) */}
-        <Button
-          color="link"
-          className="p-0 ms-2"
-          onClick={() => {
-            setMini((v) => {
-              const next = !v;
-              localStorage.setItem("sidebar-mini", String(next));
-              return next;
-            });
-          }}
-          aria-label="Toggle sidebar labels"
-        >
-          <i className={mini ? 'ni ni-bold-right' : 'ni ni-bold-left'} />
-        </Button>
+        {/* Edge toggle button */}
         {/* Brand */}
         {logo ? (
           <NavbarBrand className="pt-0" {...navbarBrandProps}>
@@ -233,7 +219,7 @@ const Sidebar = (props) => {
           {/* Divider */}
           <hr className="my-3" />
           {/* Heading */}
-          <h6 className="navbar-heading text-muted">Resources</h6>
+          <h6 className="navbar-heading text-muted" style={mini ? { display: "none" } : undefined}>Resources</h6>
           {/* Navigation */}
           <Nav className="mb-md-3" navbar>
             <NavItem>
@@ -263,8 +249,38 @@ const Sidebar = (props) => {
           /* Adjust main-content when sidebar shrinks/expands */
           .main-content { margin-left: 250px; transition: margin-left 0.2s ease; }
           #sidenav-main.sidebar-mini ~ .main-content { margin-left: 90px; }
+          /* Edge toggle button */
+          #sidenav-main .sidebar-edge-toggle {
+            position: absolute;
+            right: -12px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 36px; height: 36px;
+            border-radius: 50%;
+            background: #fff;
+            border: 1px solid #e9ecef;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 1040;
+          }
+          #sidenav-main .sidebar-edge-toggle:hover { background: #f8f9fa; }
         `}</style>
       </Container>
+      {/* Absolute positioned edge toggle */}
+      <button
+        type="button"
+        className="sidebar-edge-toggle btn"
+        aria-label="Toggle sidebar"
+        onClick={() => {
+          setMini((v) => {
+            const next = !v;
+            localStorage.setItem("sidebar-mini", String(next));
+            return next;
+          });
+        }}
+      >
+        <i className={mini ? 'ni ni-bold-right' : 'ni ni-bold-left'} />
+      </button>
     </Navbar>
   );
 };
