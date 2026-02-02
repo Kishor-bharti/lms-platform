@@ -1,3 +1,4 @@
+import React, { useState } from "react";
 // reactstrap components
 import {
   Button,
@@ -13,6 +14,7 @@ import {
 import Header from "components/Headers/Header.js";
 
 const Sessions = () => {
+  const [selectedView, setSelectedView] = useState('day');
   return (
     <>
       <Header />
@@ -27,12 +29,12 @@ const Sessions = () => {
               </CardHeader>
               <CardBody>
                 <div className="d-flex justify-content-end mb-3">
-                  <Button size="sm" color="primary" outline>Day</Button>
-                  <Button size="sm" color="primary" outline className="ml-2">Week</Button>
-                  <Button size="sm" color="primary" outline className="ml-2">Month</Button>
+                  <Button size="sm" color="primary" outline={selectedView!=="day"} onClick={()=>setSelectedView('day')}>Day</Button>
+                  <Button size="sm" color="primary" outline={selectedView!=="week"} className="ml-2" onClick={()=>setSelectedView('week')}>Week</Button>
+                  <Button size="sm" color="primary" outline={selectedView!=="month"} className="ml-2" onClick={()=>setSelectedView('month')}>Month</Button>
                 </div>
                 <div className="session-stack">
-                  <div className="session-item p-3 mb-3 bg-white border rounded">
+                  <div className="session-item p-3 mb-3 bg-white border rounded" style={{ borderLeft: '4px solid #96c8ff', backgroundColor: '#f7fbff' }}>
                     <div className="d-flex justify-content-between align-items-center">
                       <h5 className="mb-1">AP Chemistry by Harmanpreet</h5>
                       <div className="small text-muted">04:00 pm</div>
@@ -40,7 +42,7 @@ const Sessions = () => {
                     <div className="small text-muted">• Recurring • Online</div>
                   </div>
 
-                  <div className="session-item p-3 mb-3 bg-white border rounded">
+                  <div className="session-item p-3 mb-3 bg-white border rounded" style={{ borderLeft: '4px solid #9fe4c8', backgroundColor: '#f8fcfa' }}>
                     <div className="d-flex justify-content-between align-items-center">
                       <h5 className="mb-1">AP Chemistry by Harmanpreet</h5>
                       <div className="small text-muted">06:00 pm</div>
@@ -48,7 +50,7 @@ const Sessions = () => {
                     <div className="small text-muted">• Recurring • Online</div>
                   </div>
 
-                  <div className="session-item p-3 mb-3 bg-white border rounded">
+                  <div className="session-item p-3 mb-3 bg-white border rounded" style={{ borderLeft: '4px solid #cbb6ff', backgroundColor: '#fbf8ff' }}>
                     <div className="d-flex justify-content-between align-items-center">
                       <h5 className="mb-1">IB Chemistry HL by Harmanpreet</h5>
                       <div className="small text-muted">07:00 pm</div>
