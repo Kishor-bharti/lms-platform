@@ -34,26 +34,26 @@ const Sessions = () => {
                 <div className="session-stack">
                   <div className="session-item p-3 mb-3 bg-white border rounded">
                     <div className="d-flex justify-content-between align-items-center">
-                      <h5 className="mb-1">Live Math Class - Session 1</h5>
+                      <h5 className="mb-1">AP Chemistry by Harmanpreet</h5>
                       <div className="small text-muted">04:00 pm</div>
                     </div>
-                    <div className="small text-muted">Dr. Smith • Recurring • Online</div>
+                    <div className="small text-muted">• Recurring • Online</div>
                   </div>
 
                   <div className="session-item p-3 mb-3 bg-white border rounded">
                     <div className="d-flex justify-content-between align-items-center">
-                      <h5 className="mb-1">Physics Workshop</h5>
-                      <div className="small text-muted">06:01 pm</div>
+                      <h5 className="mb-1">AP Chemistry by Harmanpreet</h5>
+                      <div className="small text-muted">06:00 pm</div>
                     </div>
-                    <div className="small text-muted">Prof. Brown • Recurring • Online</div>
+                    <div className="small text-muted">• Recurring • Online</div>
                   </div>
 
                   <div className="session-item p-3 mb-3 bg-white border rounded">
                     <div className="d-flex justify-content-between align-items-center">
-                      <h5 className="mb-1">Chemistry Practical Lab</h5>
+                      <h5 className="mb-1">IB Chemistry HL by Harmanpreet</h5>
                       <div className="small text-muted">07:00 pm</div>
                     </div>
-                    <div className="small text-muted">Dr. Wilson • Recurring • Online</div>
+                    <div className="small text-muted">• Recurring • Online</div>
                   </div>
                 </div>
                 <style>{`
