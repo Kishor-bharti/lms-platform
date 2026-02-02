@@ -10,6 +10,11 @@ import {
   Navbar,
   Container,
   Nav,
+  UncontrolledDropdown,
+  DropdownToggle,
+  DropdownMenu,
+  DropdownItem,
+  Media,
 } from "reactstrap";
 
 const AdminNavbar = (props) => {
@@ -39,30 +44,53 @@ const AdminNavbar = (props) => {
             </Form>
 
             <Nav className="align-items-center" navbar>
-              <div className="profile-widget d-flex align-items-center">
-                <span className="avatar avatar-sm rounded-circle">
-                  <img
-                    alt="..."
-                    src={require("../../assets/img/theme/team-4-800x800.jpg")}
-                  />
-                </span>
-                <span className="ml-2 mb-0 text-sm font-weight-bold text-white d-none d-sm-inline">
-                  Kishor Bharti
-                </span>
-              </div>
+              <UncontrolledDropdown nav>
+                <DropdownToggle className="pr-0" nav>
+                  <Media className="align-items-center">
+                    <span className="avatar avatar-sm rounded-circle">
+                      <img
+                        alt="..."
+                        src={require("../../assets/img/theme/team-4-800x800.jpg")}
+                      />
+                    </span>
+                    <Media className="ml-2 d-none d-lg-block">
+                      <span className="mb-0 text-sm font-weight-bold text-white">
+                        Kishor Bharti
+                      </span>
+                    </Media>
+                  </Media>
+                </DropdownToggle>
+                <DropdownMenu className="dropdown-menu-arrow" right>
+                  <DropdownItem className="noti-title" header tag="div">
+                    <h6 className="text-overflow m-0">WELCOME!</h6>
+                  </DropdownItem>
+                  <DropdownItem to="/admin/report" tag={Link}>
+                    <i className="ni ni-single-02" />
+                    <span>My profile</span>
+                  </DropdownItem>
+                  <DropdownItem to="/admin/report" tag={Link}>
+                    <i className="ni ni-settings-gear-65" />
+                    <span>Settings</span>
+                  </DropdownItem>
+                  <DropdownItem to="/admin/index" tag={Link}>
+                    <i className="ni ni-calendar-grid-58" />
+                    <span>Activity</span>
+                  </DropdownItem>
+                  <DropdownItem to="/admin/resources" tag={Link}>
+                    <i className="ni ni-support-16" />
+                    <span>Support</span>
+                  </DropdownItem>
+                  <DropdownItem divider />
+                  <DropdownItem href="#" onClick={(e) => e.preventDefault()}>
+                    <i className="ni ni-user-run" />
+                    <span>Logout</span>
+                  </DropdownItem>
+                </DropdownMenu>
+              </UncontrolledDropdown>
             </Nav>
           </div>
         </Container>
       </Navbar>
-      <style>{`
-        /* Responsive tweaks for the single profile widget */
-        @media (max-width: 765px), (max-height: 780px) {
-          #navbar-main .profile-widget {
-            margin-left: 0;
-            margin-right: auto;
-          }
-        }
-      `}</style>
     </>
   );
 };
