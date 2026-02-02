@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 // reactstrap components
 import {
   Form,
@@ -18,6 +18,11 @@ import {
 } from "reactstrap";
 
 const AdminNavbar = (props) => {
+  const navigate = useNavigate();
+  const handleLogout = (e) => {
+    if (e) e.preventDefault();
+    navigate("/auth/login");
+  };
   return (
     <>
       <Navbar className="navbar-top navbar-dark" expand="md" id="navbar-main">
@@ -77,7 +82,7 @@ const AdminNavbar = (props) => {
                     <span>Activity</span>
                   </DropdownItem>
                   <DropdownItem divider />
-                  <DropdownItem to="/admin/logout" tag={Link}>
+                  <DropdownItem to="/admin/logout" tag={Link} onClick={handleLogout}>
                     <i className="ni ni-user-run" />
                     <span>Logout</span>
                   </DropdownItem>

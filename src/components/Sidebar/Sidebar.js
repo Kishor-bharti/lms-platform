@@ -1,6 +1,6 @@
 /*eslint-disable*/
 import { useEffect, useState } from "react";
-import { NavLink as NavLinkRRD, Link } from "react-router-dom";
+import { NavLink as NavLinkRRD, Link, useNavigate } from "react-router-dom";
 // nodejs library to set properties for components
 import { PropTypes } from "prop-types";
 
@@ -40,6 +40,7 @@ var ps;
 const Sidebar = (props) => {
   const [collapseOpen, setCollapseOpen] = useState();
   const [mini, setMini] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const saved = localStorage.getItem("sidebar-mini");
@@ -75,7 +76,14 @@ const Sidebar = (props) => {
           <NavLink
             to={prop.layout + prop.path}
             tag={NavLinkRRD}
-            onClick={closeCollapse}
+            onClick={(e) => {
+              if (prop.name === "Logout") {
+                e.preventDefault();
+                navigate("/auth/login");
+              } else {
+                closeCollapse();
+              }
+            }}
             title={prop.name}
           >
             <i className={prop.icon} />
