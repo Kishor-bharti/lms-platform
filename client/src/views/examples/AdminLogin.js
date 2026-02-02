@@ -10,16 +10,51 @@ import {
   InputGroup,
 } from "reactstrap";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { apiUrl } from "../../utils/api";
 
 const AdminLogin = () => {
   const [isLoading, setIsLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const navigate = useNavigate();
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
+    setError("");
     setIsLoading(true);
-    setTimeout(() => {
+    try {
+      const res = await fetch(apiUrl("/api/auth/login"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), password: password.trim() })
+      });
+      if (!res.ok) {
+        let msg = "Invalid credentials";
+        try {
+          const errData = await res.json();
+          if (errData && typeof errData.message === "string") msg = errData.message;
+        } catch {}
+        setError(msg);
+        setIsLoading(false);
+        return;
+      }
+      const data = await res.json();
+      const role = data?.user?.role;
+      if (role !== "ADMIN") {
+        setError("*You are not an administrator");
+        setIsLoading(false);
+        return;
+      }
+      window.localStorage.setItem("token", data.token);
+      window.localStorage.setItem("role", role);
+      navigate("/admin/index", { replace: true });
+    } catch {
+      setError("Server error");
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -57,6 +92,8 @@ const AdminLogin = () => {
                         type="email"
                         autoComplete="new-email"
                         required
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
                       />
                     </InputGroup>
                   </FormGroup>
@@ -77,6 +114,8 @@ const AdminLogin = () => {
                         type="password"
                         autoComplete="new-password"
                         required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
                       />
                     </InputGroup>
                   </FormGroup>
@@ -101,6 +140,11 @@ const AdminLogin = () => {
                   </FormGroup>
 
                   {/* Login Button */}
+                  {error ? (
+                    <div className="mt-2 text-center">
+                      <small className="text-danger">{error}</small>
+                    </div>
+                  ) : null}
                   <div className="text-center mb-3">
                     <Button
                       className="btn-block"
