@@ -49,6 +49,7 @@ const AdminLogin = () => {
       }
       window.localStorage.setItem("token", data.token);
       window.localStorage.setItem("role", role);
+      try { window.localStorage.setItem("user", JSON.stringify(data.user)); } catch {}
       navigate("/admin/index", { replace: true });
     } catch {
       setError("Server error");

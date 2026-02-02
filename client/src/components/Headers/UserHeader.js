@@ -1,6 +1,17 @@
 import { Button, Container, Row, Col } from "reactstrap";
 
 const UserHeader = () => {
+  const user = (() => {
+    try {
+      const raw = window.localStorage.getItem("user") || "";
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  })();
+  const name = typeof user.name === "string" ? user.name : "";
+  const role = typeof user.role === "string" ? user.role : "";
+  const roleDisplay = role ? role.charAt(0) + role.slice(1).toLowerCase() : "";
   return (
     <>
       <div
@@ -19,11 +30,8 @@ const UserHeader = () => {
         <Container className="d-flex align-items-center" fluid>
           <Row>
             <Col lg="7" md="10">
-              <h1 className="display-2 text-white">Hello Student</h1>
-              <p className="text-white mt-0 mb-5">
-                This is your profile page. You can see the progress you've made
-                with your work and manage your projects or assigned tasks
-              </p>
+              <h1 className="display-2 text-white">{`Hi, ${name}`}</h1>
+              <p className="text-white mt-0 mb-5">{roleDisplay}</p>
               <Button
                 color="info"
                 href="#pablo"

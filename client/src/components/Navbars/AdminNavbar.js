@@ -19,8 +19,22 @@ import {
 
 const AdminNavbar = (props) => {
   const navigate = useNavigate();
+  const userName = (() => {
+    try {
+      const raw = window.localStorage.getItem("user") || "";
+      const u = raw ? JSON.parse(raw) : {};
+      return typeof u.name === "string" ? u.name : "";
+    } catch {
+      return "";
+    }
+  })();
   const handleLogout = (e) => {
     if (e) e.preventDefault();
+    try {
+      window.localStorage.removeItem("token");
+      window.localStorage.removeItem("role");
+      window.localStorage.removeItem("user");
+    } catch {}
     navigate("/auth/login");
   };
   return (
@@ -60,7 +74,7 @@ const AdminNavbar = (props) => {
                     </span>
                     <Media className="ml-2 d-none d-lg-block">
                       <span className="mb-0 text-sm font-weight-bold text-white">
-                        Kishor Bharti
+                        {userName}
                       </span>
                     </Media>
                   </Media>
