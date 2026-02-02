@@ -43,7 +43,7 @@ const Sessions = () => {
                     <td>Dr. Smith</td>
                     <td>60 minutes</td>
                     <td>
-                      <Badge color="success">Live</Badge>
+                      <Badge color="success" className="live-blink">Live</Badge>
                     </td>
                     <td>
                       <Button color="info" size="sm">
@@ -147,6 +147,10 @@ const Sessions = () => {
           </Col>
         </Row>
       </Container>
+      <style>{`
+        @keyframes liveBlink { 0%,100% { opacity: 1 } 50% { opacity: .3 } }
+        .live-blink { animation: liveBlink 1s infinite; }
+      `}</style>
     </>
   );
 };

@@ -13,6 +13,9 @@ const Report = () => {
                 <h3 className="mb-0">Report</h3>
               </CardHeader>
               <CardBody>
+                <div className="text-center mb-2">
+                  <span className="report-blink" style={{ fontWeight: 700, color: "#fb6340" }}>Coming Soon</span>
+                </div>
                 <p className="text-muted mb-4">
                   This is a demo report page. Add charts and summaries here.
                 </p>
@@ -32,6 +35,10 @@ const Report = () => {
           </Col>
         </Row>
       </Container>
+      <style>{`
+        @keyframes reportBlink { 0%, 100% { opacity: 1 } 50% { opacity: .3 } }
+        .report-blink { animation: reportBlink 1.2s infinite; }
+      `}</style>
     </>
   );
 };

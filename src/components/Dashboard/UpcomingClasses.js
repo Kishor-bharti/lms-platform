@@ -64,7 +64,7 @@ export default function UpcomingClasses() {
                           }}
                         />
                       )}
-                      {r.live ? "LIVE" : r.status.toUpperCase()}
+                      {r.live ? <span className="live-blink">LIVE</span> : r.status.toUpperCase()}
                     </Badge>
                   </td>
                   <td className="text-right">
@@ -134,7 +134,7 @@ export default function UpcomingClasses() {
                     {current.live && (
                       <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 4, background: "#dc3545", display: "inline-block" }} />
                     )}
-                    {current.live ? "LIVE" : current.status.toUpperCase()}
+                    {current.live ? <span className="live-blink">LIVE</span> : current.status.toUpperCase()}
                   </Badge>
                   </div>
                 </div>
@@ -155,6 +155,8 @@ export default function UpcomingClasses() {
         .upcoming-legacy { box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
         .thead-light th { color: #7f8da7; font-weight: 700; letter-spacing: .02em; }
         .details-modal .modal-content { border-radius: 12px; box-shadow: 0 16px 40px rgba(0,0,0,.18); border: none; }
+        @keyframes liveBlink { 0%,100% { opacity: 1 } 50% { opacity: .3 } }
+        .live-blink { animation: liveBlink 1s infinite; }
         @media (max-width: 767.98px) {
           .upcoming-legacy { border-radius: 10px; }
           .upcoming-legacy .card-header { padding: .75rem 1rem; }

@@ -70,6 +70,12 @@ export default function CalendarWidget() {
         </div>
       </CardBody>
       <style>{`
+        @media (max-width: 1040px), (max-height: 780px) {
+          .card-header .d-flex { flex-wrap: wrap; }
+          .card-header .btn { padding: 2px 6px; }
+          .card-body div[style*="gridTemplateColumns"] { gap: 6px !important; }
+          .card-body div[style*="gridTemplateColumns"] div { min-height: 36px !important; font-size: .95rem; }
+        }
         @media (max-width: 767.98px) {
           .card-header h4 { font-size: 1.05rem; }
           .card-header .btn { padding: 2px 6px; }

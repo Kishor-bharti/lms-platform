@@ -68,16 +68,16 @@ const AdminNavbar = (props) => {
                     <i className="ni ni-single-02" />
                     <span>My profile</span>
                   </DropdownItem>
-                  <DropdownItem to="/admin/report" tag={Link}>
+                  <DropdownItem href="#">
                     <i className="ni ni-settings-gear-65" />
                     <span>Settings</span>
                   </DropdownItem>
-                  <DropdownItem to="/admin/index" tag={Link}>
+                  <DropdownItem href="#">
                     <i className="ni ni-calendar-grid-58" />
                     <span>Activity</span>
                   </DropdownItem>
                   <DropdownItem divider />
-                  <DropdownItem href="#" onClick={(e) => e.preventDefault()}>
+                  <DropdownItem to="/admin/logout" tag={Link}>
                     <i className="ni ni-user-run" />
                     <span>Logout</span>
                   </DropdownItem>
