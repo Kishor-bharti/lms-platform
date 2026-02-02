@@ -28,7 +28,7 @@
     "install:clean": "rm -rf node_modules/ && rm -rf package-lock.json && npm install && npm start",
     "compile:scss": "sass src/assets/scss/lms-platform.scss src/assets/css/lms-platform.css",
     "minify:scss": "sass src/assets/scss/lms-platform.scss src/assets/css/lms-platform.min.css --style compressed",
-    "build:scss": "npm run compile:scss && npm run minify:scss && npm run map:scss"
+    "build:scss": "npm run compile:scss && npm run minify:scss"
   },
   "eslintConfig": {
     "extends": "react-app"
@@ -41,16 +41,8 @@
   ],
   "dependencies": {
     "@fortawesome/fontawesome-free": "6.5.1",
-    "ajv": "^8.16.0",
     "bootstrap": "4.6.2",
-    "chart.js": "2.9.4",
-    "classnames": "2.3.2",
-    "moment": "2.29.4",
-    "nouislider": "15.4.0",
     "react": "18.2.0",
-    "react-chartjs-2": "2.11.2",
-    "react-copy-to-clipboard": "5.1.0",
-    "react-datetime": "3.2.0",
     "react-dom": "18.2.0",
     "react-router-dom": "6.21.1",
     "react-scripts": "5.0.1",
@@ -58,13 +50,7 @@
     "sass": "1.69.5"
   },
   "devDependencies": {
-    "gulp": "4.0.2",
-    "gulp-append-prepend": "1.0.9",
     "cross-env": "^7.0.3"
-  },
-  "optionalDependencies": {
-    "eslint-plugin-flowtype": "8.0.3",
-    "typescript": "5.3.3"
   },
   "overrides": {
     "svgo": "3.0.2",
