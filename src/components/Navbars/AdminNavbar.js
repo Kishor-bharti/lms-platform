@@ -64,7 +64,7 @@ const AdminNavbar = (props) => {
                   <DropdownItem className="noti-title" header tag="div">
                     <h6 className="text-overflow m-0">WELCOME!</h6>
                   </DropdownItem>
-                  <DropdownItem to="/admin/report" tag={Link}>
+                  <DropdownItem to="/admin/profile" tag={Link}>
                     <i className="ni ni-single-02" />
                     <span>My profile</span>
                   </DropdownItem>
@@ -75,10 +75,6 @@ const AdminNavbar = (props) => {
                   <DropdownItem to="/admin/index" tag={Link}>
                     <i className="ni ni-calendar-grid-58" />
                     <span>Activity</span>
-                  </DropdownItem>
-                  <DropdownItem to="/admin/resources" tag={Link}>
-                    <i className="ni ni-support-16" />
-                    <span>Support</span>
                   </DropdownItem>
                   <DropdownItem divider />
                   <DropdownItem href="#" onClick={(e) => e.preventDefault()}>

@@ -1,5 +1,6 @@
 import Index from "views/Index.js";
 import Report from "views/examples/Report.js";
+import Profile from "views/examples/Profile.js";
 import Resources from "views/examples/Resources.js";
 import Login from "views/examples/Login.js";
 import AdminLogin from "views/examples/AdminLogin.js";
@@ -36,10 +37,24 @@ var routes = [
     layout: "/admin",
   },
   {
+    path: "/profile",
+    name: "Profile",
+    icon: "ni ni-single-02 text-info",
+    component: <Profile />,
+    layout: "/admin",
+  },
+  {
     path: "/sat",
     name: "SAT",
     icon: "ni ni-bullet-list-67 text-red",
     component: <SAT />,
+    layout: "/admin",
+  },
+  {
+    path: "/logout",
+    name: "Logout",
+    icon: "ni ni-user-run text-danger",
+    component: <Index />,
     layout: "/admin",
   },
   {
