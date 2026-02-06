@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 // reactstrap components
 import {
   Button,
@@ -13,69 +13,84 @@ import {
 } from "reactstrap";
 // core components
 import Header from "components/Headers/Header.js";
+import { apiUrl } from "utils/api";
 
 const Classes = () => {
   const [selectedView, setSelectedView] = useState('day');
+  const [classes, setClasses] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const classes = [
-    {
-      id: 1,
-      title: "AP Chemistry",
-      subject: "Chemistry",
-      teacher: "Harmanpreet",
-      status: "LIVE",
-      time: "04:00 pm",
-      joinLink: "https://meet.example.com/apchemistry",
-      date: "Jan 29, 2026"
-    },
-    {
-      id: 2,
-      title: "AP Chemistry",
-      subject: "Chemistry",
-      teacher: "Harmanpreet",
-      status: "TODAY",
-      time: "07:00 pm",
-      joinLink: "https://meet.example.com/apchemistry2",
-      date: "Jan 29, 2026"
-    },
-    {
-      id: 3,
-      title: "IB Chemistry HL",
-      subject: "Chemistry",
-      teacher: "Harmanpreet",
-      status: "UPCOMING",
-      time: "06:01 pm",
-      joinLink: "https://meet.example.com/ibchemistry",
-      date: "Jan 30, 2026"
-    },
-    {
-      id: 4,
-      title: "IB Chemistry HL",
-      subject: "Chemistry",
-      teacher: "Harmanpreet",
-      status: "UPCOMING",
-      time: "07:00 pm",
-      joinLink: "https://meet.example.com/ibchemistry2",
-      date: "Jan 30, 2026"
-    },
-  ];
+  useEffect(() => {
+    fetchClasses();
+    const interval = setInterval(fetchClasses, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchClasses = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(apiUrl('/api/classes/my-classes'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const classesWithStatus = data.map(cls => {
+          const latestSession = cls.sessions && cls.sessions.length > 0 ? cls.sessions[0] : null;
+          return {
+            ...cls,
+            currentSession: latestSession
+          };
+        });
+        setClasses(classesWithStatus);
+      }
+      setLoading(false);
+    } catch (error) {
+      console.error('Failed to fetch classes:', error);
+      setLoading(false);
+    }
+  };
 
   const getStatusBadge = (status) => {
     switch(status) {
       case 'LIVE':
         return <Badge color="danger" className="live-blink">LIVE</Badge>;
-      case 'TODAY':
+      case 'SCHEDULED':
         return <Badge color="info">TODAY</Badge>;
-      case 'UPCOMING':
-        return <Badge color="warning">TOMORROW</Badge>;
+      case 'COMPLETED':
+        return <Badge color="secondary">COMPLETED</Badge>;
       default:
         return <Badge>{status}</Badge>;
     }
   };
 
-  const handleJoin = (joinLink) => {
-    window.open(joinLink, '_blank');
+  const handleJoin = (zoomLink) => {
+    if (zoomLink) {
+      window.open(zoomLink, '_blank');
+    }
   };
+
+  if (loading) {
+    return (
+      <>
+        <Header />
+        <Container className="mt--7" fluid style={{ backgroundColor: "rgb(196, 214, 226)", minHeight: "100vh", paddingTop: "30px", paddingBottom: "30px" }}>
+          <Row>
+            <Col lg="12">
+              <Card>
+                <CardBody className="text-center py-5">
+                  <p>Loading classes...</p>
+                </CardBody>
+              </Card>
+            </Col>
+          </Row>
+        </Container>
+      </>
+    );
+  }
 
   return (
     <>
@@ -87,7 +102,7 @@ const Classes = () => {
           <Col lg="12">
             <Card className="shadow mb-4" style={{ backgroundColor: "#f0f4f8", borderRadius: "8px" }}>
               <CardHeader className="border-0" style={{ backgroundColor: "#e8f0f6", borderTopLeftRadius: "8px", borderTopRightRadius: "8px" }}>
-                <CardTitle className="mb-0">Upcoming Classes</CardTitle>
+                <CardTitle className="mb-0">Enrolled Classes</CardTitle>
               </CardHeader>
               <CardBody>
                 <div className="d-flex justify-content-end mb-3">
@@ -96,31 +111,37 @@ const Classes = () => {
                   <Button size="sm" color="primary" outline={selectedView!=="month"} className="ml-2" onClick={()=>setSelectedView('month')}>Month</Button>
                 </div>
                 <div className="class-stack">
-                  {classes.map((classItem) => (
-                    <div key={classItem.id} className="class-item p-3 mb-3 bg-white border rounded" style={{ borderLeft: '4px solid #96c8ff', backgroundColor: classItem.status === 'LIVE' ? '#ffe6e6' : '#e6f2ff' }}>
-                      <div className="d-flex justify-content-between align-items-start">
-                        <div className="flex-grow-1">
-                          <div className="d-flex align-items-center mb-2">
-                            <h5 className="mb-0 mr-2">{classItem.title}</h5>
-                            {getStatusBadge(classItem.status)}
+                  {classes.length === 0 ? (
+                    <div className="text-center py-5">
+                      <p className="text-muted">No enrolled classes</p>
+                    </div>
+                  ) : (
+                    classes.map((classItem) => (
+                      <div key={classItem.id} className="class-item p-3 mb-3 bg-white border rounded" style={{ borderLeft: '4px solid #96c8ff', backgroundColor: classItem.currentSession?.status === 'LIVE' ? '#ffe6e6' : '#e6f2ff' }}>
+                        <div className="d-flex justify-content-between align-items-start">
+                          <div className="flex-grow-1">
+                            <div className="d-flex align-items-center mb-2">
+                              <h5 className="mb-0 mr-2">{classItem.title}</h5>
+                              {classItem.currentSession && getStatusBadge(classItem.currentSession.status)}
+                            </div>
+                            <div className="small text-muted mb-2">
+                              <span className="mr-3">📚 {classItem.subject}</span>
+                              <span className="mr-3">👨‍🏫 {classItem.teacher_name}</span>
+                              {classItem.currentSession && <span>🕐 {new Date(classItem.currentSession.scheduled_at).toLocaleTimeString()}</span>}
+                            </div>
                           </div>
-                          <div className="small text-muted mb-2">
-                            <span className="mr-3">📚 {classItem.subject}</span>
-                            <span className="mr-3">👨‍🏫 {classItem.teacher}</span>
-                            <span>🕐 {classItem.time}</span>
+                          <div className="d-flex gap-2">
+                            {classItem.currentSession?.status === 'LIVE' && (
+                              <Button size="sm" color="success" onClick={() => handleJoin(classItem.currentSession.zoom_link)}>
+                                Join
+                              </Button>
+                            )}
+                            <Button size="sm" color="dark">Details</Button>
                           </div>
-                        </div>
-                        <div className="d-flex gap-2">
-                          {classItem.status === 'LIVE' && (
-                            <Button size="sm" color="success" onClick={() => handleJoin(classItem.joinLink)}>
-                              Join
-                            </Button>
-                          )}
-                          <Button size="sm" color="dark">Details</Button>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
                 <style>{`
                   .class-stack .class-item { transition: box-shadow .15s ease; }

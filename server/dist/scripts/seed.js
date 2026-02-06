@@ -1,100 +1,106 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
-const promise_1 = __importDefault(require("mysql2/promise"));
-const bcrypt_1 = __importDefault(require("bcrypt"));
+const pg_1 = require("pg");
+const fs_1 = require("fs");
+const path_1 = require("path");
 const env_1 = require("../config/env");
-function requireStringEnv(name) {
-    const value = env_1.env[name];
-    if (typeof value !== 'string' || value.length === 0) {
-        throw new Error(`Missing or invalid string env: ${String(name)}`);
+// Pool connected to postgres system database to create target DB
+async function ensureDatabaseExists() {
+    const adminPool = new pg_1.Pool({
+        host: env_1.env.DB_HOST || undefined,
+        port: env_1.env.DB_PORT,
+        user: env_1.env.DB_USER || undefined,
+        password: env_1.env.DB_PASSWORD || undefined,
+        database: 'postgres',
+    });
+    try {
+        await adminPool.query(`CREATE DATABASE ${env_1.env.DB_NAME}`);
+        console.log(`✓ Database ${env_1.env.DB_NAME} created`);
     }
-    return value;
-}
-function requireNumberEnv(name) {
-    const value = env_1.env[name];
-    if (typeof value !== 'number' || Number.isNaN(value)) {
-        throw new Error(`Missing or invalid number env: ${String(name)}`);
+    catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!/already exists/i.test(msg)) {
+            throw err;
+        }
+        console.log(`✓ Database ${env_1.env.DB_NAME} already exists`);
     }
-    return value;
-}
-function assertDbNameSafe(name) {
-    if (!/^[A-Za-z0-9_]+$/.test(name)) {
-        throw new Error('DB_NAME must contain only letters, numbers, and underscore');
+    finally {
+        await adminPool.end();
     }
 }
-async function createDatabase() {
-    const host = requireStringEnv('DB_HOST');
-    const port = requireNumberEnv('DB_PORT');
-    const user = requireStringEnv('DB_USER');
-    const password = requireStringEnv('DB_PASSWORD');
-    const dbName = requireStringEnv('DB_NAME');
-    assertDbNameSafe(dbName);
-    const conn = await promise_1.default.createConnection({ host, port, user, password });
-    await conn.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
-    await conn.end();
+async function executeSqlFile(pool, filePath) {
+    const sql = (0, fs_1.readFileSync)(filePath, 'utf-8');
+    // Split by semicolon and filter empty statements
+    const statements = sql
+        .split(';')
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+    for (const statement of statements) {
+        await pool.query(statement);
+    }
 }
-async function createUsersTable() {
-    const host = requireStringEnv('DB_HOST');
-    const port = requireNumberEnv('DB_PORT');
-    const user = requireStringEnv('DB_USER');
-    const password = requireStringEnv('DB_PASSWORD');
-    const dbName = requireStringEnv('DB_NAME');
-    const conn = await promise_1.default.createConnection({ host, port, user, password, database: dbName });
-    const createSql = `
-    CREATE TABLE IF NOT EXISTS users (
-      id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-      name VARCHAR(255) NOT NULL,
-      email VARCHAR(255) NOT NULL,
-      password_hash VARCHAR(255) NOT NULL,
-      role VARCHAR(16) NOT NULL,
-      status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE',
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      CONSTRAINT uq_users_email UNIQUE (email),
-      CONSTRAINT chk_users_role CHECK (role IN ('ADMIN','TEACHER','STUDENT')),
-      CONSTRAINT chk_users_status CHECK (status IN ('ACTIVE','INACTIVE'))
-    ) ENGINE=InnoDB
-      DEFAULT CHARSET = utf8mb4
-      COLLATE = utf8mb4_unicode_ci;
-  `;
-    await conn.query(createSql);
-    await conn.end();
-}
-async function seedUsers() {
-    const host = requireStringEnv('DB_HOST');
-    const port = requireNumberEnv('DB_PORT');
-    const user = requireStringEnv('DB_USER');
-    const password = requireStringEnv('DB_PASSWORD');
-    const dbName = requireStringEnv('DB_NAME');
-    const conn = await promise_1.default.createConnection({ host, port, user, password, database: dbName });
-    const pass1 = await bcrypt_1.default.hash('123', 10);
-    const pass2 = await bcrypt_1.default.hash('123', 10);
-    const insertSql = `
-    INSERT INTO users (name, email, password_hash, role, status)
-    VALUES (?, ?, ?, ?, ?)
-    ON DUPLICATE KEY UPDATE
-      name = VALUES(name),
-      password_hash = VALUES(password_hash),
-      role = VALUES(role),
-      status = VALUES(status);
-  `;
-    await conn.execute(insertSql, ['Kishor', 'kishor@gmail.com', pass1, 'STUDENT', 'ACTIVE']);
-    await conn.execute(insertSql, ['Harman', 'harman@gmail.com', pass2, 'TEACHER', 'ACTIVE']);
-    await conn.end();
+async function seedDatabase() {
+    const pool = new pg_1.Pool({
+        host: env_1.env.DB_HOST || undefined,
+        port: env_1.env.DB_PORT,
+        user: env_1.env.DB_USER || undefined,
+        password: env_1.env.DB_PASSWORD || undefined,
+        database: env_1.env.DB_NAME || undefined,
+    });
+    try {
+        // Drop existing tables
+        console.log('Dropping existing tables...');
+        try {
+            await pool.query('DROP TABLE IF EXISTS sessions CASCADE');
+            await pool.query('DROP TABLE IF EXISTS enrollments CASCADE');
+            await pool.query('DROP TABLE IF EXISTS classes CASCADE');
+            await pool.query('DROP TABLE IF EXISTS users CASCADE');
+            console.log('✓ Tables dropped');
+        }
+        catch (err) {
+            console.log('✓ No existing tables to drop');
+        }
+        // Execute schema.sql (creates tables)
+        console.log('Creating tables from schema.sql...');
+        const schemaPath = (0, path_1.join)(__dirname, '../../sql/schema.sql');
+        const schemaSql = (0, fs_1.readFileSync)(schemaPath, 'utf-8');
+        // Extract only the table creation part (skip CREATE DATABASE and \c)
+        const tableStatements = schemaSql
+            .split(';')
+            .map(s => s.trim())
+            .filter(s => s.length > 0 && !/^(CREATE DATABASE|\\c)/i.test(s));
+        for (const statement of tableStatements) {
+            await pool.query(statement);
+        }
+        console.log('✓ Tables created');
+        // Execute seed.sql
+        console.log('Seeding data...');
+        const seedPath = (0, path_1.join)(__dirname, '../../sql/seed.sql');
+        const seedSql = (0, fs_1.readFileSync)(seedPath, 'utf-8');
+        const seedStatements = seedSql
+            .split(';')
+            .map(s => s.trim())
+            .filter(s => s.length > 0 && !/^\\c/i.test(s));
+        for (const statement of seedStatements) {
+            await pool.query(statement);
+        }
+        console.log('✓ Data seeded');
+    }
+    finally {
+        await pool.end();
+    }
 }
 async function main() {
-    console.log('Creating database...');
-    await createDatabase();
-    console.log('Ensuring users table exists...');
-    await createUsersTable();
-    console.log('Seeding users...');
-    await seedUsers();
-    console.log('Done.');
+    try {
+        await ensureDatabaseExists();
+        await seedDatabase();
+        console.log('✓ Database setup complete');
+        process.exit(0);
+    }
+    catch (err) {
+        console.error('✗ Seeding failed:', err);
+        process.exit(1);
+    }
 }
-main().catch((err) => {
-    console.error(err);
-    process.exit(1);
-});
+main();
 //# sourceMappingURL=seed.js.map

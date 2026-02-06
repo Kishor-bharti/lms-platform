@@ -1,5 +1,6 @@
 import express from 'express';
 import authRouter from './modules/auth/auth.routes';
+import classesRouter from './modules/classes/classes.routes';
 import { env } from "./config/env";
 
 const app = express();
@@ -19,5 +20,6 @@ app.use((req, res, next) => {
 });
 
 app.use('/api/auth', authRouter);
+app.use('/api/classes', classesRouter);
 
 export default app;

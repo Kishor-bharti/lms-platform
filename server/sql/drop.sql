@@ -1,0 +1,9 @@
+\c lms_db;
+
+DROP TABLE IF EXISTS sessions CASCADE;
+DROP TABLE IF EXISTS enrollments CASCADE;
+DROP TABLE IF EXISTS classes CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
+
+-- Optional full reset
+-- DROP DATABASE IF EXISTS lms_db;
