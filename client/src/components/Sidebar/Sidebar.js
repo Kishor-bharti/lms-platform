@@ -48,8 +48,13 @@ const Sidebar = (props) => {
   };
   // creates the links that appear in the left menu / Sidebar
   const createLinks = (routes) => {
+    const userRole = typeof window !== "undefined" ? window.localStorage.getItem("role") : null;
     return routes
-      .filter((prop) => prop.layout === "/admin")
+      .filter((prop) => {
+        if (prop.layout !== "/admin") return false;
+        if (!prop.roles) return true;
+        return prop.roles.includes(userRole);
+      })
       .map((prop, key) => {
       return (
         <NavItem key={key}>

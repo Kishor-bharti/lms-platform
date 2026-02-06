@@ -6,6 +6,7 @@ import Login from "views/examples/Login.js";
 import AdminLogin from "views/examples/AdminLogin.js";
 import SAT from "views/examples/SAT.js";
 import Sessions from "views/examples/Sessions.js";
+import Classes from "views/examples/Classes.js";
 
 var routes = [
   {
@@ -14,6 +15,7 @@ var routes = [
     icon: "ni ni-tv-2 text-primary",
     component: <Index />,
     layout: "/admin",
+    roles: ["STUDENT", "TEACHER"],
   },
   {
     path: "/sessions",
@@ -21,6 +23,15 @@ var routes = [
     icon: "ni ni-chat-round text-info",
     component: <Sessions />,
     layout: "/admin",
+    roles: ["TEACHER"],
+  },
+  {
+    path: "/classes",
+    name: "Classes",
+    icon: "ni ni-folder-17 text-blue",
+    component: <Classes />,
+    layout: "/admin",
+    roles: ["STUDENT"],
   },
   {
     path: "/resources",
