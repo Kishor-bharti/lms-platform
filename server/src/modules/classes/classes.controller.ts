@@ -118,3 +118,38 @@ export async function getSessionById(req: Request, res: Response) {
     res.status(500).json({ message: 'Failed to fetch session' });
   }
 }
+
+// New data-driven API handlers
+export async function getMyClasses(req: Request, res: Response) {
+  try {
+    const userId = req.user?.id?.toString();
+    const userRole = req.user?.role;
+
+    if (!userId || !userRole) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const classes = await classesService.getMyClasses(userId, userRole);
+    res.json(classes);
+  } catch (error: unknown) {
+    console.error(error);
+    res.status(500).json({ message: 'Failed to fetch classes' });
+  }
+}
+
+export async function getMySessionsV2(req: Request, res: Response) {
+  try {
+    const userId = req.user?.id?.toString();
+    const userRole = req.user?.role;
+
+    if (!userId || !userRole) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const sessions = await classesService.getMySessionsV2(userId, userRole);
+    res.json(sessions);
+  } catch (error: unknown) {
+    console.error(error);
+    res.status(500).json({ message: 'Failed to fetch sessions' });
+  }
+}

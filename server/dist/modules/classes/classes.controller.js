@@ -39,6 +39,8 @@ exports.startSession = startSession;
 exports.getTeacherClasses = getTeacherClasses;
 exports.getStudentClasses = getStudentClasses;
 exports.getSessionById = getSessionById;
+exports.getMyClasses = getMyClasses;
+exports.getMySessionsV2 = getMySessionsV2;
 const classesService = __importStar(require("./classes.service"));
 async function createClass(req, res) {
     try {
@@ -135,6 +137,37 @@ async function getSessionById(req, res) {
     catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Failed to fetch session' });
+    }
+}
+// New data-driven API handlers
+async function getMyClasses(req, res) {
+    try {
+        const userId = req.user?.id?.toString();
+        const userRole = req.user?.role;
+        if (!userId || !userRole) {
+            return res.status(401).json({ message: 'Unauthorized' });
+        }
+        const classes = await classesService.getMyClasses(userId, userRole);
+        res.json(classes);
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Failed to fetch classes' });
+    }
+}
+async function getMySessionsV2(req, res) {
+    try {
+        const userId = req.user?.id?.toString();
+        const userRole = req.user?.role;
+        if (!userId || !userRole) {
+            return res.status(401).json({ message: 'Unauthorized' });
+        }
+        const sessions = await classesService.getMySessionsV2(userId, userRole);
+        res.json(sessions);
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Failed to fetch sessions' });
     }
 }
 //# sourceMappingURL=classes.controller.js.map

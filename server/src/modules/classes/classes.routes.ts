@@ -18,4 +18,8 @@ router.get('/my-classes', classesController.getStudentClasses);
 router.get('/teacher-classes', classesController.getTeacherClasses);
 router.get('/sessions/:sessionId', classesController.getSessionById);
 
+// New data-driven APIs
+router.get('/my-classes-v2', classesController.getMyClasses);
+router.get('/my-sessions-v2', classesController.getMySessionsV2);
+
 export default router;

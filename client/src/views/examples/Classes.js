@@ -29,7 +29,7 @@ const Classes = () => {
   const fetchClasses = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(apiUrl('/api/classes/my-classes'), {
+      const response = await fetch(apiUrl('/api/classes/my-classes-v2'), {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -38,18 +38,15 @@ const Classes = () => {
 
       if (response.ok) {
         const data = await response.json();
-        const classesWithStatus = data.map(cls => {
-          const latestSession = cls.sessions && cls.sessions.length > 0 ? cls.sessions[0] : null;
-          return {
-            ...cls,
-            currentSession: latestSession
-          };
-        });
-        setClasses(classesWithStatus);
+        setClasses(data);
+      } else {
+        console.error('Failed to fetch classes:', response.status);
+        setClasses([]);
       }
       setLoading(false);
     } catch (error) {
       console.error('Failed to fetch classes:', error);
+      setClasses([]);
       setLoading(false);
     }
   };
@@ -113,31 +110,20 @@ const Classes = () => {
                 <div className="class-stack">
                   {classes.length === 0 ? (
                     <div className="text-center py-5">
-                      <p className="text-muted">No enrolled classes</p>
+                      <p className="text-muted">No enrolled classes yet</p>
                     </div>
                   ) : (
                     classes.map((classItem) => (
-                      <div key={classItem.id} className="class-item p-3 mb-3 bg-white border rounded" style={{ borderLeft: '4px solid #96c8ff', backgroundColor: classItem.currentSession?.status === 'LIVE' ? '#ffe6e6' : '#e6f2ff' }}>
+                      <div key={classItem.id} className="class-item p-3 mb-3 bg-white border rounded" style={{ borderLeft: '4px solid #96c8ff' }}>
                         <div className="d-flex justify-content-between align-items-start">
                           <div className="flex-grow-1">
-                            <div className="d-flex align-items-center mb-2">
-                              <h5 className="mb-0 mr-2">{classItem.title}</h5>
-                              {classItem.currentSession && getStatusBadge(classItem.currentSession.status)}
-                            </div>
+                            <h5 className="mb-0 mr-2">{classItem.title}</h5>
                             <div className="small text-muted mb-2">
-                              <span className="mr-3">📚 {classItem.subject}</span>
+                              <span className="mr-3">📚 {classItem.subject || 'N/A'}</span>
                               <span className="mr-3">👨‍🏫 {classItem.teacher_name}</span>
-                              {classItem.currentSession && <span>🕐 {new Date(classItem.currentSession.scheduled_at).toLocaleTimeString()}</span>}
                             </div>
                           </div>
-                          <div className="d-flex gap-2">
-                            {classItem.currentSession?.status === 'LIVE' && (
-                              <Button size="sm" color="success" onClick={() => handleJoin(classItem.currentSession.zoom_link)}>
-                                Join
-                              </Button>
-                            )}
-                            <Button size="sm" color="dark">Details</Button>
-                          </div>
+                          <Button size="sm" color="dark">Details</Button>
                         </div>
                       </div>
                     ))

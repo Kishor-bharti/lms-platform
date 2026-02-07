@@ -7,8 +7,45 @@ exports.getTeacherClasses = getTeacherClasses;
 exports.getStudentEnrolledClasses = getStudentEnrolledClasses;
 exports.getSessionById = getSessionById;
 exports.enrollStudent = enrollStudent;
+exports.getMyClasses = getMyClasses;
+exports.getTeacherClassesV2 = getTeacherClassesV2;
+exports.getEnrolledClassesV2 = getEnrolledClassesV2;
+exports.getMySessionsV2 = getMySessionsV2;
+exports.getSessionsByTeacherV2 = getSessionsByTeacherV2;
+exports.getSessionsByStudentV2 = getSessionsByStudentV2;
 const crypto_1 = require("crypto");
 const db_1 = require("../../config/db");
+// Session status calculation
+function calculateSessionStatus(scheduled_at, dbStatus, today = new Date()) {
+    // LIVE has highest priority
+    if (dbStatus === 'LIVE') {
+        return 'LIVE';
+    }
+    // COMPLETED sessions stay completed
+    if (dbStatus === 'COMPLETED') {
+        return 'COMPLETED';
+    }
+    const sessionDate = new Date(scheduled_at);
+    const todayDate = new Date(today);
+    todayDate.setHours(0, 0, 0, 0);
+    const tomorrowDate = new Date(todayDate);
+    tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+    const sessionDateOnly = new Date(sessionDate);
+    sessionDateOnly.setHours(0, 0, 0, 0);
+    // Check if session time has passed
+    if (sessionDate < today) {
+        return 'COMPLETED';
+    }
+    // Check if session is today
+    if (sessionDateOnly.getTime() === todayDate.getTime()) {
+        return 'TODAY';
+    }
+    // Check if session is tomorrow
+    if (sessionDateOnly.getTime() === tomorrowDate.getTime()) {
+        return 'TOMORROW';
+    }
+    return 'SCHEDULED';
+}
 async function createClass(title, subject, teacherId) {
     const id = (0, crypto_1.randomUUID)();
     await (0, db_1.query)('INSERT INTO classes (id, title, subject, teacher_id) VALUES (?, ?, ?, ?)', [id, title, subject, teacherId]);
@@ -79,5 +116,101 @@ async function enrollStudent(classId, studentId) {
         throw new Error('Failed to create enrollment');
     }
     return enrollments[0];
+}
+async function getMyClasses(userId, role) {
+    if (role === 'TEACHER') {
+        return getTeacherClassesV2(userId);
+    }
+    else if (role === 'STUDENT') {
+        return getEnrolledClassesV2(userId);
+    }
+    return [];
+}
+async function getTeacherClassesV2(teacherId) {
+    const rows = await (0, db_1.query)(`SELECT 
+      c.id, c.title, c.subject, c.teacher_id, u.name as teacher_name, 
+      c.start_date, c.end_date, c.created_at
+     FROM classes c
+     JOIN users u ON c.teacher_id = u.id
+     WHERE c.teacher_id = $1
+     ORDER BY c.start_date DESC`, [teacherId]);
+    return rows.map(row => ({
+        id: row.id,
+        title: row.title,
+        subject: row.subject,
+        teacher_id: row.teacher_id,
+        teacher_name: row.teacher_name,
+        start_date: row.start_date,
+        end_date: row.end_date,
+        created_at: row.created_at,
+    }));
+}
+async function getEnrolledClassesV2(studentId) {
+    const rows = await (0, db_1.query)(`SELECT 
+      c.id, c.title, c.subject, c.teacher_id, u.name as teacher_name,
+      c.start_date, c.end_date, c.created_at
+     FROM classes c
+     JOIN users u ON c.teacher_id = u.id
+     JOIN enrollments e ON c.id = e.class_id
+     WHERE e.student_id = $1
+     ORDER BY c.start_date DESC`, [studentId]);
+    return rows.map(row => ({
+        id: row.id,
+        title: row.title,
+        subject: row.subject,
+        teacher_id: row.teacher_id,
+        teacher_name: row.teacher_name,
+        start_date: row.start_date,
+        end_date: row.end_date,
+        created_at: row.created_at,
+    }));
+}
+async function getMySessionsV2(userId, role) {
+    if (role === 'TEACHER') {
+        return getSessionsByTeacherV2(userId);
+    }
+    else if (role === 'STUDENT') {
+        return getSessionsByStudentV2(userId);
+    }
+    return [];
+}
+async function getSessionsByTeacherV2(teacherId) {
+    const rows = await (0, db_1.query)(`SELECT 
+      s.id, s.class_id, c.title as class_title, s.title, s.zoom_link, 
+      s.scheduled_at, s.status
+     FROM sessions s
+     JOIN classes c ON s.class_id = c.id
+     WHERE c.teacher_id = $1
+     ORDER BY s.scheduled_at DESC`, [teacherId]);
+    const today = new Date();
+    return rows.map(row => ({
+        id: row.id,
+        class_id: row.class_id,
+        class_title: row.class_title,
+        title: row.title,
+        zoom_link: row.zoom_link,
+        scheduled_at: row.scheduled_at,
+        status: calculateSessionStatus(row.scheduled_at, row.status, today),
+    }));
+}
+async function getSessionsByStudentV2(studentId) {
+    const rows = await (0, db_1.query)(`SELECT 
+      s.id, s.class_id, c.title as class_title, s.title, s.zoom_link,
+      s.scheduled_at, s.status
+     FROM sessions s
+     JOIN classes c ON s.class_id = c.id
+     JOIN enrollments e ON c.id = e.class_id
+     WHERE e.student_id = $1
+     ORDER BY s.scheduled_at DESC`, [studentId]);
+    const today = new Date();
+    return rows.map(row => ({
+        id: row.id,
+        class_id: row.class_id,
+        class_title: row.class_title,
+        title: row.title,
+        zoom_link: row.zoom_link,
+        scheduled_at: row.scheduled_at,
+        status: calculateSessionStatus(row.scheduled_at, row.status, today),
+    }));
 }
 //# sourceMappingURL=classes.service.js.map

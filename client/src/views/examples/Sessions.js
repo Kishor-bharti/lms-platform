@@ -9,30 +9,26 @@ import {
   Container,
   Row,
   Col,
-  Collapse,
-  FormGroup,
-  Label,
-  Input,
+  Badge,
 } from "reactstrap";
 // core components
 import Header from "components/Headers/Header.js";
 import { apiUrl } from "utils/api";
 
 const Sessions = () => {
-  const [selectedView, setSelectedView] = useState('day');
-  const [classes, setClasses] = useState([]);
-  const [expandedSession, setExpandedSession] = useState(null);
-  const [sessionTitle, setSessionTitle] = useState('');
+  const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchClasses();
+    fetchSessions();
+    const interval = setInterval(fetchSessions, 5000);
+    return () => clearInterval(interval);
   }, []);
 
-  const fetchClasses = async () => {
+  const fetchSessions = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(apiUrl('/api/classes/teacher-classes'), {
+      const response = await fetch(apiUrl('/api/classes/my-sessions-v2'), {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -41,69 +37,38 @@ const Sessions = () => {
 
       if (response.ok) {
         const data = await response.json();
-        setClasses(data);
+        setSessions(data);
+      } else {
+        setSessions([]);
       }
       setLoading(false);
     } catch (error) {
-      console.error('Failed to fetch classes:', error);
+      console.error('Failed to fetch sessions:', error);
+      setSessions([]);
       setLoading(false);
     }
   };
 
-  const toggleSessionPanel = (classId) => {
-    setExpandedSession(expandedSession === classId ? null : classId);
-    setSessionTitle('');
+  const getStatusBadge = (status) => {
+    switch(status) {
+      case 'LIVE':
+        return <Badge color="danger" className="live-blink">LIVE</Badge>;
+      case 'TODAY':
+        return <Badge color="warning">TODAY</Badge>;
+      case 'TOMORROW':
+        return <Badge color="info">TOMORROW</Badge>;
+      case 'COMPLETED':
+        return <Badge color="secondary">COMPLETED</Badge>;
+      case 'SCHEDULED':
+        return <Badge color="light">SCHEDULED</Badge>;
+      default:
+        return <Badge>{status}</Badge>;
+    }
   };
 
-  const handleStartSession = async (classId) => {
-    if (!sessionTitle.trim()) {
-      alert('Please enter a session title');
-      return;
-    }
-
-    try {
-      const token = localStorage.getItem('token');
-      
-      // Create session
-      const createResponse = await fetch(apiUrl('/api/classes/sessions/create'), {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          classId: classId,
-          title: sessionTitle,
-          scheduledAt: new Date().toISOString()
-        })
-      });
-
-      if (createResponse.ok) {
-        const session = await createResponse.json();
-
-        // Start session
-        const startResponse = await fetch(apiUrl('/api/classes/sessions/start'), {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            sessionId: session.id
-          })
-        });
-
-        if (startResponse.ok) {
-          const startedSession = await startResponse.json();
-          window.open(startedSession.zoom_link, '_blank');
-          setExpandedSession(null);
-          setSessionTitle('');
-          fetchClasses();
-        }
-      }
-    } catch (error) {
-      console.error('Failed to start session:', error);
-      alert('Failed to start session');
+  const handleJoin = (zoomLink) => {
+    if (zoomLink) {
+      window.open(zoomLink, '_blank');
     }
   };
 
@@ -116,7 +81,7 @@ const Sessions = () => {
             <Col lg="12">
               <Card>
                 <CardBody className="text-center py-5">
-                  <p>Loading classes...</p>
+                  <p>Loading sessions...</p>
                 </CardBody>
               </Card>
             </Col>
@@ -125,59 +90,47 @@ const Sessions = () => {
       </>
     );
   }
-
   return (
     <>
       <Header />
       {/* Page content */}
       <Container className="mt--7" fluid style={{ backgroundColor: "rgb(196, 214, 226)", minHeight: "100vh", paddingTop: "30px", paddingBottom: "30px" }}>
-        {/* Classes with Sessions */}
+        {/* Sessions List */}
         <Row>
           <Col lg="12">
             <Card className="shadow mb-4" style={{ backgroundColor: "#f0f4f8", borderRadius: "8px" }}>
               <CardHeader className="border-0" style={{ backgroundColor: "#e8f0f6", borderTopLeftRadius: "8px", borderTopRightRadius: "8px" }}>
-                <CardTitle className="mb-0">Your Classes</CardTitle>
+                <CardTitle className="mb-0">Sessions</CardTitle>
               </CardHeader>
               <CardBody>
-                <div className="d-flex justify-content-end mb-3">
-                  <Button size="sm" color="primary" outline={selectedView!=="day"} onClick={()=>setSelectedView('day')}>Day</Button>
-                  <Button size="sm" color="primary" outline={selectedView!=="week"} className="ml-2" onClick={()=>setSelectedView('week')}>Week</Button>
-                  <Button size="sm" color="primary" outline={selectedView!=="month"} className="ml-2" onClick={()=>setSelectedView('month')}>Month</Button>
-                </div>
                 <div className="session-stack">
-                  {classes.length === 0 ? (
+                  {sessions.length === 0 ? (
                     <div className="text-center py-5">
-                      <p className="text-muted">No classes found</p>
+                      <p className="text-muted">No sessions scheduled yet</p>
                     </div>
                   ) : (
-                    classes.map((classItem) => (
-                      <div key={classItem.id} className="session-item p-3 mb-3 bg-white border rounded" style={{ borderLeft: '4px solid #96c8ff' }}>
-                        <div className="d-flex justify-content-between align-items-center">
+                    sessions.map((session) => (
+                      <div key={session.id} className="session-item p-3 mb-3 bg-white border rounded" style={{ borderLeft: '4px solid #96c8ff', backgroundColor: session.status === 'LIVE' ? '#ffe6e6' : 'white' }}>
+                        <div className="d-flex justify-content-between align-items-start">
                           <div className="flex-grow-1">
-                            <h5 className="mb-1">{classItem.title}</h5>
-                            <div className="small text-muted">📚 {classItem.subject || 'No subject'}</div>
+                            <div className="d-flex align-items-center mb-2">
+                              <h5 className="mb-0 mr-2">{session.title || 'Untitled Session'}</h5>
+                              {getStatusBadge(session.status)}
+                            </div>
+                            <div className="small text-muted mb-2">
+                              <span className="mr-3">📚 {session.class_title}</span>
+                              <span>🕐 {new Date(session.scheduled_at).toLocaleString()}</span>
+                            </div>
                           </div>
-                          <Button size="sm" color="info" onClick={() => toggleSessionPanel(classItem.id)}>
-                            {expandedSession === classItem.id ? 'Cancel' : 'Start Session'}
-                          </Button>
+                          <div className="d-flex gap-2">
+                            {session.status === 'LIVE' && (
+                              <Button size="sm" color="success" onClick={() => handleJoin(session.zoom_link)}>
+                                Join
+                              </Button>
+                            )}
+                            <Button size="sm" color="dark">Details</Button>
+                          </div>
                         </div>
-                        <Collapse isOpen={expandedSession === classItem.id}>
-                          <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px solid #e0e0e0' }}>
-                            <FormGroup>
-                              <Label for={`title-${classItem.id}`}>Session Title</Label>
-                              <Input
-                                id={`title-${classItem.id}`}
-                                type="text"
-                                placeholder="Enter session title"
-                                value={sessionTitle}
-                                onChange={(e) => setSessionTitle(e.target.value)}
-                              />
-                            </FormGroup>
-                            <Button color="success" size="sm" onClick={() => handleStartSession(classItem.id)}>
-                              Start Live Session
-                            </Button>
-                          </div>
-                        </Collapse>
                       </div>
                     ))
                   )}
@@ -185,46 +138,14 @@ const Sessions = () => {
                 <style>{`
                   .session-stack .session-item { transition: box-shadow .15s ease; }
                   .session-stack .session-item:hover { box-shadow: 0 .5rem 1rem rgba(0,0,0,.15); }
+                  @keyframes liveBlink { 0%,100% { opacity: 1 } 50% { opacity: .3 } }
+                  .live-blink { animation: liveBlink 1s infinite; }
                 `}</style>
               </CardBody>
             </Card>
           </Col>
         </Row>
-
-        {/* Session History */}
-        <Row>
-          <Col lg="6">
-            <Card className="shadow" style={{ backgroundColor: "#f0f4f8", borderRadius: "8px" }}>
-              <CardHeader className="border-0" style={{ backgroundColor: "#e8f0f6", borderTopLeftRadius: "8px", borderTopRightRadius: "8px" }}>
-                <CardTitle className="mb-0">Upcoming Sessions</CardTitle>
-              </CardHeader>
-              <CardBody>
-                <div className="text-center py-5">
-                  <span className="coming-soon-blink">Coming Soon</span>
-                </div>
-              </CardBody>
-            </Card>
-          </Col>
-          <Col lg="6">
-            <Card className="shadow" style={{ backgroundColor: "#f0f4f8", borderRadius: "8px" }}>
-              <CardHeader className="border-0" style={{ backgroundColor: "#e8f0f6", borderTopLeftRadius: "8px", borderTopRightRadius: "8px" }}>
-                <CardTitle className="mb-0">Session Statistics</CardTitle>
-              </CardHeader>
-              <CardBody>
-                <div className="text-center py-5">
-                  <span className="coming-soon-blink">Coming Soon</span>
-                </div>
-              </CardBody>
-            </Card>
-          </Col>
-        </Row>
       </Container>
-      <style>{`
-        @keyframes liveBlink { 0%,100% { opacity: 1 } 50% { opacity: .3 } }
-        .live-blink { animation: liveBlink 1s infinite; }
-        @keyframes csBlinkSessions { 0%,100% { opacity: 1 } 50% { opacity: .25 } }
-        .coming-soon-blink { animation: csBlinkSessions 1.2s infinite; font-weight: 600; }
-      `}</style>
     </>
   );
 };
