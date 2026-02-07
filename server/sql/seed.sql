@@ -3,8 +3,9 @@ INSERT INTO users (name, email, password_hash, role, status)
 VALUES
 ('Admin User', 'admin@lms.in', '$2b$10$G888FYNKrgWsAp9Q7UtvV.ZsUNaH2TeMf1vmEwQr/gsys5lSaviB6', 'ADMIN', 'ACTIVE'),
 ('Harman', 'harman@lms.in', '$2b$10$G888FYNKrgWsAp9Q7UtvV.ZsUNaH2TeMf1vmEwQr/gsys5lSaviB6', 'TEACHER', 'ACTIVE'),
-('Kishor Bharti', 'kishor@lms.in', '$2b$10$G888FYNKrgWsAp9Q7UtvV.ZsUNaH2TeMf1vmEwQr/gsys5lSaviB6', 'STUDENT', 'ACTIVE'),
-('Priya Singh', 'priya@lms.in', '$2b$10$G888FYNKrgWsAp9Q7UtvV.ZsUNaH2TeMf1vmEwQr/gsys5lSaviB6', 'STUDENT', 'ACTIVE');
+('Kishor', 'kishor@lms.in', '$2b$10$G888FYNKrgWsAp9Q7UtvV.ZsUNaH2TeMf1vmEwQr/gsys5lSaviB6', 'STUDENT', 'ACTIVE'),
+('Priya', 'priya@lms.in', '$2b$10$G888FYNKrgWsAp9Q7UtvV.ZsUNaH2TeMf1vmEwQr/gsys5lSaviB6', 'STUDENT', 'ACTIVE'),
+('Rahul', 'rahul@lms.in', '$2b$10$G888FYNKrgWsAp9Q7UtvV.ZsUNaH2TeMf1vmEwQr/gsys5lSaviB6', 'STUDENT', 'ACTIVE');
 
 -- Classes (Harman teaches 3 classes)
 INSERT INTO classes (title, subject, teacher_id, start_date, end_date)
@@ -34,12 +35,27 @@ SELECT
   '2026-07-31'
 FROM users WHERE role='TEACHER' AND name='Harman';
 
--- Enrollments (Kishor and Priya enrolled in multiple classes)
+-- Enrollments (different enrollment patterns)
+-- Kishor: enrolled in AP Chemistry and IB Chemistry HL
+INSERT INTO enrollments (class_id, student_id)
+SELECT c.id, u.id
+FROM classes c, users u
+WHERE c.title IN ('AP Chemistry', 'IB Chemistry HL')
+  AND u.name = 'Kishor';
+
+-- Priya: enrolled in all three classes
 INSERT INTO enrollments (class_id, student_id)
 SELECT c.id, u.id
 FROM classes c, users u
 WHERE c.title IN ('AP Chemistry', 'IB Chemistry HL', 'Organic Chemistry')
-  AND u.name IN ('Kishor Bharti', 'Priya Singh');
+  AND u.name = 'Priya';
+
+-- Rahul: enrolled only in Organic Chemistry (exclusive)
+INSERT INTO enrollments (class_id, student_id)
+SELECT c.id, u.id
+FROM classes c, users u
+WHERE c.title IN ('Organic Chemistry')
+  AND u.name = 'Rahul';
 
 -- Sessions for AP Chemistry (past, today, tomorrow, future)
 -- Past sessions (Feb 3-6)

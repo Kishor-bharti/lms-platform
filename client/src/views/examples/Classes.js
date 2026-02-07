@@ -22,7 +22,7 @@ const Classes = () => {
 
   useEffect(() => {
     fetchClasses();
-    const interval = setInterval(fetchClasses, 5000);
+    const interval = setInterval(fetchClasses, 15000);
     return () => clearInterval(interval);
   }, []);
 

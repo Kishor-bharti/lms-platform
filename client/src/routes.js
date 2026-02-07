@@ -28,7 +28,7 @@ var routes = [
   {
     path: "/classes",
     name: "Classes",
-    icon: "ni ni-folder-17 text-blue",
+    icon: "ni ni-books text-blue",
     component: <Classes />,
     layout: "/admin",
     roles: ["STUDENT"],

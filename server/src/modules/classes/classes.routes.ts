@@ -24,5 +24,6 @@ router.get('/my-sessions-v2', classesController.getMySessionsV2);
 
 // Sessions API
 router.post('/sessions/:sessionId/start', classesController.startSessionById);
+router.post('/sessions/:sessionId/complete', classesController.completeSessionById);
 
 export default router;

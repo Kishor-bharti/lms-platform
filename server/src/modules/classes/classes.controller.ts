@@ -174,3 +174,23 @@ export async function startSessionById(req: Request, res: Response) {
     res.status(500).json({ message: 'Failed to start session' });
   }
 }
+export async function completeSessionById(req: Request, res: Response) {
+  try {
+    const { sessionId } = req.params as { sessionId?: string };
+    const userRole = req.user?.role;
+
+    if (!sessionId || typeof sessionId !== 'string') {
+      return res.status(400).json({ message: 'sessionId is required' });
+    }
+
+    if (userRole !== 'TEACHER') {
+      return res.status(403).json({ message: 'Only teachers can complete sessions' });
+    }
+
+    const session = await classesService.completeSessionById(sessionId);
+    res.json(session);
+  } catch (error: unknown) {
+    console.error(error);
+    res.status(500).json({ message: 'Failed to complete session' });
+  }
+}

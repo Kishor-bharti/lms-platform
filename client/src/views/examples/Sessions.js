@@ -21,12 +21,13 @@ const Sessions = () => {
   const [expandedSession, setExpandedSession] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [startingSession, setStartingSession] = useState(null);
+  const [selectedView, setSelectedView] = useState('day');
 
   useEffect(() => {
     const role = typeof window !== "undefined" ? window.localStorage.getItem("role") : null;
     setUserRole(role);
     fetchSessions();
-    const interval = setInterval(fetchSessions, 5000);
+    const interval = setInterval(fetchSessions, 15000);
     return () => clearInterval(interval);
   }, []);
 
@@ -112,6 +113,33 @@ const Sessions = () => {
     }
   };
 
+  const handleEndSession = async (sessionId) => {
+    setStartingSession(sessionId);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(apiUrl(`/api/classes/sessions/${sessionId}/complete`), {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const updatedSession = await response.json();
+        setSessions(sessions.map(s => s.id === sessionId ? updatedSession : s));
+        setExpandedSession(null);
+      } else {
+        alert('Failed to end session');
+      }
+    } catch (error) {
+      console.error('Failed to end session:', error);
+      alert('Failed to end session');
+    } finally {
+      setStartingSession(null);
+    }
+  };
+
   if (loading) {
     return (
       <>
@@ -143,6 +171,11 @@ const Sessions = () => {
                 <CardTitle className="mb-0">Sessions</CardTitle>
               </CardHeader>
               <CardBody>
+                <div className="d-flex justify-content-end mb-3">
+                  <Button size="sm" color="primary" outline={selectedView!=="day"} onClick={()=>setSelectedView('day')}>Day</Button>
+                  <Button size="sm" color="primary" outline={selectedView!=="week"} className="ml-2" onClick={()=>setSelectedView('week')}>Week</Button>
+                  <Button size="sm" color="primary" outline={selectedView!=="month"} className="ml-2" onClick={()=>setSelectedView('month')}>Month</Button>
+                </div>
                 <div className="session-stack">
                   {sessions.length === 0 ? (
                     <div className="text-center py-5">
@@ -167,14 +200,28 @@ const Sessions = () => {
                                   <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', marginBottom: '5px', color: '#555' }}>Class</label>
                                   <div style={{ padding: '8px', backgroundColor: '#f9f9f9', borderRadius: '4px', fontSize: '14px' }}>{session.class_title}</div>
                                 </div>
-                                <Button 
-                                  color="success" 
-                                  size="sm" 
-                                  onClick={(e) => { e.stopPropagation(); handleStartSession(session.id); }}
-                                  disabled={startingSession === session.id || session.status === 'LIVE'}
-                                >
-                                  {startingSession === session.id ? 'Starting...' : 'Start Live Session'}
-                                </Button>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                  {session.status !== 'LIVE' && (
+                                    <Button 
+                                      color="success" 
+                                      size="sm" 
+                                      onClick={(e) => { e.stopPropagation(); handleStartSession(session.id); }}
+                                      disabled={startingSession === session.id}
+                                    >
+                                      {startingSession === session.id ? 'Starting...' : 'Start Live Session'}
+                                    </Button>
+                                  )}
+                                  {session.status === 'LIVE' && (
+                                    <Button 
+                                      color="danger" 
+                                      size="sm" 
+                                      onClick={(e) => { e.stopPropagation(); handleEndSession(session.id); }}
+                                      disabled={startingSession === session.id}
+                                    >
+                                      {startingSession === session.id ? 'Ending...' : 'End Session'}
+                                    </Button>
+                                  )}
+                                </div>
                               </div>
                             )}
                           </div>
@@ -182,6 +229,11 @@ const Sessions = () => {
                             {session.status === 'LIVE' && (
                               <Button size="sm" color="success" onClick={() => handleJoin(session.zoom_link)}>
                                 Join
+                              </Button>
+                            )}
+                            {session.status === 'COMPLETED' && (
+                              <Button size="sm" color="light" onClick={() => handleJoin(session.zoom_link)}>
+                                Replay
                               </Button>
                             )}
                             <Button size="sm" color="dark">Details</Button>
