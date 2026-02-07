@@ -97,8 +97,9 @@ const Sessions = () => {
         const updatedSession = await response.json();
         setSessions(sessions.map(s => s.id === sessionId ? updatedSession : s));
         setExpandedSession(null);
-        if (updatedSession.zoom_link) {
-          window.open(updatedSession.zoom_link, '_blank');
+        const teacherOpenUrl = updatedSession.start_url || updatedSession.zoom_link;
+        if (teacherOpenUrl) {
+          window.open(teacherOpenUrl, '_blank');
         }
       } else {
         alert('Failed to start session');

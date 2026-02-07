@@ -24,6 +24,7 @@ export interface SessionWithDetails {
     zoom_link: string | null;
     scheduled_at: string;
     status: string;
+    start_url?: string | undefined;
 }
 export declare function getMyClasses(userId: string, role: string): Promise<ClassWithTeacher[]>;
 export declare function getTeacherClassesV2(teacherId: string): Promise<ClassWithTeacher[]>;
@@ -32,4 +33,9 @@ export declare function getMySessionsV2(userId: string, role: string): Promise<S
 export declare function getSessionsByTeacherV2(teacherId: string): Promise<SessionWithDetails[]>;
 export declare function getSessionsByStudentV2(studentId: string): Promise<SessionWithDetails[]>;
 export declare function startSessionById(sessionId: string): Promise<SessionWithDetails>;
+export declare function zoomHealthCheck(): Promise<{
+    ok: boolean;
+    status?: number;
+    message?: string;
+}>;
 //# sourceMappingURL=classes.service.d.ts.map
