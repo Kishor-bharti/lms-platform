@@ -18,8 +18,13 @@ import { apiUrl } from "utils/api";
 const Sessions = () => {
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [expandedSession, setExpandedSession] = useState(null);
+  const [userRole, setUserRole] = useState(null);
+  const [startingSession, setStartingSession] = useState(null);
 
   useEffect(() => {
+    const role = typeof window !== "undefined" ? window.localStorage.getItem("role") : null;
+    setUserRole(role);
     fetchSessions();
     const interval = setInterval(fetchSessions, 5000);
     return () => clearInterval(interval);
@@ -72,6 +77,40 @@ const Sessions = () => {
     }
   };
 
+  const toggleSessionPanel = (sessionId) => {
+    setExpandedSession(expandedSession === sessionId ? null : sessionId);
+  };
+
+  const handleStartSession = async (sessionId) => {
+    setStartingSession(sessionId);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(apiUrl(`/api/classes/sessions/${sessionId}/start`), {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const updatedSession = await response.json();
+        setSessions(sessions.map(s => s.id === sessionId ? updatedSession : s));
+        setExpandedSession(null);
+        if (updatedSession.zoom_link) {
+          window.open(updatedSession.zoom_link, '_blank');
+        }
+      } else {
+        alert('Failed to start session');
+      }
+    } catch (error) {
+      console.error('Failed to start session:', error);
+      alert('Failed to start session');
+    } finally {
+      setStartingSession(null);
+    }
+  };
+
   if (loading) {
     return (
       <>
@@ -110,7 +149,7 @@ const Sessions = () => {
                     </div>
                   ) : (
                     sessions.map((session) => (
-                      <div key={session.id} className="session-item p-3 mb-3 bg-white border rounded" style={{ borderLeft: '4px solid #96c8ff', backgroundColor: session.status === 'LIVE' ? '#ffe6e6' : 'white' }}>
+                      <div key={session.id} className="session-item p-3 mb-3 bg-white border rounded" style={{ borderLeft: '4px solid #96c8ff', backgroundColor: session.status === 'LIVE' ? '#ffe6e6' : 'white', cursor: userRole === 'TEACHER' ? 'pointer' : 'default' }} onClick={() => userRole === 'TEACHER' && toggleSessionPanel(session.id)}>
                         <div className="d-flex justify-content-between align-items-start">
                           <div className="flex-grow-1">
                             <div className="d-flex align-items-center mb-2">
@@ -121,6 +160,22 @@ const Sessions = () => {
                               <span className="mr-3">📚 {session.class_title}</span>
                               <span>🕐 {new Date(session.scheduled_at).toLocaleString()}</span>
                             </div>
+                            {expandedSession === session.id && userRole === 'TEACHER' && (
+                              <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px solid #e0e0e0' }}>
+                                <div style={{ marginBottom: '10px' }}>
+                                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', marginBottom: '5px', color: '#555' }}>Class</label>
+                                  <div style={{ padding: '8px', backgroundColor: '#f9f9f9', borderRadius: '4px', fontSize: '14px' }}>{session.class_title}</div>
+                                </div>
+                                <Button 
+                                  color="success" 
+                                  size="sm" 
+                                  onClick={(e) => { e.stopPropagation(); handleStartSession(session.id); }}
+                                  disabled={startingSession === session.id || session.status === 'LIVE'}
+                                >
+                                  {startingSession === session.id ? 'Starting...' : 'Start Live Session'}
+                                </Button>
+                              </div>
+                            )}
                           </div>
                           <div className="d-flex gap-2">
                             {session.status === 'LIVE' && (
