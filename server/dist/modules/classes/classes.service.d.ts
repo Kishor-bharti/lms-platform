@@ -31,4 +31,5 @@ export declare function getEnrolledClassesV2(studentId: string): Promise<ClassWi
 export declare function getMySessionsV2(userId: string, role: string): Promise<SessionWithDetails[]>;
 export declare function getSessionsByTeacherV2(teacherId: string): Promise<SessionWithDetails[]>;
 export declare function getSessionsByStudentV2(studentId: string): Promise<SessionWithDetails[]>;
+export declare function startSessionById(sessionId: string): Promise<SessionWithDetails>;
 //# sourceMappingURL=classes.service.d.ts.map

@@ -13,6 +13,7 @@ exports.getEnrolledClassesV2 = getEnrolledClassesV2;
 exports.getMySessionsV2 = getMySessionsV2;
 exports.getSessionsByTeacherV2 = getSessionsByTeacherV2;
 exports.getSessionsByStudentV2 = getSessionsByStudentV2;
+exports.startSessionById = startSessionById;
 const crypto_1 = require("crypto");
 const db_1 = require("../../config/db");
 // Session status calculation
@@ -212,5 +213,29 @@ async function getSessionsByStudentV2(studentId) {
         scheduled_at: row.scheduled_at,
         status: calculateSessionStatus(row.scheduled_at, row.status, today),
     }));
+}
+async function startSessionById(sessionId) {
+    const zoomLink = `https://zoom.us/j/${sessionId}`;
+    await (0, db_1.query)(`UPDATE sessions SET zoom_link = $1, status = $2 WHERE id = $3`, [zoomLink, 'LIVE', sessionId]);
+    const rows = await (0, db_1.query)(`SELECT 
+      s.id, s.class_id, c.title as class_title, s.title, s.zoom_link,
+      s.scheduled_at, s.status
+     FROM sessions s
+     JOIN classes c ON s.class_id = c.id
+     WHERE s.id = $1`, [sessionId]);
+    if (!rows[0]) {
+        throw new Error('Session not found');
+    }
+    const row = rows[0];
+    const today = new Date();
+    return {
+        id: row.id,
+        class_id: row.class_id,
+        class_title: row.class_title,
+        title: row.title,
+        zoom_link: row.zoom_link,
+        scheduled_at: row.scheduled_at,
+        status: calculateSessionStatus(row.scheduled_at, row.status, today),
+    };
 }
 //# sourceMappingURL=classes.service.js.map

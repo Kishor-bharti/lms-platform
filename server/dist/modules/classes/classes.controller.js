@@ -41,6 +41,7 @@ exports.getStudentClasses = getStudentClasses;
 exports.getSessionById = getSessionById;
 exports.getMyClasses = getMyClasses;
 exports.getMySessionsV2 = getMySessionsV2;
+exports.startSessionById = startSessionById;
 const classesService = __importStar(require("./classes.service"));
 async function createClass(req, res) {
     try {
@@ -168,6 +169,24 @@ async function getMySessionsV2(req, res) {
     catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Failed to fetch sessions' });
+    }
+}
+async function startSessionById(req, res) {
+    try {
+        const { sessionId } = req.params;
+        const userRole = req.user?.role;
+        if (!sessionId || typeof sessionId !== 'string') {
+            return res.status(400).json({ message: 'sessionId is required' });
+        }
+        if (userRole !== 'TEACHER') {
+            return res.status(403).json({ message: 'Only teachers can start sessions' });
+        }
+        const session = await classesService.startSessionById(sessionId);
+        res.json(session);
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Failed to start session' });
     }
 }
 //# sourceMappingURL=classes.controller.js.map

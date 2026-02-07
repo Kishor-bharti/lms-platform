@@ -317,3 +317,37 @@ export async function getSessionsByStudentV2(studentId: string): Promise<Session
     status: calculateSessionStatus(row.scheduled_at, row.status, today),
   }));
 }
+
+export async function startSessionById(sessionId: string): Promise<SessionWithDetails> {
+  const zoomLink = `https://zoom.us/j/${sessionId}`;
+  await query(
+    `UPDATE sessions SET zoom_link = $1, status = $2 WHERE id = $3`,
+    [zoomLink, 'LIVE', sessionId]
+  );
+
+  const rows = await query<any>(
+    `SELECT 
+      s.id, s.class_id, c.title as class_title, s.title, s.zoom_link,
+      s.scheduled_at, s.status
+     FROM sessions s
+     JOIN classes c ON s.class_id = c.id
+     WHERE s.id = $1`,
+    [sessionId]
+  );
+
+  if (!rows[0]) {
+    throw new Error('Session not found');
+  }
+
+  const row = rows[0];
+  const today = new Date();
+  return {
+    id: row.id,
+    class_id: row.class_id,
+    class_title: row.class_title,
+    title: row.title,
+    zoom_link: row.zoom_link,
+    scheduled_at: row.scheduled_at,
+    status: calculateSessionStatus(row.scheduled_at, row.status, today),
+  };
+}

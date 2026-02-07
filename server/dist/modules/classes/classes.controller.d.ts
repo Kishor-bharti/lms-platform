@@ -7,4 +7,5 @@ export declare function getStudentClasses(req: Request, res: Response): Promise<
 export declare function getSessionById(req: Request, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
 export declare function getMyClasses(req: Request, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
 export declare function getMySessionsV2(req: Request, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
+export declare function startSessionById(req: Request, res: Response): Promise<Response<any, Record<string, any>> | undefined>;
 //# sourceMappingURL=classes.controller.d.ts.map
