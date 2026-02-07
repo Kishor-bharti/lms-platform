@@ -15,6 +15,7 @@ exports.getSessionsByTeacherV2 = getSessionsByTeacherV2;
 exports.getSessionsByStudentV2 = getSessionsByStudentV2;
 exports.startSessionById = startSessionById;
 exports.zoomHealthCheck = zoomHealthCheck;
+exports.completeSessionById = completeSessionById;
 const crypto_1 = require("crypto");
 const db_1 = require("../../config/db");
 // Session status calculation
@@ -328,5 +329,30 @@ async function zoomHealthCheck() {
         const msg = err instanceof Error ? err.message : String(err);
         return { ok: false, message: msg };
     }
+}
+async function completeSessionById(sessionId) {
+    const rows = await (0, db_1.query)(`SELECT s.id, s.class_id, c.title as class_title, s.title, s.zoom_link, s.scheduled_at, s.status
+     FROM sessions s
+     JOIN classes c ON s.class_id = c.id
+     WHERE s.id = $1`, [sessionId]);
+    if (!rows[0]) {
+        throw new Error('Session not found');
+    }
+    const existing = rows[0];
+    const updated = await (0, db_1.query)(`UPDATE sessions SET status = 'COMPLETED' WHERE id = $1 AND status != 'COMPLETED' RETURNING id, class_id, scheduled_at, status, title, zoom_link`, [sessionId]);
+    if (!updated[0]) {
+        throw new Error('Failed to mark session COMPLETED');
+    }
+    const row = updated[0];
+    const today = new Date();
+    return {
+        id: row.id,
+        class_id: row.class_id,
+        class_title: existing.class_title,
+        title: row.title,
+        zoom_link: row.zoom_link,
+        scheduled_at: row.scheduled_at,
+        status: calculateSessionStatus(row.scheduled_at, row.status, today)
+    };
 }
 //# sourceMappingURL=classes.service.js.map

@@ -38,4 +38,5 @@ export declare function zoomHealthCheck(): Promise<{
     status?: number;
     message?: string;
 }>;
+export declare function completeSessionById(sessionId: string): Promise<SessionWithDetails>;
 //# sourceMappingURL=classes.service.d.ts.map
