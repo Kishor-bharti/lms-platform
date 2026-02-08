@@ -6,6 +6,7 @@ export declare function getTeacherClasses(teacherId: number): Promise<Class[]>;
 export declare function getStudentEnrolledClasses(studentId: number): Promise<StudentClass[]>;
 export declare function getSessionById(sessionId: string): Promise<Session | null>;
 export declare function enrollStudent(classId: string, studentId: number): Promise<Enrollment>;
+export declare function enrollStudentIfNotExists(classId: string, studentId: number): Promise<Enrollment>;
 export interface ClassWithTeacher {
     id: string;
     title: string;

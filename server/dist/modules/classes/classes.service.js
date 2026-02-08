@@ -7,6 +7,7 @@ exports.getTeacherClasses = getTeacherClasses;
 exports.getStudentEnrolledClasses = getStudentEnrolledClasses;
 exports.getSessionById = getSessionById;
 exports.enrollStudent = enrollStudent;
+exports.enrollStudentIfNotExists = enrollStudentIfNotExists;
 exports.getMyClasses = getMyClasses;
 exports.getTeacherClassesV2 = getTeacherClassesV2;
 exports.getEnrolledClassesV2 = getEnrolledClassesV2;
@@ -112,6 +113,19 @@ async function getSessionById(sessionId) {
     return sessions[0] || null;
 }
 async function enrollStudent(classId, studentId) {
+    const id = (0, crypto_1.randomUUID)();
+    await (0, db_1.query)('INSERT INTO enrollments (id, class_id, student_id) VALUES (?, ?, ?)', [id, classId, studentId]);
+    const enrollments = await (0, db_1.query)('SELECT * FROM enrollments WHERE id = ?', [id]);
+    if (!enrollments[0]) {
+        throw new Error('Failed to create enrollment');
+    }
+    return enrollments[0];
+}
+async function enrollStudentIfNotExists(classId, studentId) {
+    const existing = await (0, db_1.query)(`SELECT * FROM enrollments WHERE class_id = $1 AND student_id = $2 LIMIT 1`, [classId, studentId]);
+    if (existing[0]) {
+        return existing[0];
+    }
     const id = (0, crypto_1.randomUUID)();
     await (0, db_1.query)('INSERT INTO enrollments (id, class_id, student_id) VALUES (?, ?, ?)', [id, classId, studentId]);
     const enrollments = await (0, db_1.query)('SELECT * FROM enrollments WHERE id = ?', [id]);

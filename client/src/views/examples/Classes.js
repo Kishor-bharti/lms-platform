@@ -9,7 +9,13 @@ import {
   Container,
   Row,
   Col,
-  Badge,
+  Modal,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  FormGroup,
+  Input,
+  Label,
 } from "reactstrap";
 // core components
 import Header from "components/Headers/Header.js";
@@ -19,8 +25,21 @@ const Classes = () => {
   const [selectedView, setSelectedView] = useState('day');
   const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [userRole, setUserRole] = useState(null);
+
+  // Create class modal state
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newTitle, setNewTitle] = useState('');
+  const [newSubject, setNewSubject] = useState('');
+
+  // Enroll modal state
+  const [showEnrollModal, setShowEnrollModal] = useState(false);
+  const [enrollStudentId, setEnrollStudentId] = useState('');
+  const [targetClassId, setTargetClassId] = useState(null);
 
   useEffect(() => {
+    const role = typeof window !== "undefined" ? window.localStorage.getItem("role") : null;
+    setUserRole(role);
     fetchClasses();
     const interval = setInterval(fetchClasses, 15000);
     return () => clearInterval(interval);
@@ -51,24 +70,6 @@ const Classes = () => {
     }
   };
 
-  const getStatusBadge = (status) => {
-    switch(status) {
-      case 'LIVE':
-        return <Badge color="danger" className="live-blink">LIVE</Badge>;
-      case 'SCHEDULED':
-        return <Badge color="info">TODAY</Badge>;
-      case 'COMPLETED':
-        return <Badge color="secondary">COMPLETED</Badge>;
-      default:
-        return <Badge>{status}</Badge>;
-    }
-  };
-
-  const handleJoin = (zoomLink) => {
-    if (zoomLink) {
-      window.open(zoomLink, '_blank');
-    }
-  };
 
   if (loading) {
     return (
@@ -123,7 +124,12 @@ const Classes = () => {
                               <span className="mr-3">👨‍🏫 {classItem.teacher_name}</span>
                             </div>
                           </div>
-                          <Button size="sm" color="dark">Details</Button>
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            {userRole === 'TEACHER' && (
+                              <Button size="sm" color="primary" outline onClick={() => { setTargetClassId(classItem.id); setShowEnrollModal(true); }}>Enroll Student</Button>
+                            )}
+                            <Button size="sm" color="dark">Details</Button>
+                          </div>
                         </div>
                       </div>
                     ))
@@ -138,6 +144,83 @@ const Classes = () => {
               </CardBody>
             </Card>
           </Col>
+                  {userRole === 'TEACHER' && (
+                    <div style={{ marginTop: 12, textAlign: 'right' }}>
+                      <Button size="sm" color="success" onClick={() => setShowCreateModal(true)}>Create Class</Button>
+                    </div>
+                  )}
+                  <style>{`
+                    .class-stack .class-item { transition: box-shadow .15s ease; }
+                    .class-stack .class-item:hover { box-shadow: 0 .5rem 1rem rgba(0,0,0,.15); }
+                    @keyframes liveBlink { 0%,100% { opacity: 1 } 50% { opacity: .3 } }
+                    .live-blink { animation: liveBlink 1s infinite; }
+                  `}</style>
+                  {/* Create Class Modal */}
+                  <Modal isOpen={showCreateModal} toggle={() => setShowCreateModal(false)}>
+                    <ModalHeader toggle={() => setShowCreateModal(false)}>Create Class</ModalHeader>
+                    <ModalBody>
+                      <FormGroup>
+                        <Label>Title</Label>
+                        <Input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Class title" />
+                      </FormGroup>
+                      <FormGroup>
+                        <Label>Subject</Label>
+                        <Input value={newSubject} onChange={(e) => setNewSubject(e.target.value)} placeholder="Subject (optional)" />
+                      </FormGroup>
+                    </ModalBody>
+                    <ModalFooter>
+                      <Button color="primary" onClick={async () => {
+                        try {
+                          const token = localStorage.getItem('token');
+                          const res = await fetch(apiUrl('/api/classes'), {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                            body: JSON.stringify({ title: newTitle, subject: newSubject })
+                          });
+                          if (res.ok) {
+                            setShowCreateModal(false);
+                            setNewTitle(''); setNewSubject('');
+                            fetchClasses();
+                          } else {
+                            alert('Failed to create class');
+                          }
+                        } catch (err) { console.error(err); alert('Failed to create class'); }
+                      }}>Create</Button>
+                      <Button color="secondary" onClick={() => setShowCreateModal(false)}>Cancel</Button>
+                    </ModalFooter>
+                  </Modal>
+                  {/* Enroll Modal */}
+                  <Modal isOpen={showEnrollModal} toggle={() => setShowEnrollModal(false)}>
+                    <ModalHeader toggle={() => setShowEnrollModal(false)}>Enroll Student</ModalHeader>
+                    <ModalBody>
+                      <FormGroup>
+                        <Label>Student ID</Label>
+                        <Input value={enrollStudentId} onChange={(e) => setEnrollStudentId(e.target.value)} placeholder="Numeric student id" />
+                      </FormGroup>
+                    </ModalBody>
+                    <ModalFooter>
+                      <Button color="primary" onClick={async () => {
+                        const sid = Number(enrollStudentId);
+                        if (!sid) { alert('Enter valid student id'); return; }
+                        try {
+                          const token = localStorage.getItem('token');
+                          const res = await fetch(apiUrl(`/api/classes/${targetClassId}/enroll`), {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                            body: JSON.stringify({ studentId: sid })
+                          });
+                          if (res.ok) {
+                            setShowEnrollModal(false);
+                            setEnrollStudentId(''); setTargetClassId(null);
+                            fetchClasses();
+                          } else {
+                            alert('Failed to enroll student');
+                          }
+                        } catch (err) { console.error(err); alert('Failed to enroll student'); }
+                      }}>Enroll</Button>
+                      <Button color="secondary" onClick={() => setShowEnrollModal(false)}>Cancel</Button>
+                    </ModalFooter>
+                  </Modal>
         </Row>
       </Container>
     </>

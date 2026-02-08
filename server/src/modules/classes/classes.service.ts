@@ -179,6 +179,33 @@ export async function enrollStudent(classId: string, studentId: number): Promise
   return enrollments[0];
 }
 
+export async function enrollStudentIfNotExists(classId: string, studentId: number): Promise<Enrollment> {
+  const existing = await query<Enrollment>(
+    `SELECT * FROM enrollments WHERE class_id = $1 AND student_id = $2 LIMIT 1`,
+    [classId, studentId]
+  );
+
+  if (existing[0]) {
+    return existing[0];
+  }
+
+  const id = randomUUID();
+  await query(
+    'INSERT INTO enrollments (id, class_id, student_id) VALUES (?, ?, ?)',
+    [id, classId, studentId]
+  );
+  const enrollments = await query<Enrollment>(
+    'SELECT * FROM enrollments WHERE id = ?',
+    [id]
+  );
+  
+  if (!enrollments[0]) {
+    throw new Error('Failed to create enrollment');
+  }
+  
+  return enrollments[0];
+}
+
 // New APIs for data-driven UI
 
 export interface ClassWithTeacher {

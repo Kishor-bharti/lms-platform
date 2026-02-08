@@ -31,7 +31,7 @@ var routes = [
     icon: "ni ni-books text-blue",
     component: <Classes />,
     layout: "/admin",
-    roles: ["STUDENT"],
+    roles: ["TEACHER"],
   },
   {
     path: "/resources",

@@ -194,3 +194,28 @@ export async function completeSessionById(req: Request, res: Response) {
     res.status(500).json({ message: 'Failed to complete session' });
   }
 }
+export async function enrollStudentById(req: Request, res: Response) {
+  try {
+    const { classId } = req.params as { classId?: string };
+    const { studentId } = req.body as { studentId?: number };
+    const userRole = req.user?.role;
+
+    if (!classId || typeof classId !== 'string') {
+      return res.status(400).json({ message: 'classId is required' });
+    }
+
+    if (!studentId || typeof studentId !== 'number') {
+      return res.status(400).json({ message: 'studentId is required and must be a number' });
+    }
+
+    if (userRole !== 'TEACHER') {
+      return res.status(403).json({ message: 'Only teachers can enroll students' });
+    }
+
+    const enrollment = await classesService.enrollStudentIfNotExists(classId, studentId);
+    res.status(200).json(enrollment);
+  } catch (error: unknown) {
+    console.error(error);
+    res.status(500).json({ message: 'Failed to enroll student' });
+  }
+}

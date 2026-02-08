@@ -43,6 +43,7 @@ exports.getMyClasses = getMyClasses;
 exports.getMySessionsV2 = getMySessionsV2;
 exports.startSessionById = startSessionById;
 exports.completeSessionById = completeSessionById;
+exports.enrollStudentById = enrollStudentById;
 const classesService = __importStar(require("./classes.service"));
 async function createClass(req, res) {
     try {
@@ -206,6 +207,28 @@ async function completeSessionById(req, res) {
     catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Failed to complete session' });
+    }
+}
+async function enrollStudentById(req, res) {
+    try {
+        const { classId } = req.params;
+        const { studentId } = req.body;
+        const userRole = req.user?.role;
+        if (!classId || typeof classId !== 'string') {
+            return res.status(400).json({ message: 'classId is required' });
+        }
+        if (!studentId || typeof studentId !== 'number') {
+            return res.status(400).json({ message: 'studentId is required and must be a number' });
+        }
+        if (userRole !== 'TEACHER') {
+            return res.status(403).json({ message: 'Only teachers can enroll students' });
+        }
+        const enrollment = await classesService.enrollStudentIfNotExists(classId, studentId);
+        res.status(200).json(enrollment);
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Failed to enroll student' });
     }
 }
 //# sourceMappingURL=classes.controller.js.map

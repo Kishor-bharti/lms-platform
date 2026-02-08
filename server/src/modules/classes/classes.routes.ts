@@ -6,24 +6,10 @@ const router = Router();
 
 router.use(authMiddleware);
 
-// Teacher routes
-router.post('/create', classesController.createClass);
-router.post('/sessions/create', classesController.createSession);
-router.post('/sessions/start', classesController.startSession);
-
-// Student routes
-router.get('/my-classes', classesController.getStudentClasses);
-
-// Common routes
-router.get('/teacher-classes', classesController.getTeacherClasses);
-router.get('/sessions/:sessionId', classesController.getSessionById);
-
-// New data-driven APIs
-router.get('/my-classes-v2', classesController.getMyClasses);
+router.get('/', classesController.getMyClasses);
 router.get('/my-sessions-v2', classesController.getMySessionsV2);
-
-// Sessions API
-router.post('/sessions/:sessionId/start', classesController.startSessionById);
-router.post('/sessions/:sessionId/complete', classesController.completeSessionById);
+router.post('/', classesController.createClass);
+router.post('/:classId/enroll', classesController.enrollStudentById);
+router.post('/:classId/complete', classesController.completeSessionById);
 
 export default router;
