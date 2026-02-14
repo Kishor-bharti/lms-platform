@@ -1,5 +1,7 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { authMiddleware } from '../../middlewares/auth.middleware';
+import { validateBody } from '../../middlewares/validate.middleware';
 import * as classesController from './classes.controller';
 
 const router = Router();
@@ -7,9 +9,24 @@ const router = Router();
 router.use(authMiddleware);
 
 // Teacher routes
-router.post('/create', classesController.createClass);
-router.post('/sessions/create', classesController.createSession);
-router.post('/sessions/start', classesController.startSession);
+const createClassSchema = z.object({
+	title: z.string().min(1),
+	subject: z.string().optional(),
+});
+
+const createSessionSchema = z.object({
+	classId: z.string().min(1),
+	title: z.string().min(1),
+	scheduledAt: z.string().min(1),
+});
+
+const startSessionSchema = z.object({
+	sessionId: z.string().min(1),
+});
+
+router.post('/create', validateBody(createClassSchema), classesController.createClass);
+router.post('/sessions/create', validateBody(createSessionSchema), classesController.createSession);
+router.post('/sessions/start', validateBody(startSessionSchema), classesController.startSession);
 
 // Student routes
 router.get('/my-classes', classesController.getStudentClasses);

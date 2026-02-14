@@ -1,8 +1,16 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { login } from './auth.controller';
+import { loginRateLimiter } from '../../middlewares/rateLimit.middleware';
+import { validateBody } from '../../middlewares/validate.middleware';
 
 const router = Router();
 
-router.post('/login', login);
+const loginSchema = z.object({
+	email: z.string().email(),
+	password: z.string().min(1),
+});
+
+router.post('/login', validateBody(loginSchema), loginRateLimiter, login);
 
 export default router;
