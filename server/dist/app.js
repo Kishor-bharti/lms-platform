@@ -11,6 +11,7 @@ const classes_routes_1 = __importDefault(require("./modules/classes/classes.rout
 const env_1 = require("./config/env");
 const error_middleware_1 = require("./middlewares/error.middleware");
 const app = (0, express_1.default)();
+app.set('trust proxy', 1);
 app.use((0, helmet_1.default)());
 app.use(express_1.default.json());
 const normalizeOrigin = (value) => value ? value.replace(/\/+$/, '') : undefined;

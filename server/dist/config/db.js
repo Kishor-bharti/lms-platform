@@ -33,6 +33,10 @@ const poolConfig = env_1.env.DATABASE_URL
         ssl: sslOption,
     };
 exports.pool = new pg_1.Pool(poolConfig);
+// TASK 2: Database Connection Verification Log
+exports.pool.query('SELECT 1')
+    .then(() => console.log('[db] Connection successful'))
+    .catch((err) => console.error('[db] Connection failed:', err.message));
 async function query(sql, params) {
     const converted = convertQuestionMarksToDollarParams(sql, params);
     const res = await exports.pool.query(converted.text, converted.params);
@@ -60,6 +64,7 @@ async function withTransaction(fn) {
     }
 }
 async function verifyConnection() {
+    console.log('[db] Verifying PostgreSQL connection...');
     try {
         const res = await exports.pool.query('SELECT version()');
         const versionRaw = res.rows[0]?.version ?? '';

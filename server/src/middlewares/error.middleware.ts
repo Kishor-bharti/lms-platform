@@ -12,6 +12,15 @@ export function errorHandler(err: AppError, req: Request, res: Response, _next: 
   const code = err.code || (status >= 500 ? 'INTERNAL_SERVER_ERROR' : 'REQUEST_FAILED');
   const message = status >= 500 ? 'Internal server error' : err.message || 'Request failed';
 
+  // TASK 4: Improve Global Error Handler
+  console.error('[global error]', {
+    message: err.message,
+    stack: err.stack,
+    path: req.path,
+    method: req.method,
+    statusCode: status,
+  });
+
   const logPayload = {
     message: err.message,
     code: err.code,
@@ -26,7 +35,7 @@ export function errorHandler(err: AppError, req: Request, res: Response, _next: 
 
   return res.status(status).json({
     error: {
-      message,
+      message: process.env.NODE_ENV === 'production' ? 'Internal server error' : message,
       code,
     },
   });

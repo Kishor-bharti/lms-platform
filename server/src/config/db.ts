@@ -32,6 +32,11 @@ const poolConfig: PoolConfigWithConnection = env.DATABASE_URL
 
 export const pool = new Pool(poolConfig);
 
+// TASK 2: Database Connection Verification Log
+pool.query('SELECT 1')
+  .then(() => console.log('[db] Connection successful'))
+  .catch((err) => console.error('[db] Connection failed:', err.message));
+
 export async function query<T = any>(sql: string, params?: any[]): Promise<T[]> {
   const converted = convertQuestionMarksToDollarParams(sql, params);
   const res = await pool.query<T>(converted.text, converted.params);
@@ -60,6 +65,7 @@ export async function withTransaction<T>(fn: (client: any) => Promise<T>): Promi
 }
 
 export async function verifyConnection(): Promise<void> {
+  console.log('[db] Verifying PostgreSQL connection...');
   try {
     const res = await pool.query<{ version?: string }>('SELECT version()');
     const versionRaw = res.rows[0]?.version ?? '';
