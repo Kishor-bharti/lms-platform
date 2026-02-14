@@ -16,7 +16,11 @@ export const env = {
   DB_USER: process.env.DB_USER || '',
   DB_PASSWORD: process.env.DB_PASSWORD || '',
   DB_NAME: process.env.DB_NAME || '',
-  FRONTEND_ORIGIN: process.env.FRONTEND_ORIGIN || process.env.FRONTEND_URL || ''
+  FRONTEND_ORIGIN: process.env.FRONTEND_ORIGIN || process.env.FRONTEND_URL || '',
+  FRONTEND_ORIGINS: (process.env.FRONTEND_ORIGINS || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean)
 };
 
 export function validateEnv(): void {
@@ -26,6 +30,9 @@ export function validateEnv(): void {
     }
     if (!env.DATABASE_URL) {
       throw new Error('Missing required environment variable: DATABASE_URL');
+    }
+    if (!env.FRONTEND_ORIGINS.length) {
+      throw new Error('Missing required environment variable: FRONTEND_ORIGINS');
     }
   } else {
     if (!env.JWT_SECRET) {

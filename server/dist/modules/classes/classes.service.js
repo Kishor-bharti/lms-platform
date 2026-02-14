@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.zoomHealthCheck = void 0;
 exports.createClass = createClass;
 exports.createSession = createSession;
 exports.startSession = startSession;
@@ -14,10 +15,11 @@ exports.getMySessionsV2 = getMySessionsV2;
 exports.getSessionsByTeacherV2 = getSessionsByTeacherV2;
 exports.getSessionsByStudentV2 = getSessionsByStudentV2;
 exports.startSessionById = startSessionById;
-exports.zoomHealthCheck = zoomHealthCheck;
 exports.completeSessionById = completeSessionById;
 const crypto_1 = require("crypto");
 const db_1 = require("../../config/db");
+const zoom_service_1 = require("../../services/zoom.service");
+Object.defineProperty(exports, "zoomHealthCheck", { enumerable: true, get: function () { return zoom_service_1.zoomHealthCheck; } });
 // Session status calculation
 function calculateSessionStatus(scheduled_at, dbStatus, today = new Date()) {
     // LIVE has highest priority
@@ -224,135 +226,70 @@ async function startSessionById(sessionId) {
     if (!ZOOM_ACCOUNT_ID || !ZOOM_CLIENT_ID || !ZOOM_CLIENT_SECRET || !ZOOM_HOST_EMAIL) {
         throw new Error('Missing Zoom credentials or host email');
     }
-    let accessToken;
-    try {
-        const tokenRes = await globalThis.fetch(`https://zoom.us/oauth/token?grant_type=account_credentials&account_id=${encodeURIComponent(ZOOM_ACCOUNT_ID)}`, {
-            method: 'POST',
-            headers: {
-                Authorization: 'Basic ' + Buffer.from(`${ZOOM_CLIENT_ID}:${ZOOM_CLIENT_SECRET}`).toString('base64')
-            }
-        });
-        if (!tokenRes.ok) {
-            const txt = await tokenRes.text();
-            console.error('Zoom token fetch failed', { status: tokenRes.status, message: txt });
-            throw new Error('Failed to obtain Zoom access token');
+    return (0, db_1.withTransaction)(async (client) => {
+        const accessToken = await (0, zoom_service_1.getZoomAccessToken)();
+        const rowsBefore = await (0, db_1.queryWithClient)(client, `SELECT s.id, s.class_id, c.title as class_title, s.title, s.zoom_link, s.scheduled_at, s.status
+       FROM sessions s
+       JOIN classes c ON s.class_id = c.id
+       WHERE s.id = $1
+       FOR UPDATE`, [sessionId]);
+        if (!rowsBefore[0]) {
+            throw new Error('Session not found');
         }
-        const tokenJson = await tokenRes.json();
-        accessToken = tokenJson.access_token;
-    }
-    catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        throw new Error(`Zoom token error: ${msg}`);
-    }
-    const rowsBefore = await (0, db_1.query)(`SELECT s.id, s.class_id, c.title as class_title, s.title, s.zoom_link, s.scheduled_at, s.status
-     FROM sessions s
-     JOIN classes c ON s.class_id = c.id
-     WHERE s.id = $1`, [sessionId]);
-    if (!rowsBefore[0]) {
-        throw new Error('Session not found');
-    }
-    const existing = rowsBefore[0];
-    if (existing.status === 'LIVE') {
-        throw new Error('Session already LIVE');
-    }
-    const meetingBody = {
-        topic: existing.title || `${existing.class_title} - Live Session`,
-        type: 2,
-        start_time: new Date(existing.scheduled_at).toISOString(),
-        duration: 60,
-        settings: { host_video: true, participant_video: true }
-    };
-    let meetingJson;
-    let joinUrl;
-    let startUrl;
-    try {
-        // Use the configured host email for meeting creation to avoid "User does not exist" errors
-        const createRes = await globalThis.fetch(`https://api.zoom.us/v2/users/${encodeURIComponent(ZOOM_HOST_EMAIL)}/meetings`, {
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${accessToken}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(meetingBody)
-        });
-        if (!createRes.ok) {
-            const txt = await createRes.text();
-            console.error('Zoom meeting creation failed', { status: createRes.status, message: txt });
-            throw new Error('Failed to create Zoom meeting');
+        const existing = rowsBefore[0];
+        if (existing.status === 'LIVE') {
+            throw new Error('Session already LIVE');
         }
-        meetingJson = await createRes.json();
-        joinUrl = meetingJson.join_url;
-        startUrl = meetingJson.start_url;
-    }
-    catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        throw new Error(`Zoom meeting error: ${msg}`);
-    }
-    const updated = await (0, db_1.query)(`UPDATE sessions SET zoom_link = $1, status = $2 WHERE id = $3 AND status != 'LIVE' RETURNING id, class_id, scheduled_at, status, title, zoom_link`, [joinUrl, 'LIVE', sessionId]);
-    if (!updated[0]) {
-        throw new Error('Failed to mark session LIVE (possibly already LIVE)');
-    }
-    const row = updated[0];
-    const today = new Date();
-    return {
-        id: row.id,
-        class_id: row.class_id,
-        class_title: existing.class_title,
-        title: row.title,
-        zoom_link: row.zoom_link,
-        scheduled_at: row.scheduled_at,
-        status: calculateSessionStatus(row.scheduled_at, row.status, today),
-        start_url: startUrl
-    };
-}
-async function zoomHealthCheck() {
-    const ZOOM_ACCOUNT_ID = process.env.ZOOM_ACCOUNT_ID;
-    const ZOOM_CLIENT_ID = process.env.ZOOM_CLIENT_ID;
-    const ZOOM_CLIENT_SECRET = process.env.ZOOM_CLIENT_SECRET;
-    if (!ZOOM_ACCOUNT_ID || !ZOOM_CLIENT_ID || !ZOOM_CLIENT_SECRET) {
-        return { ok: false, message: 'Missing Zoom env vars' };
-    }
-    try {
-        const tokenRes = await globalThis.fetch(`https://zoom.us/oauth/token?grant_type=account_credentials&account_id=${encodeURIComponent(ZOOM_ACCOUNT_ID)}`, {
-            method: 'POST',
-            headers: {
-                Authorization: 'Basic ' + Buffer.from(`${ZOOM_CLIENT_ID}:${ZOOM_CLIENT_SECRET}`).toString('base64')
-            }
+        const { joinUrl, startUrl } = await (0, zoom_service_1.createZoomMeeting)({
+            accessToken,
+            hostEmail: ZOOM_HOST_EMAIL,
+            topic: existing.title || `${existing.class_title} - Live Session`,
+            startTime: new Date(existing.scheduled_at).toISOString(),
         });
-        if (!tokenRes.ok) {
-            const txt = await tokenRes.text();
-            return { ok: false, status: tokenRes.status, message: txt };
+        const updated = await (0, db_1.queryWithClient)(client, `UPDATE sessions SET zoom_link = $1, status = $2 WHERE id = $3 AND status != 'LIVE' RETURNING id, class_id, scheduled_at, status, title, zoom_link`, [joinUrl, 'LIVE', sessionId]);
+        if (!updated[0]) {
+            throw new Error('Failed to mark session LIVE (possibly already LIVE)');
         }
-        return { ok: true };
-    }
-    catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        return { ok: false, message: msg };
-    }
+        const row = updated[0];
+        const today = new Date();
+        return {
+            id: row.id,
+            class_id: row.class_id,
+            class_title: existing.class_title,
+            title: row.title,
+            zoom_link: row.zoom_link,
+            scheduled_at: row.scheduled_at,
+            status: calculateSessionStatus(row.scheduled_at, row.status, today),
+            start_url: startUrl
+        };
+    });
 }
 async function completeSessionById(sessionId) {
-    const rows = await (0, db_1.query)(`SELECT s.id, s.class_id, c.title as class_title, s.title, s.zoom_link, s.scheduled_at, s.status
-     FROM sessions s
-     JOIN classes c ON s.class_id = c.id
-     WHERE s.id = $1`, [sessionId]);
-    if (!rows[0]) {
-        throw new Error('Session not found');
-    }
-    const existing = rows[0];
-    const updated = await (0, db_1.query)(`UPDATE sessions SET status = 'COMPLETED' WHERE id = $1 AND status != 'COMPLETED' RETURNING id, class_id, scheduled_at, status, title, zoom_link`, [sessionId]);
-    if (!updated[0]) {
-        throw new Error('Failed to mark session COMPLETED');
-    }
-    const row = updated[0];
-    const today = new Date();
-    return {
-        id: row.id,
-        class_id: row.class_id,
-        class_title: existing.class_title,
-        title: row.title,
-        zoom_link: row.zoom_link,
-        scheduled_at: row.scheduled_at,
-        status: calculateSessionStatus(row.scheduled_at, row.status, today)
-    };
+    return (0, db_1.withTransaction)(async (client) => {
+        const rows = await (0, db_1.queryWithClient)(client, `SELECT s.id, s.class_id, c.title as class_title, s.title, s.zoom_link, s.scheduled_at, s.status
+       FROM sessions s
+       JOIN classes c ON s.class_id = c.id
+       WHERE s.id = $1
+       FOR UPDATE`, [sessionId]);
+        if (!rows[0]) {
+            throw new Error('Session not found');
+        }
+        const existing = rows[0];
+        const updated = await (0, db_1.queryWithClient)(client, `UPDATE sessions SET status = 'COMPLETED' WHERE id = $1 AND status != 'COMPLETED' RETURNING id, class_id, scheduled_at, status, title, zoom_link`, [sessionId]);
+        if (!updated[0]) {
+            throw new Error('Failed to mark session COMPLETED');
+        }
+        const row = updated[0];
+        const today = new Date();
+        return {
+            id: row.id,
+            class_id: row.class_id,
+            class_title: existing.class_title,
+            title: row.title,
+            zoom_link: row.zoom_link,
+            scheduled_at: row.scheduled_at,
+            status: calculateSessionStatus(row.scheduled_at, row.status, today)
+        };
+    });
 }
 //# sourceMappingURL=classes.service.js.map

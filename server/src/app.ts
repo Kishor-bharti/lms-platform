@@ -11,19 +11,30 @@ const app = express();
 app.use(helmet());
 app.use(express.json());
 
-const allowedOrigin = env.FRONTEND_ORIGIN;
-app.use(
-  cors({
-    origin(origin, callback) {
-      if (!allowedOrigin) return callback(null, true);
-      if (!origin) return callback(null, true);
-      if (origin === allowedOrigin) return callback(null, true);
-      return callback(new Error('Not allowed by CORS'));
-    },
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-  })
-);
+const normalizeOrigin = (value?: string): string | undefined =>
+  value ? value.replace(/\/+$/, '') : undefined;
+
+const allowedOrigins =
+  env.NODE_ENV === 'production'
+    ? env.FRONTEND_ORIGINS.map(normalizeOrigin).filter(Boolean) as string[]
+    : ['http://localhost:3000'];
+
+console.info(`[cors] Allowed origins: ${allowedOrigins.join(', ') || '(none)'}`);
+
+const corsOptions: cors.CorsOptions = {
+  origin(origin, callback) {
+    if (!origin) return callback(null, true);
+    const normalizedOrigin = normalizeOrigin(origin);
+    if (normalizedOrigin && allowedOrigins.includes(normalizedOrigin)) return callback(null, true);
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 app.use('/api/auth', authRouter);
 app.use('/api/classes', classesRouter);

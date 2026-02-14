@@ -1,3 +1,4 @@
+import { zoomHealthCheck } from '../../services/zoom.service';
 import { Class, Session, Enrollment, StudentClass } from './classes.types';
 export declare function createClass(title: string, subject: string, teacherId: number): Promise<Class>;
 export declare function createSession(classId: string, title: string, scheduledAt: Date): Promise<Session>;
@@ -33,10 +34,6 @@ export declare function getMySessionsV2(userId: string, role: string): Promise<S
 export declare function getSessionsByTeacherV2(teacherId: string): Promise<SessionWithDetails[]>;
 export declare function getSessionsByStudentV2(studentId: string): Promise<SessionWithDetails[]>;
 export declare function startSessionById(sessionId: string): Promise<SessionWithDetails>;
-export declare function zoomHealthCheck(): Promise<{
-    ok: boolean;
-    status?: number;
-    message?: string;
-}>;
+export { zoomHealthCheck };
 export declare function completeSessionById(sessionId: string): Promise<SessionWithDetails>;
 //# sourceMappingURL=classes.service.d.ts.map

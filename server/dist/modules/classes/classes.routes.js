@@ -34,14 +34,28 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
+const zod_1 = require("zod");
 const auth_middleware_1 = require("../../middlewares/auth.middleware");
+const validate_middleware_1 = require("../../middlewares/validate.middleware");
 const classesController = __importStar(require("./classes.controller"));
 const router = (0, express_1.Router)();
 router.use(auth_middleware_1.authMiddleware);
 // Teacher routes
-router.post('/create', classesController.createClass);
-router.post('/sessions/create', classesController.createSession);
-router.post('/sessions/start', classesController.startSession);
+const createClassSchema = zod_1.z.object({
+    title: zod_1.z.string().min(1),
+    subject: zod_1.z.string().optional(),
+});
+const createSessionSchema = zod_1.z.object({
+    classId: zod_1.z.string().min(1),
+    title: zod_1.z.string().min(1),
+    scheduledAt: zod_1.z.string().min(1),
+});
+const startSessionSchema = zod_1.z.object({
+    sessionId: zod_1.z.string().min(1),
+});
+router.post('/create', (0, validate_middleware_1.validateBody)(createClassSchema), classesController.createClass);
+router.post('/sessions/create', (0, validate_middleware_1.validateBody)(createSessionSchema), classesController.createSession);
+router.post('/sessions/start', (0, validate_middleware_1.validateBody)(startSessionSchema), classesController.startSession);
 // Student routes
 router.get('/my-classes', classesController.getStudentClasses);
 // Common routes
