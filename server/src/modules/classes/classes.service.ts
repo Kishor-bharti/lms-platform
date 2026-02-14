@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import { query, queryWithClient, withTransaction } from '../../config/db';
+import { createZoomMeeting, getZoomAccessToken, zoomHealthCheck } from '../../services/zoom.service';
 import { Class, Session, Enrollment, StudentClass } from './classes.types';
 
 // Session status calculation
@@ -330,30 +331,7 @@ export async function startSessionById(sessionId: string): Promise<SessionWithDe
   }
 
   return withTransaction(async (client) => {
-    let accessToken: string;
-    try {
-      const tokenRes = await (globalThis as any).fetch(
-        `https://zoom.us/oauth/token?grant_type=account_credentials&account_id=${encodeURIComponent(ZOOM_ACCOUNT_ID)}`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: 'Basic ' + Buffer.from(`${ZOOM_CLIENT_ID}:${ZOOM_CLIENT_SECRET}`).toString('base64')
-          }
-        }
-      );
-
-      if (!tokenRes.ok) {
-        const txt = await tokenRes.text();
-        console.error('Zoom token fetch failed', { status: tokenRes.status, message: txt });
-        throw new Error('Failed to obtain Zoom access token');
-      }
-
-      const tokenJson = await tokenRes.json();
-      accessToken = tokenJson.access_token;
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      throw new Error(`Zoom token error: ${msg}`);
-    }
+    const accessToken = await getZoomAccessToken();
 
     const rowsBefore = await queryWithClient<any>(
       client,
@@ -374,41 +352,12 @@ export async function startSessionById(sessionId: string): Promise<SessionWithDe
       throw new Error('Session already LIVE');
     }
 
-    const meetingBody = {
+    const { joinUrl, startUrl } = await createZoomMeeting({
+      accessToken,
+      hostEmail: ZOOM_HOST_EMAIL,
       topic: existing.title || `${existing.class_title} - Live Session`,
-      type: 2,
-      start_time: new Date(existing.scheduled_at).toISOString(),
-      duration: 60,
-      settings: { host_video: true, participant_video: true }
-    };
-
-    let meetingJson: any;
-    let joinUrl: string | undefined;
-    let startUrl: string | undefined;
-    try {
-      // Use the configured host email for meeting creation to avoid "User does not exist" errors
-      const createRes = await (globalThis as any).fetch(`https://api.zoom.us/v2/users/${encodeURIComponent(ZOOM_HOST_EMAIL)}/meetings`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(meetingBody)
-      });
-
-      if (!createRes.ok) {
-        const txt = await createRes.text();
-        console.error('Zoom meeting creation failed', { status: createRes.status, message: txt });
-        throw new Error('Failed to create Zoom meeting');
-      }
-
-      meetingJson = await createRes.json();
-      joinUrl = meetingJson.join_url;
-      startUrl = meetingJson.start_url;
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      throw new Error(`Zoom meeting error: ${msg}`);
-    }
+      startTime: new Date(existing.scheduled_at).toISOString(),
+    });
 
     const updated = await queryWithClient<any>(
       client,
@@ -435,37 +384,7 @@ export async function startSessionById(sessionId: string): Promise<SessionWithDe
   });
 }
 
-export async function zoomHealthCheck(): Promise<{ ok: boolean; status?: number; message?: string }> {
-  const ZOOM_ACCOUNT_ID = process.env.ZOOM_ACCOUNT_ID;
-  const ZOOM_CLIENT_ID = process.env.ZOOM_CLIENT_ID;
-  const ZOOM_CLIENT_SECRET = process.env.ZOOM_CLIENT_SECRET;
-
-  if (!ZOOM_ACCOUNT_ID || !ZOOM_CLIENT_ID || !ZOOM_CLIENT_SECRET) {
-    return { ok: false, message: 'Missing Zoom env vars' };
-  }
-
-  try {
-    const tokenRes = await (globalThis as any).fetch(
-      `https://zoom.us/oauth/token?grant_type=account_credentials&account_id=${encodeURIComponent(ZOOM_ACCOUNT_ID)}`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: 'Basic ' + Buffer.from(`${ZOOM_CLIENT_ID}:${ZOOM_CLIENT_SECRET}`).toString('base64')
-        }
-      }
-    );
-
-    if (!tokenRes.ok) {
-      const txt = await tokenRes.text();
-      return { ok: false, status: tokenRes.status, message: txt };
-    }
-
-    return { ok: true };
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return { ok: false, message: msg };
-  }
-}
+export { zoomHealthCheck };
 export async function completeSessionById(sessionId: string): Promise<SessionWithDetails> {
   return withTransaction(async (client) => {
     const rows = await queryWithClient<any>(
