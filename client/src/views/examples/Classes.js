@@ -9,7 +9,6 @@ import {
   Container,
   Row,
   Col,
-  Badge,
 } from "reactstrap";
 // core components
 import Header from "components/Headers/Header.js";
@@ -35,25 +34,6 @@ const Classes = () => {
       console.error('Failed to fetch classes:', error);
       setClasses([]);
       setLoading(false);
-    }
-  };
-
-  const getStatusBadge = (status) => {
-    switch(status) {
-      case 'LIVE':
-        return <Badge color="danger" className="live-blink">LIVE</Badge>;
-      case 'SCHEDULED':
-        return <Badge color="info">TODAY</Badge>;
-      case 'COMPLETED':
-        return <Badge color="secondary">COMPLETED</Badge>;
-      default:
-        return <Badge>{status}</Badge>;
-    }
-  };
-
-  const handleJoin = (zoomLink) => {
-    if (zoomLink) {
-      window.open(zoomLink, '_blank');
     }
   };
 
