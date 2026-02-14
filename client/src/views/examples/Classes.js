@@ -13,7 +13,7 @@ import {
 } from "reactstrap";
 // core components
 import Header from "components/Headers/Header.js";
-import { apiUrl } from "utils/api";
+import http from "utils/http";
 
 const Classes = () => {
   const [selectedView, setSelectedView] = useState('day');
@@ -28,21 +28,8 @@ const Classes = () => {
 
   const fetchClasses = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(apiUrl('/api/classes/my-classes-v2'), {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setClasses(data);
-      } else {
-        console.error('Failed to fetch classes:', response.status);
-        setClasses([]);
-      }
+      const response = await http.get('/api/classes/my-classes-v2');
+      setClasses(Array.isArray(response?.data) ? response.data : []);
       setLoading(false);
     } catch (error) {
       console.error('Failed to fetch classes:', error);

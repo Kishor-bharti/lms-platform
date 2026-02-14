@@ -11,7 +11,7 @@ import {
 } from "reactstrap";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { apiUrl } from "../../utils/api";
+import http from "../../utils/http";
 
 const AdminLogin = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -25,22 +25,11 @@ const AdminLogin = () => {
     setError("");
     setIsLoading(true);
     try {
-      const res = await fetch(apiUrl("/api/auth/login"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), password: password.trim() })
+      const res = await http.post("/api/auth/login", {
+        email: email.trim(),
+        password: password.trim(),
       });
-      if (!res.ok) {
-        let msg = "Invalid credentials";
-        try {
-          const errData = await res.json();
-          if (errData && typeof errData.message === "string") msg = errData.message;
-        } catch {}
-        setError(msg);
-        setIsLoading(false);
-        return;
-      }
-      const data = await res.json();
+      const data = res?.data;
       const role = data?.user?.role;
       if (role !== "ADMIN") {
         setError("*You are not an administrator");
@@ -51,8 +40,9 @@ const AdminLogin = () => {
       window.localStorage.setItem("role", role);
       try { window.localStorage.setItem("user", JSON.stringify(data.user)); } catch {}
       navigate("/admin/index", { replace: true });
-    } catch {
-      setError("Server error");
+    } catch (err) {
+      const msg = err?.response?.data?.message;
+      setError(typeof msg === "string" ? msg : "Server error");
     } finally {
       setIsLoading(false);
     }

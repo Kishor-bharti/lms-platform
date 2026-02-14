@@ -1,4 +1,4 @@
-const rawBase = process.env.REACT_APP_API_BASE_URL || "";
+const rawBase = process.env.REACT_APP_API_URL || process.env.REACT_APP_API_BASE_URL || process.env.VITE_API_URL || "";
 
 const normalizeBase = (base) => {
   if (!base) return "";

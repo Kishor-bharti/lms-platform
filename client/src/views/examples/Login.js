@@ -14,7 +14,7 @@ import {
 } from "reactstrap";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { apiUrl } from "../../utils/api";
+import http from "../../utils/http";
 
 const Login = () => {
   const [selectedRole, setSelectedRole] = useState(null);
@@ -39,21 +39,11 @@ const Login = () => {
     const v = validate();
     if (v) { setError(v); return; }
     try {
-      const res = await fetch(apiUrl("/api/auth/login"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), password: password.trim() })
+      const res = await http.post("/api/auth/login", {
+        email: email.trim(),
+        password: password.trim(),
       });
-      if (!res.ok) {
-        let msg = "Invalid credentials";
-        try {
-          const errData = await res.json();
-          if (errData && typeof errData.message === "string") msg = errData.message;
-        } catch {}
-        setError(msg);
-        return;
-      }
-      const data = await res.json();
+      const data = res?.data;
       const role = data?.user?.role;
       const selected = selectedRole === "student" ? "STUDENT" : "TEACHER";
       if (role !== selected) {
@@ -64,8 +54,9 @@ const Login = () => {
       window.localStorage.setItem("role", role);
       try { window.localStorage.setItem("user", JSON.stringify(data.user)); } catch {}
       navigate("/admin/index", { replace: true });
-    } catch {
-      setError("Server error");
+    } catch (err) {
+      const msg = err?.response?.data?.message;
+      setError(typeof msg === "string" ? msg : "Server error");
     }
   };
   return (

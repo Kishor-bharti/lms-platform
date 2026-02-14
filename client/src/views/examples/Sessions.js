@@ -13,7 +13,7 @@ import {
 } from "reactstrap";
 // core components
 import Header from "components/Headers/Header.js";
-import { apiUrl } from "utils/api";
+import http from "utils/http";
 
 const Sessions = () => {
   const [sessions, setSessions] = useState([]);
@@ -22,6 +22,7 @@ const Sessions = () => {
   const [userRole, setUserRole] = useState(null);
   const [startingSession, setStartingSession] = useState(null);
   const [selectedView, setSelectedView] = useState('day');
+  const [actionError, setActionError] = useState("");
 
   useEffect(() => {
     const role = typeof window !== "undefined" ? window.localStorage.getItem("role") : null;
@@ -33,20 +34,8 @@ const Sessions = () => {
 
   const fetchSessions = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(apiUrl('/api/classes/my-sessions-v2'), {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setSessions(data);
-      } else {
-        setSessions([]);
-      }
+      const response = await http.get('/api/classes/my-sessions-v2');
+      setSessions(Array.isArray(response?.data) ? response.data : []);
       setLoading(false);
     } catch (error) {
       console.error('Failed to fetch sessions:', error);
@@ -84,30 +73,19 @@ const Sessions = () => {
 
   const handleStartSession = async (sessionId) => {
     setStartingSession(sessionId);
+    setActionError("");
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(apiUrl(`/api/classes/sessions/${sessionId}/start`), {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const updatedSession = await response.json();
-        setSessions(sessions.map(s => s.id === sessionId ? updatedSession : s));
-        setExpandedSession(null);
-        const teacherOpenUrl = updatedSession.start_url || updatedSession.zoom_link;
-        if (teacherOpenUrl) {
-          window.open(teacherOpenUrl, '_blank');
-        }
-      } else {
-        alert('Failed to start session');
+      const response = await http.post(`/api/classes/sessions/${sessionId}/start`);
+      const updatedSession = response?.data;
+      setSessions(sessions.map(s => s.id === sessionId ? updatedSession : s));
+      setExpandedSession(null);
+      const teacherOpenUrl = updatedSession?.start_url || updatedSession?.zoom_link;
+      if (teacherOpenUrl) {
+        window.open(teacherOpenUrl, '_blank');
       }
     } catch (error) {
       console.error('Failed to start session:', error);
-      alert('Failed to start session');
+      setActionError('Failed to start session');
     } finally {
       setStartingSession(null);
     }
@@ -115,26 +93,15 @@ const Sessions = () => {
 
   const handleEndSession = async (sessionId) => {
     setStartingSession(sessionId);
+    setActionError("");
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(apiUrl(`/api/classes/sessions/${sessionId}/complete`), {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const updatedSession = await response.json();
-        setSessions(sessions.map(s => s.id === sessionId ? updatedSession : s));
-        setExpandedSession(null);
-      } else {
-        alert('Failed to end session');
-      }
+      const response = await http.post(`/api/classes/sessions/${sessionId}/complete`);
+      const updatedSession = response?.data;
+      setSessions(sessions.map(s => s.id === sessionId ? updatedSession : s));
+      setExpandedSession(null);
     } catch (error) {
       console.error('Failed to end session:', error);
-      alert('Failed to end session');
+      setActionError('Failed to end session');
     } finally {
       setStartingSession(null);
     }
@@ -171,6 +138,11 @@ const Sessions = () => {
                 <CardTitle className="mb-0">Sessions</CardTitle>
               </CardHeader>
               <CardBody>
+                {actionError ? (
+                  <div className="mb-2">
+                    <small className="text-danger">{actionError}</small>
+                  </div>
+                ) : null}
                 <div className="d-flex justify-content-end mb-3">
                   <Button size="sm" color="primary" outline={selectedView!=="day"} onClick={()=>setSelectedView('day')}>Day</Button>
                   <Button size="sm" color="primary" outline={selectedView!=="week"} className="ml-2" onClick={()=>setSelectedView('week')}>Week</Button>

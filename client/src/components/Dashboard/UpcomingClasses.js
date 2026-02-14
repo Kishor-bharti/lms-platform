@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Card, CardHeader, CardBody, CardTitle, Table, Badge, Button, Modal, ModalHeader, ModalBody, ModalFooter } from "reactstrap";
-import { apiUrl } from "utils/api";
+import http from "utils/http";
 
 export default function UpcomingClasses() {
   const [sessions, setSessions] = useState([]);
@@ -15,20 +15,9 @@ export default function UpcomingClasses() {
 
   const fetchSessions = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(apiUrl('/api/classes/my-sessions-v2'), {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setSessions(data.slice(0, 4));
-      } else {
-        setSessions([]);
-      }
+      const response = await http.get('/api/classes/my-sessions-v2');
+      const data = Array.isArray(response?.data) ? response.data : [];
+      setSessions(data.slice(0, 4));
     } catch (error) {
       console.error('Failed to fetch sessions:', error);
       setSessions([]);
