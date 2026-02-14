@@ -8,9 +8,11 @@ function convertQuestionMarksToDollarParams(sql: string, params?: any[]): { text
   return { text, params };
 }
 
-const sslOption = env.NODE_ENV === 'production'
-  ? { rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false' }
-  : undefined;
+const sslOption =
+  env.NODE_ENV === 'production'
+    ? { rejectUnauthorized: false }
+    : undefined;
+
 
 type PoolConfigWithConnection = PoolConfig & { connectionString?: string };
 
