@@ -6,23 +6,28 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.env = void 0;
 exports.validateEnv = validateEnv;
 const dotenv_1 = __importDefault(require("dotenv"));
-if (process.env.NODE_ENV === 'test') {
-    dotenv_1.default.config({ path: '.env.test' });
-}
-else {
-    dotenv_1.default.config();
-}
+// if (process.env.NODE_ENV === 'test') {
+//   dotenv.config({ path: '.env.test' });
+// } else {
+//   dotenv.config();
+// }
+dotenv_1.default.config({
+    path: process.env.NODE_ENV === "test"
+        ? ".env.test"
+        : process.env.NODE_ENV === "production"
+            ? ".env.production"
+            : ".env.development"
+});
 exports.env = {
-    NODE_ENV: process.env.NODE_ENV ?? 'development',
-    PORT: parseInt(process.env.PORT || '4000', 10),
-    JWT_SECRET: process.env.JWT_SECRET || '',
-    DATABASE_URL: process.env.DATABASE_URL || '',
-    DB_HOST: process.env.DB_HOST || '',
-    DB_PORT: parseInt(process.env.DB_PORT || '5432', 10),
-    DB_USER: process.env.DB_USER || '',
-    DB_PASSWORD: process.env.DB_PASSWORD || '',
-    DB_NAME: process.env.DB_NAME || '',
-    FRONTEND_ORIGIN: process.env.FRONTEND_ORIGIN || process.env.FRONTEND_URL || '',
+    NODE_ENV: process.env.NODE_ENV,
+    PORT: process.env.PORT,
+    JWT_SECRET: process.env.JWT_SECRET,
+    DATABASE_URL: process.env.DATABASE_URL,
+    DB_HOST: process.env.DB_HOST,
+    DB_PORT: process.env.DB_PORT,
+    DB_USER: process.env.DB_USER,
+    DB_PASSWORD: process.env.DB_PASSWORD,
+    DB_NAME: process.env.DB_NAME,
     FRONTEND_ORIGINS: (process.env.FRONTEND_ORIGINS || '')
         .split(',')
         .map((origin) => origin.trim())

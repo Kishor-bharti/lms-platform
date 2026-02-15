@@ -22,8 +22,9 @@
   "homepage": "",
   "scripts": {
     "start": "react-scripts start",
-    "build": "cross-env PUBLIC_URL=/ react-scripts build",
+    "build": "react-scripts build",
     "test": "react-scripts test",
+    "lint": "eslint src",
     "eject": "react-scripts eject",
     "install:clean": "rm -rf node_modules/ && rm -rf package-lock.json && npm install && npm start",
     "compile:scss": "sass src/assets/scss/lms-platform.scss src/assets/css/lms-platform.css",

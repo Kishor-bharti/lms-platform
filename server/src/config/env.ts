@@ -1,10 +1,19 @@
 import dotenv from 'dotenv';
 
-if (process.env.NODE_ENV === 'test') {
-  dotenv.config({ path: '.env.test' });
-} else {
-  dotenv.config();
-}
+// if (process.env.NODE_ENV === 'test') {
+//   dotenv.config({ path: '.env.test' });
+// } else {
+//   dotenv.config();
+// }
+
+dotenv.config({
+  path: process.env.NODE_ENV === "test"
+    ? ".env.test"
+    : process.env.NODE_ENV === "production"
+    ? ".env.production"
+    : ".env.development"
+});
+
 
 export const env = {
   NODE_ENV: process.env.NODE_ENV ?? 'development',
@@ -16,7 +25,6 @@ export const env = {
   DB_USER: process.env.DB_USER || '',
   DB_PASSWORD: process.env.DB_PASSWORD || '',
   DB_NAME: process.env.DB_NAME || '',
-  FRONTEND_ORIGIN: process.env.FRONTEND_ORIGIN || process.env.FRONTEND_URL || '',
   FRONTEND_ORIGINS: (process.env.FRONTEND_ORIGINS || '')
     .split(',')
     .map((origin) => origin.trim())

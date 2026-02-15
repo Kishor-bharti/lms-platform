@@ -1,14 +1,13 @@
 export declare const env: {
-    NODE_ENV: string;
-    PORT: number;
-    JWT_SECRET: string;
-    DATABASE_URL: string;
-    DB_HOST: string;
-    DB_PORT: number;
-    DB_USER: string;
-    DB_PASSWORD: string;
-    DB_NAME: string;
-    FRONTEND_ORIGIN: string;
+    NODE_ENV: string | undefined;
+    PORT: string | undefined;
+    JWT_SECRET: string | undefined;
+    DATABASE_URL: string | undefined;
+    DB_HOST: string | undefined;
+    DB_PORT: string | undefined;
+    DB_USER: string | undefined;
+    DB_PASSWORD: string | undefined;
+    DB_NAME: string | undefined;
     FRONTEND_ORIGINS: string[];
 };
 export declare function validateEnv(): void;

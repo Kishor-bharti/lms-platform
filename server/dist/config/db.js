@@ -15,7 +15,7 @@ function convertQuestionMarksToDollarParams(sql, params) {
     return { text, params };
 }
 const sslOption = env_1.env.NODE_ENV === 'production'
-    ? { rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false' }
+    ? { rejectUnauthorized: false }
     : undefined;
 const poolConfig = env_1.env.DATABASE_URL
     ? {
