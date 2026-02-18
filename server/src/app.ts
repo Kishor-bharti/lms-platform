@@ -5,6 +5,7 @@ import authRouter from './modules/auth/auth.routes';
 import classesRouter from './modules/classes/classes.routes';
 import { env } from './config/env';
 import { errorHandler } from './middlewares/error.middleware';
+import { pool } from './config/db';
 
 const app = express();
 
@@ -40,6 +41,18 @@ app.options('*', cors(corsOptions));
 
 app.use('/api/auth', authRouter);
 app.use('/api/classes', classesRouter);
+
+// TEMPORARY: Test latency endpoint
+app.get('/test-latency', async (req, res) => {
+  const start = Date.now();
+  
+  // simplest possible DB query
+  await pool.query('SELECT 1');
+  
+  const latency = Date.now() - start;
+  
+  res.json({ db_latency_ms: latency });
+});
 
 app.use(errorHandler);
 
