@@ -15,7 +15,7 @@ var routes = [
     icon: "ni ni-tv-2 text-primary",
     component: <Index />,
     layout: "/admin",
-    roles: ["STUDENT", "TEACHER"],
+    // No roles = visible to ALL (admin, teacher, student)
   },
   {
     path: "/sessions",
@@ -23,7 +23,7 @@ var routes = [
     icon: "ni ni-chat-round text-info",
     component: <Sessions />,
     layout: "/admin",
-    roles: ["TEACHER"],
+    roles: ["TEACHER", "ADMIN"],
   },
   {
     path: "/classes",

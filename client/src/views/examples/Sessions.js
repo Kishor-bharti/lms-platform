@@ -1,17 +1,8 @@
 import React, { useState, useEffect } from "react";
-// reactstrap components
 import {
-  Button,
-  Card,
-  CardHeader,
-  CardBody,
-  CardTitle,
-  Container,
-  Row,
-  Col,
-  Badge,
+  Button, Card, CardHeader, CardBody, CardTitle,
+  Container, Row, Col, Badge,
 } from "reactstrap";
-// core components
 import Header from "components/Headers/Header.js";
 import http from "utils/http";
 
@@ -45,30 +36,26 @@ const Sessions = () => {
   };
 
   const getStatusBadge = (status) => {
-    switch(status) {
-      case 'LIVE':
-        return <Badge color="danger" className="live-blink">LIVE</Badge>;
-      case 'TODAY':
-        return <Badge color="warning">TODAY</Badge>;
-      case 'TOMORROW':
-        return <Badge color="info">TOMORROW</Badge>;
-      case 'COMPLETED':
-        return <Badge color="secondary">COMPLETED</Badge>;
-      case 'SCHEDULED':
-        return <Badge color="light">SCHEDULED</Badge>;
-      default:
-        return <Badge>{status}</Badge>;
+    switch (status) {
+      case 'LIVE':      return <Badge color="danger" className="live-blink">● LIVE</Badge>;
+      case 'TODAY':     return <Badge color="warning">TODAY</Badge>;
+      case 'TOMORROW':  return <Badge color="info">TOMORROW</Badge>;
+      case 'COMPLETED': return <Badge color="secondary">COMPLETED</Badge>;
+      case 'SCHEDULED': return <Badge color="light">SCHEDULED</Badge>;
+      default:          return <Badge>{status}</Badge>;
     }
   };
 
   const handleJoin = (zoomLink) => {
-    if (zoomLink) {
-      window.open(zoomLink, '_blank');
-    }
+    if (zoomLink) window.open(zoomLink, '_blank');
   };
 
-  const toggleSessionPanel = (sessionId) => {
-    setExpandedSession(expandedSession === sessionId ? null : sessionId);
+  const toggleDetails = (sessionId) => {
+    // Only teachers/admins can expand to see controls
+    const role = typeof window !== "undefined" ? window.localStorage.getItem("role") : null;
+    if (role === 'teacher' || role === 'admin') {
+      setExpandedSession(expandedSession === sessionId ? null : sessionId);
+    }
   };
 
   const handleStartSession = async (sessionId) => {
@@ -76,16 +63,15 @@ const Sessions = () => {
     setActionError("");
     try {
       const response = await http.post(`/api/classes/sessions/${sessionId}/start`);
-      const updatedSession = response?.data;
-      setSessions(sessions.map(s => s.id === sessionId ? updatedSession : s));
+      const updated = response?.data;
+      setSessions(sessions.map(s => s.id === sessionId ? updated : s));
       setExpandedSession(null);
-      const teacherOpenUrl = updatedSession?.start_url || updatedSession?.zoom_link;
-      if (teacherOpenUrl) {
-        window.open(teacherOpenUrl, '_blank');
-      }
+      // Open Zoom for the teacher (start_url)
+      const openUrl = updated?.start_url || updated?.zoom_link;
+      if (openUrl) window.open(openUrl, '_blank');
     } catch (error) {
       console.error('Failed to start session:', error);
-      setActionError('Failed to start session');
+      setActionError(error?.response?.data?.error || 'Failed to start session');
     } finally {
       setStartingSession(null);
     }
@@ -96,12 +82,11 @@ const Sessions = () => {
     setActionError("");
     try {
       const response = await http.post(`/api/classes/sessions/${sessionId}/complete`);
-      const updatedSession = response?.data;
-      setSessions(sessions.map(s => s.id === sessionId ? updatedSession : s));
+      setSessions(sessions.map(s => s.id === sessionId ? response?.data : s));
       setExpandedSession(null);
     } catch (error) {
       console.error('Failed to end session:', error);
-      setActionError('Failed to end session');
+      setActionError(error?.response?.data?.error || 'Failed to end session');
     } finally {
       setStartingSession(null);
     }
@@ -112,25 +97,20 @@ const Sessions = () => {
       <>
         <Header />
         <Container className="mt--7" fluid style={{ backgroundColor: "rgb(196, 214, 226)", minHeight: "100vh", paddingTop: "30px", paddingBottom: "30px" }}>
-          <Row>
-            <Col lg="12">
-              <Card>
-                <CardBody className="text-center py-5">
-                  <p>Loading sessions...</p>
-                </CardBody>
-              </Card>
-            </Col>
-          </Row>
+          <Row><Col lg="12">
+            <Card><CardBody className="text-center py-5"><p>Loading sessions...</p></CardBody></Card>
+          </Col></Row>
         </Container>
       </>
     );
   }
+
+  const isTeacherOrAdmin = userRole === 'teacher' || userRole === 'admin';
+
   return (
     <>
       <Header />
-      {/* Page content */}
       <Container className="mt--7" fluid style={{ backgroundColor: "rgb(196, 214, 226)", minHeight: "100vh", paddingTop: "30px", paddingBottom: "30px" }}>
-        {/* Sessions List */}
         <Row>
           <Col lg="12">
             <Card className="shadow mb-4" style={{ backgroundColor: "#f0f4f8", borderRadius: "8px" }}>
@@ -138,16 +118,18 @@ const Sessions = () => {
                 <CardTitle className="mb-0">Sessions</CardTitle>
               </CardHeader>
               <CardBody>
-                {actionError ? (
-                  <div className="mb-2">
-                    <small className="text-danger">{actionError}</small>
+                {actionError && (
+                  <div className="mb-3">
+                    <small className="text-danger font-weight-bold">⚠ {actionError}</small>
                   </div>
-                ) : null}
+                )}
+
                 <div className="d-flex justify-content-end mb-3">
-                  <Button size="sm" color="primary" outline={selectedView!=="day"} onClick={()=>setSelectedView('day')}>Day</Button>
-                  <Button size="sm" color="primary" outline={selectedView!=="week"} className="ml-2" onClick={()=>setSelectedView('week')}>Week</Button>
-                  <Button size="sm" color="primary" outline={selectedView!=="month"} className="ml-2" onClick={()=>setSelectedView('month')}>Month</Button>
+                  <Button size="sm" color="primary" outline={selectedView !== "day"} onClick={() => setSelectedView('day')}>Day</Button>
+                  <Button size="sm" color="primary" outline={selectedView !== "week"} className="ml-2" onClick={() => setSelectedView('week')}>Week</Button>
+                  <Button size="sm" color="primary" outline={selectedView !== "month"} className="ml-2" onClick={() => setSelectedView('month')}>Month</Button>
                 </div>
+
                 <div className="session-stack">
                   {sessions.length === 0 ? (
                     <div className="text-center py-5">
@@ -155,49 +137,33 @@ const Sessions = () => {
                     </div>
                   ) : (
                     sessions.map((session) => (
-                      <div key={session.id} className="session-item p-3 mb-3 bg-white border rounded" style={{ borderLeft: '4px solid #96c8ff', backgroundColor: session.status === 'LIVE' ? '#ffe6e6' : 'white', cursor: userRole === 'TEACHER' ? 'pointer' : 'default' }} onClick={() => userRole === 'TEACHER' && toggleSessionPanel(session.id)}>
-                        <div className="d-flex justify-content-between align-items-start">
-                          <div className="flex-grow-1">
-                            <div className="d-flex align-items-center mb-2">
-                              <h5 className="mb-0 mr-2">{session.title || 'Untitled Session'}</h5>
+                      <div
+                        key={session.id}
+                        className="session-item mb-3 bg-white border rounded"
+                        style={{
+                          borderLeft: `4px solid ${session.status === 'LIVE' ? '#dc3545' : '#96c8ff'}`,
+                          backgroundColor: session.status === 'LIVE' ? '#fff5f5' : 'white',
+                        }}
+                      >
+                        {/* ── Main row ── */}
+                        <div className="p-3 d-flex justify-content-between align-items-start">
+                          <div
+                            className="flex-grow-1"
+                            style={{ cursor: isTeacherOrAdmin ? 'pointer' : 'default' }}
+                            onClick={() => toggleDetails(session.id)}
+                          >
+                            <div className="d-flex align-items-center mb-1" style={{ gap: '8px' }}>
+                              <h5 className="mb-0">{session.title || 'Untitled Session'}</h5>
                               {getStatusBadge(session.status)}
                             </div>
-                            <div className="small text-muted mb-2">
+                            <div className="small text-muted">
                               <span className="mr-3">📚 {session.class_title}</span>
                               <span>🕐 {new Date(session.scheduled_at).toLocaleString()}</span>
                             </div>
-                            {expandedSession === session.id && userRole === 'TEACHER' && (
-                              <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px solid #e0e0e0' }}>
-                                <div style={{ marginBottom: '10px' }}>
-                                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', marginBottom: '5px', color: '#555' }}>Class</label>
-                                  <div style={{ padding: '8px', backgroundColor: '#f9f9f9', borderRadius: '4px', fontSize: '14px' }}>{session.class_title}</div>
-                                </div>
-                                <div style={{ display: 'flex', gap: '8px' }}>
-                                  {session.status !== 'LIVE' && (
-                                    <Button 
-                                      color="success" 
-                                      size="sm" 
-                                      onClick={(e) => { e.stopPropagation(); handleStartSession(session.id); }}
-                                      disabled={startingSession === session.id}
-                                    >
-                                      {startingSession === session.id ? 'Starting...' : 'Start Live Session'}
-                                    </Button>
-                                  )}
-                                  {session.status === 'LIVE' && (
-                                    <Button 
-                                      color="danger" 
-                                      size="sm" 
-                                      onClick={(e) => { e.stopPropagation(); handleEndSession(session.id); }}
-                                      disabled={startingSession === session.id}
-                                    >
-                                      {startingSession === session.id ? 'Ending...' : 'End Session'}
-                                    </Button>
-                                  )}
-                                </div>
-                              </div>
-                            )}
                           </div>
-                          <div className="d-flex gap-2">
+
+                          {/* Action buttons (right side) */}
+                          <div className="d-flex align-items-center" style={{ gap: '6px', marginLeft: '12px' }}>
                             {session.status === 'LIVE' && (
                               <Button size="sm" color="success" onClick={() => handleJoin(session.zoom_link)}>
                                 Join
@@ -208,17 +174,82 @@ const Sessions = () => {
                                 Replay
                               </Button>
                             )}
-                            <Button size="sm" color="dark">Details</Button>
+                            {isTeacherOrAdmin && (
+                              <Button
+                                size="sm" color="dark"
+                                onClick={() => toggleDetails(session.id)}
+                              >
+                                {expandedSession === session.id ? 'Close' : 'Details'}
+                              </Button>
+                            )}
+                            {!isTeacherOrAdmin && (
+                              <Button size="sm" color="dark">Details</Button>
+                            )}
                           </div>
                         </div>
+
+                        {/* ── Details panel — teacher/admin only ── */}
+                        {expandedSession === session.id && isTeacherOrAdmin && (
+                          <div style={{ borderTop: '1px solid #e8f0f6', padding: '16px', backgroundColor: '#f8fbff' }}>
+                            <div style={{ marginBottom: '10px' }}>
+                              <div className="small text-muted mb-1">Class</div>
+                              <div style={{ fontWeight: 600, padding: '8px', backgroundColor: '#f0f4f8', borderRadius: '6px' }}>
+                                {session.class_title}
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                              {/* Single smart button: green → Starting... → red End Session */}
+                              {session.status !== 'COMPLETED' && (
+                                <button
+                                  disabled={startingSession === session.id}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (session.status === 'LIVE') {
+                                      handleEndSession(session.id);
+                                    } else {
+                                      handleStartSession(session.id);
+                                    }
+                                  }}
+                                  style={{
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    padding: '8px 20px',
+                                    fontWeight: '600',
+                                    fontSize: '14px',
+                                    cursor: startingSession === session.id ? 'not-allowed' : 'pointer',
+                                    opacity: startingSession === session.id ? 0.8 : 1,
+                                    background: session.status === 'LIVE'
+                                      ? '#f5365c'
+                                      : startingSession === session.id
+                                        ? '#2dce89'
+                                        : '#2dce89',
+                                    color: '#fff',
+                                    boxShadow: session.status === 'LIVE'
+                                      ? '0 4px 6px rgba(245,54,92,.35)'
+                                      : '0 4px 6px rgba(45,206,137,.35)',
+                                    transition: 'background 0.3s ease, box-shadow 0.3s ease',
+                                  }}
+                                >
+                                  {startingSession === session.id
+                                    ? 'Starting...'
+                                    : session.status === 'LIVE'
+                                      ? 'End Session'
+                                      : 'Start Live Session'}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ))
                   )}
                 </div>
+
                 <style>{`
                   .session-stack .session-item { transition: box-shadow .15s ease; }
-                  .session-stack .session-item:hover { box-shadow: 0 .5rem 1rem rgba(0,0,0,.15); }
-                  @keyframes liveBlink { 0%,100% { opacity: 1 } 50% { opacity: .3 } }
+                  .session-stack .session-item:hover { box-shadow: 0 .5rem 1rem rgba(0,0,0,.1); }
+                  @keyframes liveBlink { 0%,100% { opacity:1 } 50% { opacity:.4 } }
                   .live-blink { animation: liveBlink 1s infinite; }
                 `}</style>
               </CardBody>

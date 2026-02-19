@@ -1,427 +1,400 @@
-import { randomUUID } from 'crypto';
+// classes.service.ts — fully rewritten for v2.1 schema
+// Tables used: subjects, courses, subject_teachers, subject_enrollments,
+//              sessions, users
+// NO old table references (classes, enrollments) remain.
+
 import { query, queryWithClient, withTransaction } from '../../config/db';
-import { createZoomMeeting, getZoomAccessToken, zoomHealthCheck } from '../../services/zoom.service';
-import { Class, Session, Enrollment, StudentClass } from './classes.types';
+import { createZoomMeeting, getZoomAccessToken } from '../../services/zoom.service';
+import { ClassWithTeacher, SessionWithDetails } from './classes.types';
 
-// Session status calculation
+// ─── Status calculator ─────────────────────────────────────────
+// DB stores lowercase: 'scheduled' | 'live' | 'completed' | 'cancelled'
+// Frontend expects uppercase: 'SCHEDULED' | 'LIVE' | 'TODAY' | 'TOMORROW' | 'COMPLETED'
+
 function calculateSessionStatus(
-  scheduled_at: string,
+  session_date: string,    // e.g. "2026-02-20"
+  start_time: string,      // e.g. "18:30:00+05:30"
   dbStatus: string,
-  today: Date = new Date()
+  now: Date = new Date()
 ): string {
-  // LIVE has highest priority
-  if (dbStatus === 'LIVE') {
-    return 'LIVE';
-  }
+  // LIVE always wins
+  if (dbStatus === 'live') return 'LIVE';
+  if (dbStatus === 'completed' || dbStatus === 'cancelled') return 'COMPLETED';
 
-  // COMPLETED sessions stay completed
-  if (dbStatus === 'COMPLETED') {
-    return 'COMPLETED';
-  }
+  // Build a JS Date from session_date + start_time
+  // Strip timezone suffix from TIMETZ for safe parsing
+  const timeStr = start_time.replace(/[+-]\d{2}:\d{2}$/, '');
+  const sessionDate = new Date(`${session_date}T${timeStr}`);
 
-  const sessionDate = new Date(scheduled_at);
-  const todayDate = new Date(today);
-  todayDate.setHours(0, 0, 0, 0);
+  // If session time already passed → COMPLETED
+  if (sessionDate < now) return 'COMPLETED';
 
-  const tomorrowDate = new Date(todayDate);
-  tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
 
-  const sessionDateOnly = new Date(sessionDate);
-  sessionDateOnly.setHours(0, 0, 0, 0);
+  const tomorrowStart = new Date(todayStart);
+  tomorrowStart.setDate(tomorrowStart.getDate() + 1);
 
-  // Check if session time has passed
-  if (sessionDate < today) {
-    return 'COMPLETED';
-  }
+  const afterTomorrow = new Date(tomorrowStart);
+  afterTomorrow.setDate(afterTomorrow.getDate() + 1);
 
-  // Check if session is today
-  if (sessionDateOnly.getTime() === todayDate.getTime()) {
-    return 'TODAY';
-  }
+  const sessionDay = new Date(session_date + 'T00:00:00');
 
-  // Check if session is tomorrow
-  if (sessionDateOnly.getTime() === tomorrowDate.getTime()) {
-    return 'TOMORROW';
-  }
-
+  if (sessionDay >= todayStart && sessionDay < tomorrowStart) return 'TODAY';
+  if (sessionDay >= tomorrowStart && sessionDay < afterTomorrow) return 'TOMORROW';
   return 'SCHEDULED';
 }
 
-export async function createClass(title: string, subject: string, teacherId: number): Promise<Class> {
-  const id = randomUUID();
-  await query(
-    'INSERT INTO classes (id, title, subject, teacher_id) VALUES (?, ?, ?, ?)',
-    [id, title, subject, teacherId]
-  );
-  const classes = await query<Class>(
-    'SELECT * FROM classes WHERE id = ?',
-    [id]
-  );
-  
-  if (!classes[0]) {
-    throw new Error('Failed to create class');
-  }
-  
-  return classes[0];
+// Build ISO scheduled_at string from DATE + TIMETZ columns
+function buildScheduledAt(session_date: string, start_time: string): string {
+  const timeStr = start_time.replace(/[+-]\d{2}:\d{2}$/, '');
+  return `${session_date}T${timeStr}`;
 }
 
-export async function createSession(classId: string, title: string, scheduledAt: Date): Promise<Session> {
-  const id = randomUUID();
-  await query(
-    'INSERT INTO sessions (id, class_id, title, status, scheduled_at) VALUES (?, ?, ?, ?, ?)',
-    [id, classId, title, 'SCHEDULED', scheduledAt]
-  );
-  const sessions = await query<Session>(
-    'SELECT * FROM sessions WHERE id = ?',
-    [id]
-  );
-  
-  if (!sessions[0]) {
-    throw new Error('Failed to create session');
-  }
-  
-  return sessions[0];
-}
+// ─── TEACHER: subjects assigned via subject_teachers ───────────
 
-export async function startSession(sessionId: string): Promise<Session> {
-  const zoomLink = `https://zoom.mock/meeting/${sessionId}`;
-  await query(
-    'UPDATE sessions SET zoom_link = ?, status = ? WHERE id = ?',
-    [zoomLink, 'LIVE', sessionId]
-  );
-  const sessions = await query<Session>(
-    'SELECT * FROM sessions WHERE id = ?',
-    [sessionId]
-  );
-  
-  if (!sessions[0]) {
-    throw new Error('Session not found');
-  }
-  
-  return sessions[0];
-}
-
-export async function getTeacherClasses(teacherId: number): Promise<Class[]> {
-  return await query<Class>(
-    'SELECT * FROM classes WHERE teacher_id = ? ORDER BY created_at DESC',
+export async function getTeacherSubjects(teacherId: string): Promise<ClassWithTeacher[]> {
+  const rows = await query<any>(
+    `SELECT
+       sub.id,
+       sub.name,
+       sub.code,
+       sub.description,
+       c.name  AS course_name,
+       c.code  AS course_code,
+       u.first_name || ' ' || u.last_name AS teacher_name
+     FROM   subjects sub
+     JOIN   courses          c  ON c.id  = sub.course_id
+     JOIN   subject_teachers st ON st.subject_id = sub.id
+     JOIN   users            u  ON u.id  = st.teacher_id
+     WHERE  st.teacher_id = $1
+       AND  sub.is_active  = true
+     ORDER  BY c.name, sub.name`,
     [teacherId]
   );
+
+  return rows.map((r) => ({
+    id:          r.id,
+    title:       r.name,
+    code:        r.code,
+    description: r.description,
+    course_name: r.course_name,
+    course_code: r.course_code,
+    teacher_name: r.teacher_name,
+  }));
 }
 
-export async function getStudentEnrolledClasses(studentId: number): Promise<StudentClass[]> {
-  const enrollments = await query<{
-    id: string;
-    title: string;
-    subject: string | null;
-    start_date: string | null;
-    end_date: string | null;
-    teacher_name: string;
-  }>(
-    `SELECT c.id, c.title, c.subject, c.start_date, c.end_date, u.name as teacher_name
-     FROM classes c
-     JOIN enrollments e ON c.id = e.class_id
-     JOIN users u ON c.teacher_id = u.id
-     WHERE e.student_id = ?
-     ORDER BY c.created_at DESC`,
+// ─── STUDENT: subjects enrolled via subject_enrollments ────────
+
+export async function getEnrolledSubjects(studentId: string): Promise<ClassWithTeacher[]> {
+  const rows = await query<any>(
+    `SELECT
+       sub.id,
+       sub.name,
+       sub.code,
+       sub.description,
+       c.name  AS course_name,
+       c.code  AS course_code,
+       u.first_name || ' ' || u.last_name AS teacher_name
+     FROM   subjects sub
+     JOIN   courses             c  ON c.id  = sub.course_id
+     JOIN   subject_enrollments se ON se.subject_id = sub.id
+     JOIN   subject_teachers    st ON st.subject_id = sub.id
+     JOIN   users               u  ON u.id  = st.teacher_id
+     WHERE  se.student_id       = $1
+       AND  se.enrollment_status = 'active'
+       AND  sub.is_active        = true
+     ORDER  BY c.name, sub.name`,
     [studentId]
   );
 
-  const studentClasses: StudentClass[] = [];
-
-  for (const enrollment of enrollments) {
-    const sessions = await query<Session>(
-      'SELECT id, title, status, zoom_link, scheduled_at FROM sessions WHERE class_id = ? ORDER BY scheduled_at DESC',
-      [enrollment.id]
-    );
-
-    studentClasses.push({
-      id: enrollment.id,
-      title: enrollment.title,
-      subject: enrollment.subject,
-      teacher_name: enrollment.teacher_name,
-      start_date: enrollment.start_date,
-      end_date: enrollment.end_date,
-      sessions: sessions.map(s => ({
-        id: s.id,
-        title: s.title,
-        status: s.status,
-        zoom_link: s.zoom_link,
-        scheduled_at: s.scheduled_at
-      }))
-    });
-  }
-
-  return studentClasses;
+  return rows.map((r) => ({
+    id:          r.id,
+    title:       r.name,
+    code:        r.code,
+    description: r.description,
+    course_name: r.course_name,
+    course_code: r.course_code,
+    teacher_name: r.teacher_name,
+  }));
 }
 
-export async function getSessionById(sessionId: string): Promise<Session | null> {
-  const sessions = await query<Session>(
-    'SELECT * FROM sessions WHERE id = ?',
-    [sessionId]
+// ─── ADMIN: all active subjects ────────────────────────────────
+
+export async function getAllSubjects(): Promise<ClassWithTeacher[]> {
+  const rows = await query<any>(
+    `SELECT
+       sub.id,
+       sub.name,
+       sub.code,
+       sub.description,
+       c.name  AS course_name,
+       c.code  AS course_code,
+       COALESCE(u.first_name || ' ' || u.last_name, 'Unassigned') AS teacher_name
+     FROM   subjects sub
+     JOIN   courses          c   ON c.id  = sub.course_id
+     LEFT   JOIN subject_teachers st  ON st.subject_id = sub.id
+     LEFT   JOIN users            u   ON u.id  = st.teacher_id
+     WHERE  sub.is_active = true
+     ORDER  BY c.name, sub.name`
   );
-  return sessions[0] || null;
+
+  return rows.map((r) => ({
+    id:          r.id,
+    title:       r.name,
+    code:        r.code,
+    description: r.description,
+    course_name: r.course_name,
+    course_code: r.course_code,
+    teacher_name: r.teacher_name,
+  }));
 }
 
-export async function enrollStudent(classId: string, studentId: number): Promise<Enrollment> {
-  const id = randomUUID();
-  await query(
-    'INSERT INTO enrollments (id, class_id, student_id) VALUES (?, ?, ?)',
-    [id, classId, studentId]
-  );
-  const enrollments = await query<Enrollment>(
-    'SELECT * FROM enrollments WHERE id = ?',
-    [id]
-  );
-  
-  if (!enrollments[0]) {
-    throw new Error('Failed to create enrollment');
-  }
-  
-  return enrollments[0];
-}
+// ─── Dispatcher: my-classes-v2 ─────────────────────────────────
 
-// New APIs for data-driven UI
-
-export interface ClassWithTeacher {
-  id: string;
-  title: string;
-  subject: string | null;
-  teacher_id: string;
-  teacher_name: string;
-  start_date: string | null;
-  end_date: string | null;
-  created_at: string;
-}
-
-export interface SessionWithDetails {
-  id: string;
-  class_id: string;
-  class_title: string;
-  title: string | null;
-  zoom_link: string | null;
-  scheduled_at: string;
-  status: string; // 'COMPLETED' | 'TODAY' | 'TOMORROW' | 'SCHEDULED' | 'LIVE'
-  start_url?: string | undefined;
-}
-
-export async function getMyClasses(userId: string, role: string): Promise<ClassWithTeacher[]> {
-  if (role === 'TEACHER') {
-    return getTeacherClassesV2(userId);
-  } else if (role === 'STUDENT') {
-    return getEnrolledClassesV2(userId);
-  }
+export async function getMyClasses(
+  userId: string,
+  role: string
+): Promise<ClassWithTeacher[]> {
+  if (role === 'teacher') return getTeacherSubjects(userId);
+  if (role === 'student') return getEnrolledSubjects(userId);
+  if (role === 'admin')   return getAllSubjects();
   return [];
 }
 
-export async function getTeacherClassesV2(teacherId: string): Promise<ClassWithTeacher[]> {
+// ─── TEACHER: sessions for subjects they teach ─────────────────
+
+export async function getSessionsByTeacher(
+  teacherId: string
+): Promise<SessionWithDetails[]> {
   const rows = await query<any>(
-    `SELECT 
-      c.id, c.title, c.subject, c.teacher_id, u.name as teacher_name, 
-      c.start_date, c.end_date, c.created_at
-     FROM classes c
-     JOIN users u ON c.teacher_id = u.id
-     WHERE c.teacher_id = $1
-     ORDER BY c.start_date DESC`,
+    `SELECT
+       s.id,
+       s.subject_id,
+       sub.name       AS class_title,
+       s.title,
+       s.meeting_link,
+       s.zoom_start_url,
+       s.zoom_meeting_id,
+       s.session_date::text  AS session_date,
+       s.start_time::text    AS start_time,
+       s.status
+     FROM   sessions         s
+     JOIN   subjects         sub ON sub.id = s.subject_id
+     JOIN   subject_teachers st  ON st.subject_id = sub.id
+     WHERE  st.teacher_id = $1
+     ORDER  BY s.session_date DESC, s.start_time DESC`,
     [teacherId]
   );
 
-  return rows.map(row => ({
-    id: row.id,
-    title: row.title,
-    subject: row.subject,
-    teacher_id: row.teacher_id,
-    teacher_name: row.teacher_name,
-    start_date: row.start_date,
-    end_date: row.end_date,
-    created_at: row.created_at,
+  const now = new Date();
+  return rows.map((r) => ({
+    id:             r.id,
+    subject_id:     r.subject_id,
+    class_title:    r.class_title,
+    title:          r.title,
+    zoom_link:      r.meeting_link,
+    start_url:      r.zoom_start_url ?? undefined,
+    zoom_meeting_id: r.zoom_meeting_id,
+    scheduled_at:   buildScheduledAt(r.session_date, r.start_time),
+    status:         calculateSessionStatus(r.session_date, r.start_time, r.status, now),
   }));
 }
 
-export async function getEnrolledClassesV2(studentId: string): Promise<ClassWithTeacher[]> {
+// ─── STUDENT: sessions from enrolled subjects ──────────────────
+
+export async function getSessionsByStudent(
+  studentId: string
+): Promise<SessionWithDetails[]> {
   const rows = await query<any>(
-    `SELECT 
-      c.id, c.title, c.subject, c.teacher_id, u.name as teacher_name,
-      c.start_date, c.end_date, c.created_at
-     FROM classes c
-     JOIN users u ON c.teacher_id = u.id
-     JOIN enrollments e ON c.id = e.class_id
-     WHERE e.student_id = $1
-     ORDER BY c.start_date DESC`,
+    `SELECT
+       s.id,
+       s.subject_id,
+       sub.name       AS class_title,
+       s.title,
+       s.meeting_link,
+       s.session_date::text  AS session_date,
+       s.start_time::text    AS start_time,
+       s.status
+     FROM   sessions             s
+     JOIN   subjects             sub ON sub.id = s.subject_id
+     JOIN   subject_enrollments  se  ON se.subject_id = sub.id
+     WHERE  se.student_id        = $1
+       AND  se.enrollment_status = 'active'
+     ORDER  BY s.session_date DESC, s.start_time DESC`,
     [studentId]
   );
 
-  return rows.map(row => ({
-    id: row.id,
-    title: row.title,
-    subject: row.subject,
-    teacher_id: row.teacher_id,
-    teacher_name: row.teacher_name,
-    start_date: row.start_date,
-    end_date: row.end_date,
-    created_at: row.created_at,
+  const now = new Date();
+  return rows.map((r) => ({
+    id:          r.id,
+    subject_id:  r.subject_id,
+    class_title: r.class_title,
+    title:       r.title,
+    zoom_link:   r.meeting_link,
+    scheduled_at: buildScheduledAt(r.session_date, r.start_time),
+    status:      calculateSessionStatus(r.session_date, r.start_time, r.status, now),
   }));
 }
 
-export async function getMySessionsV2(userId: string, role: string): Promise<SessionWithDetails[]> {
-  if (role === 'TEACHER') {
-    return getSessionsByTeacherV2(userId);
-  } else if (role === 'STUDENT') {
-    return getSessionsByStudentV2(userId);
-  }
+// ─── ADMIN: all sessions ───────────────────────────────────────
+
+export async function getAllSessions(): Promise<SessionWithDetails[]> {
+  const rows = await query<any>(
+    `SELECT
+       s.id,
+       s.subject_id,
+       sub.name       AS class_title,
+       s.title,
+       s.meeting_link,
+       s.zoom_start_url,
+       s.zoom_meeting_id,
+       s.session_date::text  AS session_date,
+       s.start_time::text    AS start_time,
+       s.status
+     FROM   sessions s
+     JOIN   subjects sub ON sub.id = s.subject_id
+     ORDER  BY s.session_date DESC, s.start_time DESC`
+  );
+
+  const now = new Date();
+  return rows.map((r) => ({
+    id:             r.id,
+    subject_id:     r.subject_id,
+    class_title:    r.class_title,
+    title:          r.title,
+    zoom_link:      r.meeting_link,
+    start_url:      r.zoom_start_url ?? undefined,
+    zoom_meeting_id: r.zoom_meeting_id,
+    scheduled_at:   buildScheduledAt(r.session_date, r.start_time),
+    status:         calculateSessionStatus(r.session_date, r.start_time, r.status, now),
+  }));
+}
+
+// ─── Dispatcher: my-sessions-v2 ───────────────────────────────
+
+export async function getMySessionsV2(
+  userId: string,
+  role: string
+): Promise<SessionWithDetails[]> {
+  if (role === 'teacher') return getSessionsByTeacher(userId);
+  if (role === 'student') return getSessionsByStudent(userId);
+  if (role === 'admin')   return getAllSessions();
   return [];
 }
 
-export async function getSessionsByTeacherV2(teacherId: string): Promise<SessionWithDetails[]> {
-  const rows = await query<any>(
-    `SELECT 
-      s.id, s.class_id, c.title as class_title, s.title, s.zoom_link, 
-      s.scheduled_at, s.status
-     FROM sessions s
-     JOIN classes c ON s.class_id = c.id
-     WHERE c.teacher_id = $1
-     ORDER BY s.scheduled_at DESC`,
-    [teacherId]
-  );
+// ─── START session (teacher only) — creates Zoom meeting ───────
 
-  const today = new Date();
-  return rows.map(row => ({
-    id: row.id,
-    class_id: row.class_id,
-    class_title: row.class_title,
-    title: row.title,
-    zoom_link: row.zoom_link,
-    scheduled_at: row.scheduled_at,
-    status: calculateSessionStatus(row.scheduled_at, row.status, today),
-  }));
-}
-
-export async function getSessionsByStudentV2(studentId: string): Promise<SessionWithDetails[]> {
-  const rows = await query<any>(
-    `SELECT 
-      s.id, s.class_id, c.title as class_title, s.title, s.zoom_link,
-      s.scheduled_at, s.status
-     FROM sessions s
-     JOIN classes c ON s.class_id = c.id
-     JOIN enrollments e ON c.id = e.class_id
-     WHERE e.student_id = $1
-     ORDER BY s.scheduled_at DESC`,
-    [studentId]
-  );
-
-  const today = new Date();
-  return rows.map(row => ({
-    id: row.id,
-    class_id: row.class_id,
-    class_title: row.class_title,
-    title: row.title,
-    zoom_link: row.zoom_link,
-    scheduled_at: row.scheduled_at,
-    status: calculateSessionStatus(row.scheduled_at, row.status, today),
-  }));
-}
-
-export async function startSessionById(sessionId: string): Promise<SessionWithDetails> {
-  const ZOOM_ACCOUNT_ID = process.env.ZOOM_ACCOUNT_ID;
-  const ZOOM_CLIENT_ID = process.env.ZOOM_CLIENT_ID;
-  const ZOOM_CLIENT_SECRET = process.env.ZOOM_CLIENT_SECRET;
+export async function startSessionById(
+  sessionId: string
+): Promise<SessionWithDetails> {
   const ZOOM_HOST_EMAIL = process.env.ZOOM_HOST_EMAIL;
-
-  if (!ZOOM_ACCOUNT_ID || !ZOOM_CLIENT_ID || !ZOOM_CLIENT_SECRET || !ZOOM_HOST_EMAIL) {
-    throw new Error('Missing Zoom credentials or host email');
+  if (!process.env.ZOOM_ACCOUNT_ID || !process.env.ZOOM_CLIENT_ID ||
+      !process.env.ZOOM_CLIENT_SECRET || !ZOOM_HOST_EMAIL) {
+    throw new Error('Missing Zoom credentials');
   }
 
   return withTransaction(async (client) => {
-    const accessToken = await getZoomAccessToken();
-
-    const rowsBefore = await queryWithClient<any>(
+    // Lock the row
+    const rows = await queryWithClient<any>(
       client,
-      `SELECT s.id, s.class_id, c.title as class_title, s.title, s.zoom_link, s.scheduled_at, s.status
+      `SELECT
+         s.id, s.subject_id, s.title, s.status,
+         s.session_date::text AS session_date,
+         s.start_time::text   AS start_time,
+         sub.name AS class_title
        FROM sessions s
-       JOIN classes c ON s.class_id = c.id
+       JOIN subjects sub ON sub.id = s.subject_id
        WHERE s.id = $1
        FOR UPDATE`,
       [sessionId]
     );
 
-    if (!rowsBefore[0]) {
-      throw new Error('Session not found');
-    }
+    if (!rows[0]) throw new Error('Session not found');
+    const existing = rows[0];
+    if (existing.status === 'live') throw new Error('Session is already LIVE');
 
-    const existing = rowsBefore[0];
-    if (existing.status === 'LIVE') {
-      throw new Error('Session already LIVE');
-    }
-
+    const accessToken = await getZoomAccessToken();
     const { joinUrl, startUrl } = await createZoomMeeting({
       accessToken,
       hostEmail: ZOOM_HOST_EMAIL,
-      topic: existing.title || `${existing.class_title} - Live Session`,
-      startTime: new Date(existing.scheduled_at).toISOString(),
+      topic: existing.title || `${existing.class_title} — Live Session`,
+      startTime: new Date(`${existing.session_date}T${existing.start_time.replace(/[+-]\d{2}:\d{2}$/, '')}`).toISOString(),
     });
 
     const updated = await queryWithClient<any>(
       client,
-      `UPDATE sessions SET zoom_link = $1, status = $2 WHERE id = $3 AND status != 'LIVE' RETURNING id, class_id, scheduled_at, status, title, zoom_link`,
-      [joinUrl, 'LIVE', sessionId]
+      `UPDATE sessions
+       SET    meeting_link   = $1,
+              zoom_start_url = $2,
+              status         = 'live',
+              updated_at     = now()
+       WHERE  id = $3
+         AND  status != 'live'
+       RETURNING id, subject_id, session_date::text, start_time::text, status, title, meeting_link, zoom_start_url`,
+      [joinUrl, startUrl, sessionId]
     );
 
-    if (!updated[0]) {
-      throw new Error('Failed to mark session LIVE (possibly already LIVE)');
-    }
+    if (!updated[0]) throw new Error('Failed to mark session LIVE');
 
-    const row = updated[0];
-    const today = new Date();
+    const r = updated[0];
     return {
-      id: row.id,
-      class_id: row.class_id,
+      id:          r.id,
+      subject_id:  r.subject_id,
       class_title: existing.class_title,
-      title: row.title,
-      zoom_link: row.zoom_link,
-      scheduled_at: row.scheduled_at,
-      status: calculateSessionStatus(row.scheduled_at, row.status, today),
-      start_url: startUrl
+      title:       r.title,
+      zoom_link:   r.meeting_link,
+      start_url:   r.zoom_start_url ?? undefined,
+      scheduled_at: buildScheduledAt(r.session_date, r.start_time),
+      status:      'LIVE',
     };
   });
 }
 
-export { zoomHealthCheck };
-export async function completeSessionById(sessionId: string): Promise<SessionWithDetails> {
+// ─── COMPLETE session (teacher only) ──────────────────────────
+
+export async function completeSessionById(
+  sessionId: string
+): Promise<SessionWithDetails> {
   return withTransaction(async (client) => {
     const rows = await queryWithClient<any>(
       client,
-      `SELECT s.id, s.class_id, c.title as class_title, s.title, s.zoom_link, s.scheduled_at, s.status
-       FROM sessions s
-       JOIN classes c ON s.class_id = c.id
-       WHERE s.id = $1
+      `SELECT s.id, s.subject_id, s.title, s.status,
+              s.session_date::text AS session_date,
+              s.start_time::text   AS start_time,
+              sub.name AS class_title
+       FROM   sessions s
+       JOIN   subjects sub ON sub.id = s.subject_id
+       WHERE  s.id = $1
        FOR UPDATE`,
       [sessionId]
     );
 
-    if (!rows[0]) {
-      throw new Error('Session not found');
-    }
+    if (!rows[0]) throw new Error('Session not found');
 
-    const existing = rows[0];
     const updated = await queryWithClient<any>(
       client,
-      `UPDATE sessions SET status = 'COMPLETED' WHERE id = $1 AND status != 'COMPLETED' RETURNING id, class_id, scheduled_at, status, title, zoom_link`,
+      `UPDATE sessions
+       SET  status     = 'completed',
+            updated_at = now()
+       WHERE id = $1
+         AND status != 'completed'
+       RETURNING id, subject_id, session_date::text, start_time::text,
+                 status, title, meeting_link`,
       [sessionId]
     );
 
-    if (!updated[0]) {
-      throw new Error('Failed to mark session COMPLETED');
-    }
+    if (!updated[0]) throw new Error('Failed to mark session COMPLETED');
 
-    const row = updated[0];
-    const today = new Date();
+    const r = updated[0];
     return {
-      id: row.id,
-      class_id: row.class_id,
-      class_title: existing.class_title,
-      title: row.title,
-      zoom_link: row.zoom_link,
-      scheduled_at: row.scheduled_at,
-      status: calculateSessionStatus(row.scheduled_at, row.status, today)
+      id:          r.id,
+      subject_id:  r.subject_id,
+      class_title: rows[0].class_title,
+      title:       r.title,
+      zoom_link:   r.meeting_link,
+      scheduled_at: buildScheduledAt(r.session_date, r.start_time),
+      status:      'COMPLETED',
     };
   });
 }

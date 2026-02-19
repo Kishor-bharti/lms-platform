@@ -17,8 +17,8 @@ ON CONFLICT DO NOTHING;
 --
 --  Admin    : admin@100xlearning.com   / Admin@123
 --  Teacher  : teacher@100xlearning.com / Teacher@123
---  Student 1: alice@100xlearning.com   / Student@123
---  Student 2: bob@100xlearning.com     / Student@123
+--  Student 1: kishor@gmail.com   / Student@123
+--  Student 2: priya@gmail.com     / Student@123
 --
 --  Hashes generated with bcrypt cost=12 in Node.js:
 --    node -e "require('bcrypt').hash('PASSWORD',12).then(console.log)"
@@ -26,9 +26,9 @@ ON CONFLICT DO NOTHING;
 DO $$
 DECLARE
   v_admin_id   UUID;
-  v_teacher_id UUID;
-  v_alice_id   UUID;
-  v_bob_id     UUID;
+  v_harman_id UUID;
+  v_kishor_id   UUID;
+  v_priya_id     UUID;
 
   -- bcrypt cost=12 hashes
   v_admin_hash   TEXT := '$2b$12$K8GxfAlb7TAGRfzAmMlCW.dVhvHwxXO6yI6cEuiQKaYgr9PVLR0v6';  -- Admin@123
@@ -50,35 +50,35 @@ BEGIN
 
   -- ── TEACHER ─────────────────────────────────────────────────
   INSERT INTO users (id, email, password_hash, first_name, last_name, is_active)
-  VALUES (gen_random_uuid(), 'teacher@100xlearning.com', v_teacher_hash, 'Sarah', 'Mitchell', TRUE)
+  VALUES (gen_random_uuid(), 'harman@gmail.com', v_teacher_hash, 'Harmanpreet', 'Singh', TRUE)
   ON CONFLICT (email) DO NOTHING;
 
-  SELECT id INTO v_teacher_id FROM users WHERE email = 'teacher@100xlearning.com';
+  SELECT id INTO v_harman_id FROM users WHERE email = 'harman@gmail.com';
 
   INSERT INTO user_roles (user_id, role_id, assigned_by)
-  VALUES (v_teacher_id, 2, v_admin_id)
+  VALUES (v_harman_id, 2, v_admin_id)
   ON CONFLICT DO NOTHING;
 
-  -- ── STUDENT 1 — Alice ────────────────────────────────────────
+  -- ── STUDENT 1 — Kishor ────────────────────────────────────────
   INSERT INTO users (id, email, password_hash, first_name, last_name, is_active)
-  VALUES (gen_random_uuid(), 'alice@100xlearning.com', v_student_hash, 'Alice', 'Johnson', TRUE)
+  VALUES (gen_random_uuid(), 'kishor@gmail.com', v_student_hash, 'Kishor', 'Bharti', TRUE)
   ON CONFLICT (email) DO NOTHING;
 
-  SELECT id INTO v_alice_id FROM users WHERE email = 'alice@100xlearning.com';
+  SELECT id INTO v_kishor_id FROM users WHERE email = 'kishor@gmail.com';
 
   INSERT INTO user_roles (user_id, role_id, assigned_by)
-  VALUES (v_alice_id, 3, v_admin_id)
+  VALUES (v_kishor_id, 3, v_admin_id)
   ON CONFLICT DO NOTHING;
 
-  -- ── STUDENT 2 — Bob ─────────────────────────────────────────
+  -- ── STUDENT 2 — Priya ─────────────────────────────────────────
   INSERT INTO users (id, email, password_hash, first_name, last_name, is_active)
-  VALUES (gen_random_uuid(), 'bob@100xlearning.com', v_student_hash, 'Bob', 'Williams', TRUE)
+  VALUES (gen_random_uuid(), 'priya@gmail.com', v_student_hash, 'Priya', 'Singh', TRUE)
   ON CONFLICT (email) DO NOTHING;
 
-  SELECT id INTO v_bob_id FROM users WHERE email = 'bob@100xlearning.com';
+  SELECT id INTO v_priya_id FROM users WHERE email = 'priya@gmail.com';
 
   INSERT INTO user_roles (user_id, role_id, assigned_by)
-  VALUES (v_bob_id, 3, v_admin_id)
+  VALUES (v_priya_id, 3, v_admin_id)
   ON CONFLICT DO NOTHING;
 
   -- ── COURSES ─────────────────────────────────────────────────

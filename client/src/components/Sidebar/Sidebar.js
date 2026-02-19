@@ -53,7 +53,7 @@ const Sidebar = (props) => {
       .filter((prop) => {
         if (prop.layout !== "/admin") return false;
         if (!prop.roles) return true;
-        return prop.roles.includes(userRole);
+        return prop.roles.map(r => r.toUpperCase()).includes((userRole ?? "").toUpperCase());
       })
       .map((prop, key) => {
       return (

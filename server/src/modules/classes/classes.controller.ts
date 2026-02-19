@@ -1,196 +1,103 @@
+// classes.controller.ts — v2.1 aligned, lowercase role checks
+
 import { Request, Response } from 'express';
 import * as classesService from './classes.service';
 
-export async function createClass(req: Request, res: Response) {
-  try {
-    const { title, subject } = req.body as { title?: string; subject?: string };
-    const userId = req.user?.id;
+// ─── GET /api/classes/my-classes-v2 ───────────────────────────
+// Returns subjects: teacher → assigned, student → enrolled, admin → all
 
-    if (!title || typeof title !== 'string') {
-      return res.status(400).json({ message: 'Title is required and must be a string' });
-    }
-
-    if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
-    }
-
-    const newClass = await classesService.createClass(title, subject || '', userId);
-    res.status(201).json(newClass);
-  } catch (error: unknown) {
-    console.error(error);
-    res.status(500).json({ message: 'Failed to create class' });
-  }
-}
-
-export async function createSession(req: Request, res: Response) {
-  try {
-    const { classId, title, scheduledAt } = req.body as {
-      classId?: string;
-      title?: string;
-      scheduledAt?: string;
-    };
-
-    if (!classId || typeof classId !== 'string') {
-      return res.status(400).json({ message: 'classId is required and must be a string' });
-    }
-
-    if (!title || typeof title !== 'string') {
-      return res.status(400).json({ message: 'title is required and must be a string' });
-    }
-
-    if (!scheduledAt || typeof scheduledAt !== 'string') {
-      return res.status(400).json({ message: 'scheduledAt is required and must be a string' });
-    }
-
-    const session = await classesService.createSession(classId, title, new Date(scheduledAt));
-    res.status(201).json(session);
-  } catch (error: unknown) {
-    console.error(error);
-    res.status(500).json({ message: 'Failed to create session' });
-  }
-}
-
-export async function startSession(req: Request, res: Response) {
-  try {
-    const { sessionId } = req.body as { sessionId?: string };
-
-    if (!sessionId || typeof sessionId !== 'string') {
-      return res.status(400).json({ message: 'sessionId is required and must be a string' });
-    }
-
-    const session = await classesService.startSession(sessionId);
-    res.json(session);
-  } catch (error: unknown) {
-    console.error(error);
-    res.status(500).json({ message: 'Failed to start session' });
-  }
-}
-
-export async function getTeacherClasses(req: Request, res: Response) {
-  try {
-    const userId = req.user?.id;
-
-    if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
-    }
-
-    const classes = await classesService.getTeacherClasses(userId);
-    res.json(classes);
-  } catch (error: unknown) {
-    console.error(error);
-    res.status(500).json({ message: 'Failed to fetch classes' });
-  }
-}
-
-export async function getStudentClasses(req: Request, res: Response) {
-  try {
-    const userId = req.user?.id;
-
-    if (!userId) {
-      return res.status(401).json({ message: 'Unauthorized' });
-    }
-
-    const classes = await classesService.getStudentEnrolledClasses(userId);
-    res.json(classes);
-  } catch (error: unknown) {
-    console.error(error);
-    res.status(500).json({ message: 'Failed to fetch classes' });
-  }
-}
-
-export async function getSessionById(req: Request, res: Response) {
-  try {
-    const { sessionId } = req.params as { sessionId?: string };
-
-    if (!sessionId || typeof sessionId !== 'string') {
-      return res.status(400).json({ message: 'sessionId is required and must be a string' });
-    }
-
-    const session = await classesService.getSessionById(sessionId);
-    
-    if (!session) {
-      return res.status(404).json({ message: 'Session not found' });
-    }
-
-    res.json(session);
-  } catch (error: unknown) {
-    console.error(error);
-    res.status(500).json({ message: 'Failed to fetch session' });
-  }
-}
-
-// New data-driven API handlers
 export async function getMyClasses(req: Request, res: Response) {
   try {
-    const userId = req.user?.id?.toString();
-    const userRole = req.user?.role;
+    const userId   = req.user?.id;
+    const userRole = req.user?.role;   // lowercase: 'admin' | 'teacher' | 'student'
 
     if (!userId || !userRole) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ error: 'Unauthorized' });
     }
 
     const classes = await classesService.getMyClasses(userId, userRole);
-    res.json(classes);
-  } catch (error: unknown) {
-    console.error(error);
-    res.status(500).json({ message: 'Failed to fetch classes' });
+    return res.json(classes);
+  } catch (err) {
+    console.error('[classes] getMyClasses error:', err);
+    return res.status(500).json({ error: 'Failed to fetch classes' });
   }
 }
+
+// ─── GET /api/classes/my-sessions-v2 ──────────────────────────
+// Returns sessions: teacher → their sessions, student → enrolled, admin → all
 
 export async function getMySessionsV2(req: Request, res: Response) {
   try {
-    const userId = req.user?.id?.toString();
+    const userId   = req.user?.id;
     const userRole = req.user?.role;
 
     if (!userId || !userRole) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ error: 'Unauthorized' });
     }
 
     const sessions = await classesService.getMySessionsV2(userId, userRole);
-    res.json(sessions);
-  } catch (error: unknown) {
-    console.error(error);
-    res.status(500).json({ message: 'Failed to fetch sessions' });
+    return res.json(sessions);
+  } catch (err) {
+    console.error('[classes] getMySessionsV2 error:', err);
+    return res.status(500).json({ error: 'Failed to fetch sessions' });
   }
 }
+
+// ─── POST /api/classes/sessions/:sessionId/start ─────────────
+// Teacher only — creates Zoom meeting, sets status = 'live'
 
 export async function startSessionById(req: Request, res: Response) {
   try {
-    const { sessionId } = req.params as { sessionId?: string };
-    const userRole = req.user?.role;
+    const { sessionId } = req.params;
+    const userRole      = req.user?.role;
 
-    if (!sessionId || typeof sessionId !== 'string') {
-      return res.status(400).json({ message: 'sessionId is required' });
+    if (!sessionId) {
+      return res.status(400).json({ error: 'sessionId is required' });
     }
 
-    if (userRole !== 'TEACHER') {
-      return res.status(403).json({ message: 'Only teachers can start sessions' });
+    // FIX: lowercase role check
+    if (userRole !== 'teacher' && userRole !== 'admin') {
+      return res.status(403).json({ error: 'Only teachers can start sessions' });
     }
 
     const session = await classesService.startSessionById(sessionId);
-    res.json(session);
-  } catch (error: unknown) {
-    console.error(error);
-    res.status(500).json({ message: 'Failed to start session' });
+    return res.json(session);
+  } catch (err: any) {
+    console.error('[classes] startSession error:', err);
+    if (err.message === 'Session not found') {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+    if (err.message === 'Session is already LIVE') {
+      return res.status(409).json({ error: 'Session is already live' });
+    }
+    return res.status(500).json({ error: 'Failed to start session' });
   }
 }
+
+// ─── POST /api/classes/sessions/:sessionId/complete ──────────
+// Teacher only — sets status = 'completed'
+
 export async function completeSessionById(req: Request, res: Response) {
   try {
-    const { sessionId } = req.params as { sessionId?: string };
-    const userRole = req.user?.role;
+    const { sessionId } = req.params;
+    const userRole      = req.user?.role;
 
-    if (!sessionId || typeof sessionId !== 'string') {
-      return res.status(400).json({ message: 'sessionId is required' });
+    if (!sessionId) {
+      return res.status(400).json({ error: 'sessionId is required' });
     }
 
-    if (userRole !== 'TEACHER') {
-      return res.status(403).json({ message: 'Only teachers can complete sessions' });
+    // FIX: lowercase role check
+    if (userRole !== 'teacher' && userRole !== 'admin') {
+      return res.status(403).json({ error: 'Only teachers can end sessions' });
     }
 
     const session = await classesService.completeSessionById(sessionId);
-    res.json(session);
-  } catch (error: unknown) {
-    console.error(error);
-    res.status(500).json({ message: 'Failed to complete session' });
+    return res.json(session);
+  } catch (err: any) {
+    console.error('[classes] completeSession error:', err);
+    if (err.message === 'Session not found') {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+    return res.status(500).json({ error: 'Failed to complete session' });
   }
 }

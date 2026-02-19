@@ -1,45 +1,59 @@
-export interface Class {
+// classes.types.ts — v2.1 schema aligned
+
+// ─── DB row shapes ─────────────────────────────────────────────
+
+export interface SubjectRow {
   id: string;
-  title: string;
-  subject: string | null;
-  teacher_id: number;
-  start_date: string | null;
-  end_date: string | null;
-  created_at: Date;
+  name: string;
+  code: string;
+  description: string | null;
+  course_name: string;
+  course_code: string;
+  teacher_name: string;
 }
 
-export interface Session {
+export interface SessionRow {
   id: string;
-  class_id: string;
-  title: string | null;
-  zoom_link: string | null;
-  recording_url: string | null;
-  status: 'SCHEDULED' | 'LIVE' | 'COMPLETED';
-  scheduled_at: Date;
-  created_at: Date;
+  subject_id: string;
+  class_title: string;   // subject name
+  title: string;
+  meeting_link: string | null;
+  zoom_start_url: string | null;
+  zoom_meeting_id: string | null;
+  session_date: string;  // DATE
+  start_time: string;    // TIMETZ
+  status: string;        // 'scheduled' | 'live' | 'completed' | 'cancelled'
 }
+
+// ─── API response shapes ───────────────────────────────────────
+
+export interface ClassWithTeacher {
+  id: string;
+  title: string;         // subject name
+  code: string;
+  description: string | null;
+  course_name: string;
+  course_code: string;
+  teacher_name: string;
+}
+
+export interface SessionWithDetails {
+  id: string;
+  subject_id: string;
+  class_title: string;
+  title: string;
+  zoom_link: string | null;     // meeting_link from DB
+  start_url?: string;           // zoom_start_url (teachers only)
+  zoom_meeting_id?: string | null;
+  scheduled_at: string;         // ISO string: session_date + start_time
+  status: string;               // LIVE | TODAY | TOMORROW | SCHEDULED | COMPLETED
+}
+
+// ─── Legacy types (kept for backward compat) ──────────────────
 
 export interface Enrollment {
   id: string;
-  class_id: string;
-  student_id: number;
+  subject_id: string;
+  student_id: string;
   enrolled_at: Date;
-}
-
-export interface StudentClass {
-  id: string;
-  title: string;
-  subject: string | null;
-  teacher_name: string;
-  start_date: string | null;
-  end_date: string | null;
-  sessions: SessionWithStatus[];
-}
-
-export interface SessionWithStatus {
-  id: string;
-  title: string | null;
-  status: 'SCHEDULED' | 'LIVE' | 'COMPLETED';
-  zoom_link: string | null;
-  scheduled_at: Date;
 }
