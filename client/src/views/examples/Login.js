@@ -21,13 +21,14 @@ const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
   const validate = () => {
     const e = email.trim();
     const p = password.trim();
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!selectedRole) return "Select a role";
+    if (!selectedRole) return "Please select a role";
     if (!emailRegex.test(e)) return "Invalid email";
     if (p.length < 3) return "Invalid password";
     return "";
@@ -38,27 +39,41 @@ const Login = () => {
     setError("");
     const v = validate();
     if (v) { setError(v); return; }
+
+    setIsLoading(true);
     try {
+      // selectedRole is already "student" or "teacher" — matches loginAs enum
       const res = await http.post("/api/auth/login", {
         email: email.trim(),
         password: password.trim(),
+        loginAs: selectedRole,     // "student" | "teacher"
       });
       const data = res?.data;
-      const role = data?.user?.role;
-      const selected = selectedRole === "student" ? "STUDENT" : "TEACHER";
-      if (role !== selected) {
-        setError(selected === "TEACHER" ? "*You are not a teacher, please login as a student" : "*You are not a student, please login as a teacher");
-        return;
-      }
-      window.localStorage.setItem("token", data.token);
-      window.localStorage.setItem("role", role);
-      try { window.localStorage.setItem("user", JSON.stringify(data.user)); } catch {}
+
+      // Persist new token shape
+      window.localStorage.setItem("accessToken", data.accessToken);
+      window.localStorage.setItem("refreshToken", data.refreshToken);
+      window.localStorage.setItem("role", data.user.activeRole);
+      try { window.localStorage.setItem("user", JSON.stringify(data.user)); } catch { }
+
       navigate("/admin/index", { replace: true });
     } catch (err) {
-      const msg = err?.response?.data?.message;
-      setError(typeof msg === "string" ? msg : "Server error");
+      const serverError = err?.response?.data?.error;
+      if (err?.response?.status === 403) {
+        // Role mismatch or disabled — server message is safe to show
+        setError(serverError ?? "Access denied");
+      } else if (err?.response?.status === 401) {
+        setError("Invalid email or password");
+      } else if (typeof serverError === "string") {
+        setError(serverError);
+      } else {
+        setError("Server error — please try again");
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
+
   return (
     <>
       <Col lg="5" md="7">
@@ -76,7 +91,7 @@ const Login = () => {
                   e.preventDefault();
                   setSelectedRole("student");
                 }}
-                style={selectedRole === "student" ? { 
+                style={selectedRole === "student" ? {
                   boxShadow: "0 0 20px rgba(67, 103, 228, 0.8)",
                   transform: "scale(1.05)"
                 } : {}}
@@ -94,7 +109,7 @@ const Login = () => {
                   e.preventDefault();
                   setSelectedRole("teacher");
                 }}
-                style={selectedRole === "teacher" ? { 
+                style={selectedRole === "teacher" ? {
                   boxShadow: "0 0 20px rgba(39, 174, 96, 0.8)",
                   transform: "scale(1.05)"
                 } : {}}
@@ -146,12 +161,12 @@ const Login = () => {
               <div className="custom-control custom-control-alternative custom-checkbox">
                 <input
                   className="custom-control-input"
-                  id=" customCheckLogin"
+                  id="customCheckLogin"
                   type="checkbox"
                 />
                 <label
                   className="custom-control-label"
-                  htmlFor=" customCheckLogin"
+                  htmlFor="customCheckLogin"
                 >
                   <span className="text-muted">Remember me</span>
                 </label>
@@ -162,8 +177,13 @@ const Login = () => {
                 </div>
               ) : null}
               <div className="text-center">
-                <Button className="my-4" color="primary" type="submit">
-                  Sign in
+                <Button
+                  className="my-4"
+                  color="primary"
+                  type="submit"
+                  disabled={isLoading}
+                >
+                  {isLoading ? "Signing in..." : "Sign in"}
                 </Button>
               </div>
             </Form>

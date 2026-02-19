@@ -1,30 +1,33 @@
 import { Request, Response } from 'express';
 import { login as loginService } from './auth.service';
+import { LoginRequest } from './auth.types';
 
 export async function login(req: Request, res: Response) {
-  // TASK 3: Login Route Detailed Logging
-  console.log('[login] Attempt received');
-  
-  const { email, password } = req.body as { email?: string; password?: string };
-  console.log('[login] Email:', email);
+  const { email, password, loginAs } = req.body as LoginRequest;
 
-  if (!email || !password) {
-    return res.status(400).json({ message: 'Email and password required' });
+  // Basic presence check (Zod already validates shape, this is a safety net)
+  if (!email || !password || !loginAs) {
+    return res.status(400).json({ error: 'email, password and loginAs are required' });
   }
 
   try {
-    const result = await loginService(email, password);
-    console.log('[login] User found:', !!result?.token);
-    return res.json(result);
-  } catch (err: any) {
-    console.error('[login] ERROR:', err);
-    const code = err?.code;
-    if (code === 'USER_INACTIVE') {
-      return res.status(403).json({ message: 'User is inactive' });
+    const result = await loginService(email.trim(), password, loginAs);
+    return res.status(200).json(result);
+  } catch (err: unknown) {
+    const code = (err as { code?: string }).code;
+
+    if (code === 'INVALID_CREDENTIALS') {
+      return res.status(401).json({ error: 'Invalid credentials' });
     }
-    if (code === 'USER_NOT_FOUND' || code === 'INVALID_PASSWORD') {
-      return res.status(401).json({ message: 'Invalid email or password' });
+    if (code === 'ACCOUNT_DISABLED') {
+      return res.status(403).json({ error: 'Account is disabled' });
     }
-    return res.status(500).json({ message: 'Internal server error' });
+    if (code === 'ROLE_DENIED') {
+      return res.status(403).json({ error: 'Access denied for this role' });
+    }
+
+    // Genuine server error — log it but never reveal internals
+    console.error('[auth] Login error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 }

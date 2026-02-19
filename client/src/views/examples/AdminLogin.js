@@ -28,21 +28,24 @@ const AdminLogin = () => {
       const res = await http.post("/api/auth/login", {
         email: email.trim(),
         password: password.trim(),
+        loginAs: "admin",          // hardcoded — admin portal only
       });
       const data = res?.data;
-      const role = data?.user?.role;
-      if (role !== "ADMIN") {
-        setError("*You are not an administrator");
-        setIsLoading(false);
-        return;
-      }
-      window.localStorage.setItem("token", data.token);
-      window.localStorage.setItem("role", role);
-      try { window.localStorage.setItem("user", JSON.stringify(data.user)); } catch {}
+      // Store new token shape
+      window.localStorage.setItem("accessToken", data.accessToken);
+      window.localStorage.setItem("refreshToken", data.refreshToken);
+      window.localStorage.setItem("role", data.user.activeRole);
+      try { window.localStorage.setItem("user", JSON.stringify(data.user)); } catch { }
       navigate("/admin/index", { replace: true });
     } catch (err) {
-      const msg = err?.response?.data?.message;
-      setError(typeof msg === "string" ? msg : "Server error");
+      const serverError = err?.response?.data?.error;
+      if (err?.response?.status === 403) {
+        setError("*You are not authorised as an administrator");
+      } else if (typeof serverError === "string") {
+        setError(serverError);
+      } else {
+        setError("Server error — please try again");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -111,31 +114,14 @@ const AdminLogin = () => {
                     </InputGroup>
                   </FormGroup>
 
-                  {/* Two-Factor Authentication Option */}
-                  <FormGroup className="mb-3">
-                    <div className="custom-control custom-control-alternative custom-checkbox">
-                      <input
-                        className="custom-control-input"
-                        id="customCheckAdmin"
-                        type="checkbox"
-                      />
-                      <label
-                        className="custom-control-label"
-                        htmlFor="customCheckAdmin"
-                      >
-                        <span className="text-muted" style={{ fontSize: "14px" }}>
-                          Require 2-Factor Authentication
-                        </span>
-                      </label>
-                    </div>
-                  </FormGroup>
-
-                  {/* Login Button */}
+                  {/* Error */}
                   {error ? (
                     <div className="mt-2 text-center">
                       <small className="text-danger">{error}</small>
                     </div>
                   ) : null}
+
+                  {/* Login Button */}
                   <div className="text-center mb-3">
                     <Button
                       className="btn-block"
@@ -214,12 +200,8 @@ const AdminLogin = () => {
         }
 
         @keyframes float {
-          0%, 100% {
-            transform: translateY(0px);
-          }
-          50% {
-            transform: translateY(-10px);
-          }
+          0%, 100% { transform: translateY(0px); }
+          50%       { transform: translateY(-10px); }
         }
 
         .admin-login-card {
@@ -227,14 +209,8 @@ const AdminLogin = () => {
         }
 
         @keyframes slideUp {
-          from {
-            opacity: 0;
-            transform: translateY(30px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
+          from { opacity: 0; transform: translateY(30px); }
+          to   { opacity: 1; transform: translateY(0); }
         }
 
         .admin-login-wrapper .btn-block {
@@ -261,12 +237,8 @@ const AdminLogin = () => {
         }
 
         @keyframes spin {
-          from {
-            transform: rotate(0deg);
-          }
-          to {
-            transform: rotate(360deg);
-          }
+          from { transform: rotate(0deg); }
+          to   { transform: rotate(360deg); }
         }
       `}</style>
     </>

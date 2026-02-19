@@ -9,7 +9,7 @@
     "start": "node dist/server.js",
     "start:prod": "cross-env NODE_ENV=production node dist/server.js",
     "start:test": "cross-env NODE_ENV=test ts-node src/server.ts",
-    "seed": "ts-node src/scripts/seed.ts",
+    "seed": "ts-node --transpile-only scripts/seed.ts",
     "test:login": "ts-node src/scripts/testLogin.ts",
     "migrate": "ts-node src/scripts/migrations.ts",
     "lint": "eslint . --ext .ts",

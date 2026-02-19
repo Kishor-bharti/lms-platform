@@ -1,26 +1,34 @@
-export type Role = 'ADMIN' | 'TEACHER' | 'STUDENT';
-export type Status = 'ACTIVE' | 'INACTIVE';
-
-export interface User {
-  id: number;
-  name: string;
+// ─── Row returned by the JOIN login query ──────────────────────
+export interface UserRow {
+  id: string;   // UUID
   email: string;
+  first_name: string;
+  last_name: string;
   password_hash: string;
-  role: Role;
-  status: Status;
-  created_at: Date;
+  is_active: boolean;
+  roles: string[]; // array_agg result, e.g. ['admin']
 }
 
+// ─── Valid role tokens ──────────────────────────────────────────
+export type LoginAsRole = 'admin' | 'teacher' | 'student';
+
+// ─── Inbound request body ───────────────────────────────────────
 export interface LoginRequest {
   email: string;
   password: string;
+  loginAs: LoginAsRole;
 }
 
+// ─── Outbound response ──────────────────────────────────────────
 export interface LoginResponse {
-  token: string;
+  accessToken: string;
+  refreshToken: string;
   user: {
-    id: number;
-    name: string;
-    role: Role;
+    id: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    roles: string[];
+    activeRole: string;
   };
 }

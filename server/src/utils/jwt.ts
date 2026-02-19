@@ -1,23 +1,35 @@
 import jwt, { SignOptions, Secret } from 'jsonwebtoken';
 import { env } from '../config/env';
-import { Role } from '../modules/auth/auth.types';
 
+// ─── Token payload ──────────────────────────────────────────────
 export interface JwtPayload {
-  userId: number;
-  role: Role;
+  userId: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  roles: string[];
+  activeRole: string;
 }
 
-const defaultExpiry = 60 * 60 * 24; // 1 day in seconds
-
-export function signAccessToken(payload: JwtPayload, expiresIn: number = defaultExpiry): string {
-  const secret: Secret | undefined = env.JWT_SECRET as Secret;
+// ─── Access token  (15 min) ─────────────────────────────────────
+export function signAccessToken(payload: JwtPayload): string {
+  const secret = env.JWT_SECRET as Secret;
   if (!secret) throw new Error('JWT_SECRET not configured');
-  const options: SignOptions = { expiresIn };
+  const options: SignOptions = { expiresIn: '15m' };
   return jwt.sign(payload, secret, options);
 }
 
+// ─── Refresh token  (7 days) ────────────────────────────────────
+export function signRefreshToken(payload: JwtPayload): string {
+  const secret = env.JWT_REFRESH_SECRET as Secret;
+  if (!secret) throw new Error('JWT_REFRESH_SECRET not configured');
+  const options: SignOptions = { expiresIn: '7d' };
+  return jwt.sign(payload, secret, options);
+}
+
+// ─── Verify access token (used by auth middleware) ──────────────
 export function verifyAccessToken(token: string): JwtPayload {
-  const secret: Secret | undefined = env.JWT_SECRET as Secret;
+  const secret = env.JWT_SECRET as Secret;
   if (!secret) throw new Error('JWT_SECRET not configured');
   return jwt.verify(token, secret) as JwtPayload;
 }

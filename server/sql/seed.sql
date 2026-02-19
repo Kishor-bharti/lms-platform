@@ -1,118 +1,103 @@
--- random meaningless change, just to push in a new branch and fix old main!
--- Users (password: 123, bcrypt hashed)
-INSERT INTO users (name, email, password_hash, role, status)
-VALUES
-('Admin User', 'admin@lms.in', '$2b$10$G888FYNKrgWsAp9Q7UtvV.ZsUNaH2TeMf1vmEwQr/gsys5lSaviB6', 'ADMIN', 'ACTIVE'),
-('Harman', 'harman@lms.in', '$2b$10$G888FYNKrgWsAp9Q7UtvV.ZsUNaH2TeMf1vmEwQr/gsys5lSaviB6', 'TEACHER', 'ACTIVE'),
-('Kishor', 'kishor@lms.in', '$2b$10$G888FYNKrgWsAp9Q7UtvV.ZsUNaH2TeMf1vmEwQr/gsys5lSaviB6', 'STUDENT', 'ACTIVE'),
-('Priya', 'priya@lms.in', '$2b$10$G888FYNKrgWsAp9Q7UtvV.ZsUNaH2TeMf1vmEwQr/gsys5lSaviB6', 'STUDENT', 'ACTIVE'),
-('Rahul', 'rahul@lms.in', '$2b$10$G888FYNKrgWsAp9Q7UtvV.ZsUNaH2TeMf1vmEwQr/gsys5lSaviB6', 'STUDENT', 'ACTIVE');
+-- =============================================================
+-- seed.sql  —  100xlearning LMS Platform
+-- Pure SQL: run directly in Supabase SQL editor.
+-- Idempotent: safe to execute multiple times.
+-- =============================================================
 
--- Classes (Harman teaches 3 classes)
-INSERT INTO classes (title, subject, teacher_id, start_date, end_date)
-SELECT
-  'AP Chemistry',
-  'Chemistry',
-  id,
-  '2026-01-15',
-  '2026-05-31'
-FROM users WHERE role='TEACHER' AND name='Harman';
+-- This file requires the pgcrypto extension (already in schema.sql)
+-- CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
-INSERT INTO classes (title, subject, teacher_id, start_date, end_date)
-SELECT
-  'IB Chemistry HL',
-  'Chemistry',
-  id,
-  '2026-02-01',
-  '2026-06-15'
-FROM users WHERE role='TEACHER' AND name='Harman';
+-- -------------------------------------------------------------
+-- 1. ROLES
+-- -------------------------------------------------------------
+INSERT INTO roles (id, name) VALUES
+  (1, 'admin'),
+  (2, 'teacher'),
+  (3, 'student')
+ON CONFLICT DO NOTHING;
 
-INSERT INTO classes (title, subject, teacher_id, start_date, end_date)
-SELECT
-  'Organic Chemistry',
-  'Chemistry',
-  id,
-  '2026-02-15',
-  '2026-07-31'
-FROM users WHERE role='TEACHER' AND name='Harman';
+-- -------------------------------------------------------------
+-- 2. ADMIN USER  +  USER_ROLES  +  COURSES
+--
+--    All in one DO block so we can share the admin UUID.
+--
+--    Password  : Admin@123
+--    bcrypt hash (cost=12) — generated with Node.js bcrypt v5:
+--      node -e "require('bcrypt').hash('Admin@123',12).then(console.log)"
+--
+--    The hash below is a valid bcrypt $2b$ hash for 'Admin@123'.
+--    Replace it with a freshly generated one if preferred.
+-- -------------------------------------------------------------
+DO $$
+DECLARE
+  v_admin_id UUID;
+  v_hash     TEXT := '$2b$12$K8GxfAlb7TAGRfzAmMlCW.dVhvHwxXO6yI6cEuiQKaYgr9PVLR0v6';
+BEGIN
 
--- Enrollments (different enrollment patterns)
--- Kishor: enrolled in AP Chemistry and IB Chemistry HL
-INSERT INTO enrollments (class_id, student_id)
-SELECT c.id, u.id
-FROM classes c, users u
-WHERE c.title IN ('AP Chemistry', 'IB Chemistry HL')
-  AND u.name = 'Kishor';
+  -- ── Insert admin user (skip if email already exists) ────────
+  INSERT INTO users (
+    id,
+    email,
+    password_hash,
+    first_name,
+    last_name,
+    is_active
+  ) VALUES (
+    gen_random_uuid(),
+    'admin@100xlearning.com',
+    v_hash,
+    'Super',
+    'Admin',
+    TRUE
+  )
+  ON CONFLICT (email) DO NOTHING;
 
--- Priya: enrolled in all three classes
-INSERT INTO enrollments (class_id, student_id)
-SELECT c.id, u.id
-FROM classes c, users u
-WHERE c.title IN ('AP Chemistry', 'IB Chemistry HL', 'Organic Chemistry')
-  AND u.name = 'Priya';
+  -- Always fetch by email so we have the UUID in both cases
+  SELECT id INTO v_admin_id
+  FROM   users
+  WHERE  email = 'admin@100xlearning.com';
 
--- Rahul: enrolled only in Organic Chemistry (exclusive)
-INSERT INTO enrollments (class_id, student_id)
-SELECT c.id, u.id
-FROM classes c, users u
-WHERE c.title IN ('Organic Chemistry')
-  AND u.name = 'Rahul';
+  -- ── Assign admin role to admin user (self-assigned) ─────────
+  INSERT INTO user_roles (user_id, role_id, assigned_by)
+  VALUES (v_admin_id, 1, v_admin_id)
+  ON CONFLICT DO NOTHING;
 
--- Sessions for AP Chemistry (past, today, tomorrow, future)
--- Past sessions (Feb 3-6)
-INSERT INTO sessions (class_id, title, zoom_link, scheduled_at, status)
-SELECT id, 'AP Chemistry - Atomic Structure', 'https://zoom.mock/meeting/apch001', '2026-02-03 16:00:00', 'COMPLETED'
-FROM classes WHERE title='AP Chemistry';
+  -- ── Seed courses ─────────────────────────────────────────────
+  --    ON CONFLICT on the UNIQUE columns (name OR code) would
+  --    need two statements; using a helper approach instead:
+  --    insert each row separately so we can target specific conflicts.
 
-INSERT INTO sessions (class_id, title, zoom_link, scheduled_at, status)
-SELECT id, 'AP Chemistry - Periodic Table', 'https://zoom.mock/meeting/apch002', '2026-02-05 15:30:00', 'COMPLETED'
-FROM classes WHERE title='AP Chemistry';
+  INSERT INTO courses (id, name, code, description, is_active, created_by)
+  VALUES (gen_random_uuid(), 'SAT', 'SAT',
+          'Scholastic Assessment Test preparation', TRUE, v_admin_id)
+  ON CONFLICT (code) DO NOTHING;
 
--- Today's sessions (Feb 7)
-INSERT INTO sessions (class_id, title, zoom_link, scheduled_at, status)
-SELECT id, 'AP Chemistry - Bonding Theory', 'https://zoom.mock/meeting/apch003', '2026-02-07 09:00:00', 'SCHEDULED'
-FROM classes WHERE title='AP Chemistry';
+  INSERT INTO courses (id, name, code, description, is_active, created_by)
+  VALUES (gen_random_uuid(), 'ACT', 'ACT',
+          'ACT college readiness preparation', TRUE, v_admin_id)
+  ON CONFLICT (code) DO NOTHING;
 
-INSERT INTO sessions (class_id, title, zoom_link, scheduled_at, status)
-SELECT id, 'AP Chemistry - Problem Solving', 'https://zoom.mock/meeting/apch004', '2026-02-07 17:00:00', 'SCHEDULED'
-FROM classes WHERE title='AP Chemistry';
+  INSERT INTO courses (id, name, code, description, is_active, created_by)
+  VALUES (gen_random_uuid(), 'Advanced Placement', 'AP',
+          'AP exam preparation', TRUE, v_admin_id)
+  ON CONFLICT (code) DO NOTHING;
 
--- Tomorrow's sessions (Feb 8)
-INSERT INTO sessions (class_id, title, zoom_link, scheduled_at, status)
-SELECT id, 'AP Chemistry - Thermodynamics', 'https://zoom.mock/meeting/apch005', '2026-02-08 14:00:00', 'SCHEDULED'
-FROM classes WHERE title='AP Chemistry';
+END $$;
 
--- Future sessions (Feb 10+)
-INSERT INTO sessions (class_id, title, zoom_link, scheduled_at, status)
-SELECT id, 'AP Chemistry - Reaction Rates', 'https://zoom.mock/meeting/apch006', '2026-02-10 16:00:00', 'SCHEDULED'
-FROM classes WHERE title='AP Chemistry';
+-- =============================================================
+-- VERIFICATION QUERIES  (uncomment and run after seeding)
+-- =============================================================
 
-INSERT INTO sessions (class_id, title, zoom_link, scheduled_at, status)
-SELECT id, 'AP Chemistry - Equilibrium', 'https://zoom.mock/meeting/apch007', '2026-02-14 16:00:00', 'SCHEDULED'
-FROM classes WHERE title='AP Chemistry';
+-- SELECT id, name FROM roles ORDER BY id;
+-- Expected: 3 rows → 1 admin | 2 teacher | 3 student
 
--- Sessions for IB Chemistry HL (past, today, tomorrow, future)
-INSERT INTO sessions (class_id, title, zoom_link, scheduled_at, status)
-SELECT id, 'IB Chemistry - Stoichiometry', 'https://zoom.mock/meeting/ibch001', '2026-02-04 10:00:00', 'COMPLETED'
-FROM classes WHERE title='IB Chemistry HL';
+-- SELECT email, first_name, last_name, is_active FROM users;
+-- Expected: 1 row → admin@100xlearning.com | Super | Admin | true
 
-INSERT INTO sessions (class_id, title, zoom_link, scheduled_at, status)
-SELECT id, 'IB Chemistry - Energetics', 'https://zoom.mock/meeting/ibch002', '2026-02-07 11:00:00', 'SCHEDULED'
-FROM classes WHERE title='IB Chemistry HL';
+-- SELECT ur.user_id, r.name AS role
+-- FROM   user_roles ur
+-- JOIN   roles r ON r.id = ur.role_id;
+-- Expected: 1 row → (admin UUID) | admin
 
-INSERT INTO sessions (class_id, title, zoom_link, scheduled_at, status)
-SELECT id, 'IB Chemistry - Kinetics', 'https://zoom.mock/meeting/ibch003', '2026-02-08 15:00:00', 'SCHEDULED'
-FROM classes WHERE title='IB Chemistry HL';
-
-INSERT INTO sessions (class_id, title, zoom_link, scheduled_at, status)
-SELECT id, 'IB Chemistry - Equilibrium', 'https://zoom.mock/meeting/ibch004', '2026-02-12 10:00:00', 'SCHEDULED'
-FROM classes WHERE title='IB Chemistry HL';
-
--- Sessions for Organic Chemistry (future sessions only, new class)
-INSERT INTO sessions (class_id, title, zoom_link, scheduled_at, status)
-SELECT id, 'Organic Chemistry - Intro', 'https://zoom.mock/meeting/orgch001', '2026-02-20 13:00:00', 'SCHEDULED'
-FROM classes WHERE title='Organic Chemistry';
-
-INSERT INTO sessions (class_id, title, zoom_link, scheduled_at, status)
-SELECT id, 'Organic Chemistry - Alkanes', 'https://zoom.mock/meeting/orgch002', '2026-02-27 13:00:00', 'SCHEDULED'
-FROM classes WHERE title='Organic Chemistry';
+-- SELECT name, code FROM courses ORDER BY code;
+-- Expected: 3 rows → ACT | ACT | Advanced Placement | AP | SAT | SAT
