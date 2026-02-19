@@ -1,3 +1,4 @@
+-- random meaningless change, just to push in a new branch and fix old main!
 -- Users (password: 123, bcrypt hashed)
 INSERT INTO users (name, email, password_hash, role, status)
 VALUES
