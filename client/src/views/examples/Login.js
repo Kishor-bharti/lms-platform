@@ -1,4 +1,3 @@
-// reactstrap components
 import {
   Button,
   Card,
@@ -16,21 +15,27 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import http from "../../utils/http";
 
+const ROLE_REDIRECT = {
+  admin:   "/admin/index",
+  teacher: "/admin/index",
+  student: "/admin/index",
+};
+
 const Login = () => {
   const [selectedRole, setSelectedRole] = useState(null);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [email,        setEmail]        = useState("");
+  const [password,     setPassword]     = useState("");
+  const [error,        setError]        = useState("");
+  const [isLoading,    setIsLoading]    = useState(false);
   const navigate = useNavigate();
 
   const validate = () => {
     const e = email.trim();
     const p = password.trim();
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!selectedRole) return "Please select a role";
+    if (!selectedRole)       return "Please select a role";
     if (!emailRegex.test(e)) return "Invalid email";
-    if (p.length < 3) return "Invalid password";
+    if (p.length < 3)        return "Invalid password";
     return "";
   };
 
@@ -42,28 +47,30 @@ const Login = () => {
 
     setIsLoading(true);
     try {
-      // selectedRole is already "student" or "teacher" — matches loginAs enum
       const res = await http.post("/api/auth/login", {
-        email: email.trim(),
+        email:   email.trim(),
         password: password.trim(),
-        loginAs: selectedRole,     // "student" | "teacher"
+        loginAs: selectedRole,   // "student" | "teacher"
       });
       const data = res?.data;
 
-      // Persist new token shape
-      window.localStorage.setItem("accessToken", data.accessToken);
+      // Persist tokens + user
+      window.localStorage.setItem("accessToken",  data.accessToken);
       window.localStorage.setItem("refreshToken", data.refreshToken);
-      window.localStorage.setItem("role", data.user.activeRole);
-      try { window.localStorage.setItem("user", JSON.stringify(data.user)); } catch { }
+      window.localStorage.setItem("role",         data.user.activeRole);
+      try { window.localStorage.setItem("user", JSON.stringify(data.user)); } catch {}
 
-      navigate("/admin/index", { replace: true });
+      // BUG 1 FIX: redirect based on activeRole from API, not hardcoded
+      const destination = ROLE_REDIRECT[data.user.activeRole] ?? "/admin/index";
+      navigate(destination, { replace: true });
+
     } catch (err) {
+      // BUG 2 FIX: set error state — never redirect on failure
       const serverError = err?.response?.data?.error;
       if (err?.response?.status === 403) {
-        // Role mismatch or disabled — server message is safe to show
-        setError(serverError ?? "Access denied");
+        setError(serverError ?? "Access denied for this role");
       } else if (err?.response?.status === 401) {
-        setError("Invalid email or password");
+        setError("Invalid credentials");
       } else if (typeof serverError === "string") {
         setError(serverError);
       } else {
@@ -86,37 +93,19 @@ const Login = () => {
               <Button
                 className={`btn-neutral btn-icon ${selectedRole === "student" ? "active" : ""}`}
                 color={selectedRole === "student" ? "primary" : "default"}
-                href="#pablo"
-                onClick={(e) => {
-                  e.preventDefault();
-                  setSelectedRole("student");
-                }}
-                style={selectedRole === "student" ? {
-                  boxShadow: "0 0 20px rgba(67, 103, 228, 0.8)",
-                  transform: "scale(1.05)"
-                } : {}}
+                onClick={(e) => { e.preventDefault(); setSelectedRole("student"); setError(""); }}
+                style={selectedRole === "student" ? { boxShadow: "0 0 20px rgba(67,103,228,0.8)", transform: "scale(1.05)" } : {}}
               >
-                <span className="btn-inner--icon">
-                  <i className="ni ni-single-02" />
-                </span>
+                <span className="btn-inner--icon"><i className="ni ni-single-02" /></span>
                 <span className="btn-inner--text">Student</span>
               </Button>
               <Button
                 className={`btn-neutral btn-icon ${selectedRole === "teacher" ? "active" : ""}`}
                 color={selectedRole === "teacher" ? "success" : "default"}
-                href="#pablo"
-                onClick={(e) => {
-                  e.preventDefault();
-                  setSelectedRole("teacher");
-                }}
-                style={selectedRole === "teacher" ? {
-                  boxShadow: "0 0 20px rgba(39, 174, 96, 0.8)",
-                  transform: "scale(1.05)"
-                } : {}}
+                onClick={(e) => { e.preventDefault(); setSelectedRole("teacher"); setError(""); }}
+                style={selectedRole === "teacher" ? { boxShadow: "0 0 20px rgba(39,174,96,0.8)", transform: "scale(1.05)" } : {}}
               >
-                <span className="btn-inner--icon">
-                  <i className="ni ni-briefcase-24" />
-                </span>
+                <span className="btn-inner--icon"><i className="ni ni-briefcase-24" /></span>
                 <span className="btn-inner--text">Teacher</span>
               </Button>
             </div>
@@ -129,14 +118,12 @@ const Login = () => {
               <FormGroup className="mb-3">
                 <InputGroup className="input-group-alternative">
                   <InputGroupAddon addonType="prepend">
-                    <InputGroupText>
-                      <i className="ni ni-email-83" />
-                    </InputGroupText>
+                    <InputGroupText><i className="ni ni-email-83" /></InputGroupText>
                   </InputGroupAddon>
                   <Input
                     placeholder="Email"
                     type="email"
-                    autoComplete="new-email"
+                    autoComplete="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                   />
@@ -145,50 +132,41 @@ const Login = () => {
               <FormGroup>
                 <InputGroup className="input-group-alternative">
                   <InputGroupAddon addonType="prepend">
-                    <InputGroupText>
-                      <i className="ni ni-lock-circle-open" />
-                    </InputGroupText>
+                    <InputGroupText><i className="ni ni-lock-circle-open" /></InputGroupText>
                   </InputGroupAddon>
                   <Input
                     placeholder="Password"
                     type="password"
-                    autoComplete="new-password"
+                    autoComplete="current-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                   />
                 </InputGroup>
               </FormGroup>
-              <div className="custom-control custom-control-alternative custom-checkbox">
-                <input
-                  className="custom-control-input"
-                  id="customCheckLogin"
-                  type="checkbox"
-                />
-                <label
-                  className="custom-control-label"
-                  htmlFor="customCheckLogin"
-                >
-                  <span className="text-muted">Remember me</span>
-                </label>
-              </div>
-              {error ? (
-                <div className="mt-2">
-                  <small className="text-danger">{error}</small>
+
+              {/* BUG 2 FIX: inline error, NO redirect on failure */}
+              {error && (
+                <div className="mt-2 mb-2">
+                  <small className="text-danger font-weight-bold">⚠ {error}</small>
                 </div>
-              ) : null}
+              )}
+
               <div className="text-center">
-                <Button
-                  className="my-4"
-                  color="primary"
-                  type="submit"
-                  disabled={isLoading}
-                >
-                  {isLoading ? "Signing in..." : "Sign in"}
+                <Button className="my-4" color="primary" type="submit" disabled={isLoading}>
+                  {isLoading ? "Signing in..." : `Sign in as ${selectedRole ?? "..."}`}
                 </Button>
               </div>
             </Form>
           </CardBody>
         </Card>
+        <div className="text-center mt-3">
+          <small className="text-light">
+            Admin?{" "}
+            <a href="/auth/admin-login" className="text-warning font-weight-bold">
+              Administrator login →
+            </a>
+          </small>
+        </div>
       </Col>
     </>
   );

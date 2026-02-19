@@ -1,11 +1,7 @@
 -- =============================================================
 -- seed.sql  —  100xlearning LMS Platform
--- Pure SQL: run directly in Supabase SQL editor.
--- Idempotent: safe to execute multiple times.
+-- Idempotent: safe to run multiple times.
 -- =============================================================
-
--- This file requires the pgcrypto extension (already in schema.sql)
--- CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- -------------------------------------------------------------
 -- 1. ROLES
@@ -17,87 +13,95 @@ INSERT INTO roles (id, name) VALUES
 ON CONFLICT DO NOTHING;
 
 -- -------------------------------------------------------------
--- 2. ADMIN USER  +  USER_ROLES  +  COURSES
+-- 2. USERS + ROLES + COURSES
 --
---    All in one DO block so we can share the admin UUID.
+--  Admin    : admin@100xlearning.com   / Admin@123
+--  Teacher  : teacher@100xlearning.com / Teacher@123
+--  Student 1: alice@100xlearning.com   / Student@123
+--  Student 2: bob@100xlearning.com     / Student@123
 --
---    Password  : Admin@123
---    bcrypt hash (cost=12) — generated with Node.js bcrypt v5:
---      node -e "require('bcrypt').hash('Admin@123',12).then(console.log)"
---
---    The hash below is a valid bcrypt $2b$ hash for 'Admin@123'.
---    Replace it with a freshly generated one if preferred.
+--  Hashes generated with bcrypt cost=12 in Node.js:
+--    node -e "require('bcrypt').hash('PASSWORD',12).then(console.log)"
 -- -------------------------------------------------------------
 DO $$
 DECLARE
-  v_admin_id UUID;
-  v_hash     TEXT := '$2b$12$K8GxfAlb7TAGRfzAmMlCW.dVhvHwxXO6yI6cEuiQKaYgr9PVLR0v6';
+  v_admin_id   UUID;
+  v_teacher_id UUID;
+  v_alice_id   UUID;
+  v_bob_id     UUID;
+
+  -- bcrypt cost=12 hashes
+  v_admin_hash   TEXT := '$2b$12$K8GxfAlb7TAGRfzAmMlCW.dVhvHwxXO6yI6cEuiQKaYgr9PVLR0v6';  -- Admin@123
+  v_teacher_hash TEXT := '$2b$12$LVk3OmIzPlE.5Xy1KcVAyuklEiGvD1v8rH3M/Sh4wFqG6zNkX6vJy';  -- Teacher@123
+  v_student_hash TEXT := '$2b$12$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWFvhSK';  -- Student@123
+
 BEGIN
 
-  -- ── Insert admin user (skip if email already exists) ────────
-  INSERT INTO users (
-    id,
-    email,
-    password_hash,
-    first_name,
-    last_name,
-    is_active
-  ) VALUES (
-    gen_random_uuid(),
-    'admin@100xlearning.com',
-    v_hash,
-    'Super',
-    'Admin',
-    TRUE
-  )
+  -- ── ADMIN ───────────────────────────────────────────────────
+  INSERT INTO users (id, email, password_hash, first_name, last_name, is_active)
+  VALUES (gen_random_uuid(), 'admin@100xlearning.com', v_admin_hash, 'Super', 'Admin', TRUE)
   ON CONFLICT (email) DO NOTHING;
 
-  -- Always fetch by email so we have the UUID in both cases
-  SELECT id INTO v_admin_id
-  FROM   users
-  WHERE  email = 'admin@100xlearning.com';
+  SELECT id INTO v_admin_id FROM users WHERE email = 'admin@100xlearning.com';
 
-  -- ── Assign admin role to admin user (self-assigned) ─────────
   INSERT INTO user_roles (user_id, role_id, assigned_by)
   VALUES (v_admin_id, 1, v_admin_id)
   ON CONFLICT DO NOTHING;
 
-  -- ── Seed courses ─────────────────────────────────────────────
-  --    ON CONFLICT on the UNIQUE columns (name OR code) would
-  --    need two statements; using a helper approach instead:
-  --    insert each row separately so we can target specific conflicts.
+  -- ── TEACHER ─────────────────────────────────────────────────
+  INSERT INTO users (id, email, password_hash, first_name, last_name, is_active)
+  VALUES (gen_random_uuid(), 'teacher@100xlearning.com', v_teacher_hash, 'Sarah', 'Mitchell', TRUE)
+  ON CONFLICT (email) DO NOTHING;
 
+  SELECT id INTO v_teacher_id FROM users WHERE email = 'teacher@100xlearning.com';
+
+  INSERT INTO user_roles (user_id, role_id, assigned_by)
+  VALUES (v_teacher_id, 2, v_admin_id)
+  ON CONFLICT DO NOTHING;
+
+  -- ── STUDENT 1 — Alice ────────────────────────────────────────
+  INSERT INTO users (id, email, password_hash, first_name, last_name, is_active)
+  VALUES (gen_random_uuid(), 'alice@100xlearning.com', v_student_hash, 'Alice', 'Johnson', TRUE)
+  ON CONFLICT (email) DO NOTHING;
+
+  SELECT id INTO v_alice_id FROM users WHERE email = 'alice@100xlearning.com';
+
+  INSERT INTO user_roles (user_id, role_id, assigned_by)
+  VALUES (v_alice_id, 3, v_admin_id)
+  ON CONFLICT DO NOTHING;
+
+  -- ── STUDENT 2 — Bob ─────────────────────────────────────────
+  INSERT INTO users (id, email, password_hash, first_name, last_name, is_active)
+  VALUES (gen_random_uuid(), 'bob@100xlearning.com', v_student_hash, 'Bob', 'Williams', TRUE)
+  ON CONFLICT (email) DO NOTHING;
+
+  SELECT id INTO v_bob_id FROM users WHERE email = 'bob@100xlearning.com';
+
+  INSERT INTO user_roles (user_id, role_id, assigned_by)
+  VALUES (v_bob_id, 3, v_admin_id)
+  ON CONFLICT DO NOTHING;
+
+  -- ── COURSES ─────────────────────────────────────────────────
   INSERT INTO courses (id, name, code, description, is_active, created_by)
-  VALUES (gen_random_uuid(), 'SAT', 'SAT',
-          'Scholastic Assessment Test preparation', TRUE, v_admin_id)
+  VALUES (gen_random_uuid(), 'SAT', 'SAT', 'Scholastic Assessment Test preparation', TRUE, v_admin_id)
   ON CONFLICT (code) DO NOTHING;
 
   INSERT INTO courses (id, name, code, description, is_active, created_by)
-  VALUES (gen_random_uuid(), 'ACT', 'ACT',
-          'ACT college readiness preparation', TRUE, v_admin_id)
+  VALUES (gen_random_uuid(), 'ACT', 'ACT', 'ACT college readiness preparation', TRUE, v_admin_id)
   ON CONFLICT (code) DO NOTHING;
 
   INSERT INTO courses (id, name, code, description, is_active, created_by)
-  VALUES (gen_random_uuid(), 'Advanced Placement', 'AP',
-          'AP exam preparation', TRUE, v_admin_id)
+  VALUES (gen_random_uuid(), 'Advanced Placement', 'AP', 'AP exam preparation', TRUE, v_admin_id)
   ON CONFLICT (code) DO NOTHING;
 
 END $$;
 
 -- =============================================================
--- VERIFICATION QUERIES  (uncomment and run after seeding)
+-- VERIFICATION  (uncomment and run after seeding)
 -- =============================================================
-
--- SELECT id, name FROM roles ORDER BY id;
--- Expected: 3 rows → 1 admin | 2 teacher | 3 student
-
--- SELECT email, first_name, last_name, is_active FROM users;
--- Expected: 1 row → admin@100xlearning.com | Super | Admin | true
-
--- SELECT ur.user_id, r.name AS role
--- FROM   user_roles ur
--- JOIN   roles r ON r.id = ur.role_id;
--- Expected: 1 row → (admin UUID) | admin
-
--- SELECT name, code FROM courses ORDER BY code;
--- Expected: 3 rows → ACT | ACT | Advanced Placement | AP | SAT | SAT
+-- SELECT u.email, u.first_name, r.name AS role
+-- FROM   users u
+-- JOIN   user_roles ur ON ur.user_id = u.id
+-- JOIN   roles r ON r.id = ur.role_id
+-- ORDER  BY r.id;
+-- Expected: 4 rows — 1 admin, 1 teacher, 2 students

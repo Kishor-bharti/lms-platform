@@ -4,16 +4,17 @@ import { verifyAccessToken } from '../utils/jwt';
 export function authMiddleware(req: Request, res: Response, next: NextFunction) {
   const authHeader = req.headers['authorization'];
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ message: 'Unauthorized' });
+    return res.status(401).json({ error: 'Unauthorized' });
   }
 
   const token = authHeader.substring(7);
 
   try {
     const payload = verifyAccessToken(token);
-    req.user = { id: payload.userId, role: payload.role };
+    // FIX: JWT payload has activeRole (not role)
+    req.user = { id: payload.userId, role: payload.activeRole };
     return next();
-  } catch (e) {
-    return res.status(401).json({ message: 'Invalid token' });
+  } catch {
+    return res.status(401).json({ error: 'Invalid or expired token' });
   }
 }

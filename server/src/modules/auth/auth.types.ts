@@ -1,16 +1,17 @@
-// ─── Row returned by the JOIN login query ──────────────────────
+// ─── Valid role tokens ──────────────────────────────────────────
+export type LoginAsRole = 'admin' | 'teacher' | 'student';
+export type Role = LoginAsRole; // alias used by rbac.middleware
+
+// ─── Row returned by the JOIN login query ───────────────────────
 export interface UserRow {
-  id: string;   // UUID
+  id: string;            // UUID
   email: string;
   first_name: string;
   last_name: string;
   password_hash: string;
   is_active: boolean;
-  roles: string[]; // array_agg result, e.g. ['admin']
+  roles: string[];       // array_agg result, e.g. ['admin']
 }
-
-// ─── Valid role tokens ──────────────────────────────────────────
-export type LoginAsRole = 'admin' | 'teacher' | 'student';
 
 // ─── Inbound request body ───────────────────────────────────────
 export interface LoginRequest {

@@ -7,9 +7,10 @@ const http = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
+// Attach accessToken (not "token") to every request
 http.interceptors.request.use((config) => {
   if (typeof window !== "undefined") {
-    const token = window.localStorage.getItem("token");
+    const token = window.localStorage.getItem("accessToken");
     if (token) {
       config.headers = {
         ...config.headers,
@@ -20,12 +21,18 @@ http.interceptors.request.use((config) => {
   return config;
 });
 
+// Only redirect on 401 for NON-login routes
+// Login pages handle their own errors via catch blocks
 http.interceptors.response.use(
   (response) => response,
   (error) => {
     const status = error?.response?.status;
-    if (status === 401 && typeof window !== "undefined") {
-      window.localStorage.removeItem("token");
+    const url = error?.config?.url ?? "";
+    const isAuthRoute = url.includes("/auth/login");
+
+    if (status === 401 && !isAuthRoute && typeof window !== "undefined") {
+      window.localStorage.removeItem("accessToken");
+      window.localStorage.removeItem("refreshToken");
       window.localStorage.removeItem("role");
       window.localStorage.removeItem("user");
       window.location.href = "/auth/login";

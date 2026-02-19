@@ -64,6 +64,10 @@ const Sidebar = (props) => {
             onClick={(e) => {
               if (prop.name === "Logout") {
                 e.preventDefault();
+                window.localStorage.removeItem("accessToken");
+                localStorage.removeItem("refreshToken");
+                localStorage.removeItem("role");
+                localStorage.removeItem("user");
                 navigate("/auth/login");
               } else {
                 closeCollapse();

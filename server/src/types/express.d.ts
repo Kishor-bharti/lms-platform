@@ -1,11 +1,9 @@
-import type { Role } from '../modules/auth/auth.types';
-
 declare global {
   namespace Express {
     interface Request {
       user?: {
-        id: number;
-        role: Role;
+        id: string;   // UUID from JWT payload
+        role: string; // activeRole: 'admin' | 'teacher' | 'student'
       };
     }
   }
