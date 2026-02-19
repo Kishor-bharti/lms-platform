@@ -1,4 +1,5 @@
 node_modules/
-# .env.development
-.env.*
+.env
+.env.production
+.env.development
 dist/
