@@ -95,6 +95,8 @@ const Sidebar = (props) => {
   // Dynamic course sections — each course expands to show subjects
   const createCourseLinks = () => {
     if (!courses.length) return null;
+    const role = typeof window !== "undefined" ? window.localStorage.getItem("role") : null;
+
     return courses.map((course) => {
       const { icon, color } = COURSE_ICONS[course.code] ?? DEFAULT_COURSE;
       const isOpen = expandedCourse === course.id;
@@ -236,6 +238,39 @@ const Sidebar = (props) => {
                 My Courses
               </h6>
               <Nav navbar>{createCourseLinks()}</Nav>
+            </>
+          )}
+
+          {/* ── Admin Panel section (admin only) ── */}
+          {(typeof window !== "undefined" && (window.localStorage.getItem("role") || "").toLowerCase() === "admin") && (
+            <>
+              <hr className="my-3" />
+              <h6 className="navbar-heading text-muted" style={mini ? { display: "none" } : undefined}>
+                Admin Panel
+              </h6>
+              <Nav navbar>
+                {[
+                  { path: "/admin-overview", label: "Overview",     icon: "ni ni-settings-gear-65" },
+                  { path: "/admin-users",    label: "Users",        icon: "ni ni-single-02" },
+                  { path: "/admin-courses",  label: "Courses",      icon: "ni ni-book-bookmark" },
+                  { path: "/admin-subjects", label: "Subjects",     icon: "ni ni-collection" },
+                  { path: "/admin-sessions", label: "All Sessions", icon: "ni ni-calendar-grid-58" },
+                ].map((item) => (
+                  <NavItem key={item.path}>
+                    <NavLink
+                      to={"/admin" + item.path}
+                      tag={NavLinkRRD}
+                      onClick={closeCollapse}
+                      title={item.label}
+                    >
+                      <i className={item.icon} style={{ color: "#f5365c" }} />
+                      <span className="nav-link-text" style={mini ? { display: "none" } : { color: "#f5365c", fontWeight: 600 }}>
+                        {item.label}
+                      </span>
+                    </NavLink>
+                  </NavItem>
+                ))}
+              </Nav>
             </>
           )}
 

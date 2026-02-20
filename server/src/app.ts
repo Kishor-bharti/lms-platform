@@ -1,13 +1,10 @@
-// app.ts — add courses router
-// ONLY CHANGE from existing: import coursesRouter + app.use('/api/courses', coursesRouter)
-// Everything else stays identical
-
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import authRouter from './modules/auth/auth.routes';
 import classesRouter from './modules/classes/classes.routes';
-import coursesRouter from './modules/courses/courses.routes';  // NEW
+import coursesRouter from './modules/courses/courses.routes';
+import adminRouter from './modules/admin/admin.routes';
 import { env } from './config/env';
 import { errorHandler } from './middlewares/error.middleware';
 import { pool } from './config/db';
@@ -15,7 +12,6 @@ import { pool } from './config/db';
 const app = express();
 
 app.set('trust proxy', 1);
-
 app.use(helmet());
 app.use(express.json());
 
@@ -44,16 +40,15 @@ const corsOptions: cors.CorsOptions = {
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 
-app.use('/api/auth', authRouter);
+app.use('/api/auth',    authRouter);
 app.use('/api/classes', classesRouter);
-app.use('/api/courses', coursesRouter);   // NEW
+app.use('/api/courses', coursesRouter);
+app.use('/api/admin',   adminRouter);
 
-// TEMPORARY: Test latency endpoint
 app.get('/test-latency', async (req, res) => {
   const start = Date.now();
   await pool.query('SELECT 1');
-  const latency = Date.now() - start;
-  res.json({ db_latency_ms: latency });
+  res.json({ db_latency_ms: Date.now() - start });
 });
 
 app.use(errorHandler);
