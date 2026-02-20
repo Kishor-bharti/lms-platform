@@ -32,8 +32,8 @@ DECLARE
 
   -- bcrypt cost=12 hashes
   v_admin_hash   TEXT := '$2b$12$K8GxfAlb7TAGRfzAmMlCW.dVhvHwxXO6yI6cEuiQKaYgr9PVLR0v6';  -- Admin@123
-  v_teacher_hash TEXT := '$2b$12$LVk3OmIzPlE.5Xy1KcVAyuklEiGvD1v8rH3M/Sh4wFqG6zNkX6vJy';  -- Teacher@123
-  v_student_hash TEXT := '$2b$12$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWFvhSK';  -- Student@123
+  v_teacher_hash TEXT := '$2b$12$EbCI.Up70eQf/YpWh8KoJer2wilTusfzsJITtioA3Juniw92feZGO';  -- Teacher@123
+  v_student_hash TEXT := '$2b$12$7s2T1fr5Qmpq35S5r5Sjyudl35Qls.95ZsySPotGcpNm2YNZl1pVe';  -- Student@123
 
 BEGIN
 
