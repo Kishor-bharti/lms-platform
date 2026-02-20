@@ -46,6 +46,9 @@ export async function toggleUserActive(req: Request, res: Response) {
   try {
     const { userId } = req.params;
     const { is_active } = req.body;
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
     if (typeof is_active !== 'boolean') {
       return res.status(400).json({ error: 'is_active (boolean) is required' });
     }
@@ -62,6 +65,7 @@ export async function assignRole(req: Request, res: Response) {
     const { userId } = req.params;
     const { role } = req.body;
     const adminId = req.user!.id;
+    if (!userId) return res.status(400).json({ error: 'userId is required' });
     if (!role) return res.status(400).json({ error: 'role is required' });
     await adminService.assignRole(userId, role, adminId);
     return res.json({ success: true });
@@ -74,6 +78,12 @@ export async function assignRole(req: Request, res: Response) {
 export async function removeRole(req: Request, res: Response) {
   try {
     const { userId, roleName } = req.params;
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+    if (!roleName) {
+      return res.status(400).json({ error: 'roleName is required' });
+    }
     await adminService.removeRole(userId, roleName);
     return res.json({ success: true });
   } catch (err) {
@@ -138,6 +148,7 @@ export async function assignTeacher(req: Request, res: Response) {
     const { subjectId } = req.params;
     const { teacherId } = req.body;
     const adminId = req.user!.id;
+    if (!subjectId) return res.status(400).json({ error: 'subjectId is required' });
     if (!teacherId) return res.status(400).json({ error: 'teacherId is required' });
     await adminService.assignTeacher(subjectId, teacherId, adminId);
     return res.json({ success: true });
@@ -150,6 +161,12 @@ export async function assignTeacher(req: Request, res: Response) {
 export async function removeTeacher(req: Request, res: Response) {
   try {
     const { subjectId, teacherId } = req.params;
+    if (!subjectId) {
+      return res.status(400).json({ error: 'subjectId is required' });
+    }
+    if (!teacherId) {
+      return res.status(400).json({ error: 'teacherId is required' });
+    }
     await adminService.removeTeacher(subjectId, teacherId);
     return res.json({ success: true });
   } catch (err) {
@@ -163,6 +180,7 @@ export async function enrollStudent(req: Request, res: Response) {
     const { subjectId } = req.params;
     const { studentId } = req.body;
     const adminId = req.user!.id;
+    if (!subjectId) return res.status(400).json({ error: 'subjectId is required' });
     if (!studentId) return res.status(400).json({ error: 'studentId is required' });
     await adminService.enrollStudent(subjectId, studentId, adminId);
     return res.json({ success: true });
@@ -175,6 +193,12 @@ export async function enrollStudent(req: Request, res: Response) {
 export async function unenrollStudent(req: Request, res: Response) {
   try {
     const { subjectId, studentId } = req.params;
+    if (!subjectId) {
+      return res.status(400).json({ error: 'subjectId is required' });
+    }
+    if (!studentId) {
+      return res.status(400).json({ error: 'studentId is required' });
+    }
     await adminService.unenrollStudent(subjectId, studentId);
     return res.json({ success: true });
   } catch (err) {
