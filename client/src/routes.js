@@ -7,6 +7,7 @@ import AdminLogin from "views/examples/AdminLogin.js";
 import SAT from "views/examples/SAT.js";
 import Sessions from "views/examples/Sessions.js";
 import Classes from "views/examples/Classes.js";
+import SubjectPage from "views/subject/SubjectPage.js";
 
 var routes = [
   {
@@ -68,6 +69,16 @@ var routes = [
     component: <Index />,
     layout: "/admin",
   },
+  // ── Subject detail — not in sidebar, navigated to from course links ──
+  {
+    path: "/subject/:subjectId",
+    name: "Subject",
+    icon: "ni ni-collection text-info",
+    component: <SubjectPage />,
+    layout: "/admin",
+    hidden: true,   // Sidebar ignores this (it doesn't appear in nav)
+  },
+  // ── Auth routes ──
   {
     path: "/login",
     name: "Login",

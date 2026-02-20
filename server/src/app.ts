@@ -1,8 +1,13 @@
+// app.ts — add courses router
+// ONLY CHANGE from existing: import coursesRouter + app.use('/api/courses', coursesRouter)
+// Everything else stays identical
+
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import authRouter from './modules/auth/auth.routes';
 import classesRouter from './modules/classes/classes.routes';
+import coursesRouter from './modules/courses/courses.routes';  // NEW
 import { env } from './config/env';
 import { errorHandler } from './middlewares/error.middleware';
 import { pool } from './config/db';
@@ -41,16 +46,13 @@ app.options('*', cors(corsOptions));
 
 app.use('/api/auth', authRouter);
 app.use('/api/classes', classesRouter);
+app.use('/api/courses', coursesRouter);   // NEW
 
 // TEMPORARY: Test latency endpoint
 app.get('/test-latency', async (req, res) => {
   const start = Date.now();
-  
-  // simplest possible DB query
   await pool.query('SELECT 1');
-  
   const latency = Date.now() - start;
-  
   res.json({ db_latency_ms: latency });
 });
 
