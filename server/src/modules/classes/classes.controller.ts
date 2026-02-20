@@ -1,20 +1,16 @@
-// classes.controller.ts — v2.1 aligned, lowercase role checks
+// classes.controller.ts — REPLACE existing file
+// Added: createSessionHandler
 
 import { Request, Response } from 'express';
 import * as classesService from './classes.service';
+import { createSession } from './createSession.service';
 
 // ─── GET /api/classes/my-classes-v2 ───────────────────────────
-// Returns subjects: teacher → assigned, student → enrolled, admin → all
-
 export async function getMyClasses(req: Request, res: Response) {
   try {
     const userId   = req.user?.id;
-    const userRole = req.user?.role;   // lowercase: 'admin' | 'teacher' | 'student'
-
-    if (!userId || !userRole) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
+    const userRole = req.user?.role;
+    if (!userId || !userRole) return res.status(401).json({ error: 'Unauthorized' });
     const classes = await classesService.getMyClasses(userId, userRole);
     return res.json(classes);
   } catch (err) {
@@ -24,17 +20,11 @@ export async function getMyClasses(req: Request, res: Response) {
 }
 
 // ─── GET /api/classes/my-sessions-v2 ──────────────────────────
-// Returns sessions: teacher → their sessions, student → enrolled, admin → all
-
 export async function getMySessionsV2(req: Request, res: Response) {
   try {
     const userId   = req.user?.id;
     const userRole = req.user?.role;
-
-    if (!userId || !userRole) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
+    if (!userId || !userRole) return res.status(401).json({ error: 'Unauthorized' });
     const sessions = await classesService.getMySessionsV2(userId, userRole);
     return res.json(sessions);
   } catch (err) {
@@ -43,19 +33,55 @@ export async function getMySessionsV2(req: Request, res: Response) {
   }
 }
 
-// ─── POST /api/classes/sessions/:sessionId/start ─────────────
-// Teacher only — creates Zoom meeting, sets status = 'live'
+// ─── POST /api/classes/sessions/create ────────────────────────
+// Teacher/admin only — create a new scheduled session under a subject
+export async function createSessionHandler(req: Request, res: Response) {
+  try {
+    const userId   = req.user?.id;
+    const userRole = req.user?.role;
 
+    if (!userId || !userRole) return res.status(401).json({ error: 'Unauthorized' });
+
+    if (userRole !== 'teacher' && userRole !== 'admin') {
+      return res.status(403).json({ error: 'Only teachers can create sessions' });
+    }
+
+    const { subjectId, title, sessionDate, startTime } = req.body as {
+      subjectId?:   string;
+      title?:       string;
+      sessionDate?: string;
+      startTime?:   string;
+    };
+
+    if (!subjectId || !title || !sessionDate || !startTime) {
+      return res.status(400).json({
+        error: 'subjectId, title, sessionDate, and startTime are all required',
+      });
+    }
+
+    const session = await createSession({
+      subjectId,
+      teacherId: userId,
+      title,
+      sessionDate,
+      startTime,
+    });
+
+    return res.status(201).json(session);
+  } catch (err: any) {
+    console.error('[classes] createSession error:', err);
+    return res.status(500).json({ error: err.message || 'Failed to create session' });
+  }
+}
+
+// ─── POST /api/classes/sessions/:sessionId/start ──────────────
 export async function startSessionById(req: Request, res: Response) {
   try {
     const { sessionId } = req.params;
     const userRole      = req.user?.role;
 
-    if (!sessionId) {
-      return res.status(400).json({ error: 'sessionId is required' });
-    }
+    if (!sessionId) return res.status(400).json({ error: 'sessionId is required' });
 
-    // FIX: lowercase role check
     if (userRole !== 'teacher' && userRole !== 'admin') {
       return res.status(403).json({ error: 'Only teachers can start sessions' });
     }
@@ -64,29 +90,20 @@ export async function startSessionById(req: Request, res: Response) {
     return res.json(session);
   } catch (err: any) {
     console.error('[classes] startSession error:', err);
-    if (err.message === 'Session not found') {
-      return res.status(404).json({ error: 'Session not found' });
-    }
-    if (err.message === 'Session is already LIVE') {
-      return res.status(409).json({ error: 'Session is already live' });
-    }
+    if (err.message === 'Session not found')     return res.status(404).json({ error: 'Session not found' });
+    if (err.message === 'Session is already LIVE') return res.status(409).json({ error: 'Session is already live' });
     return res.status(500).json({ error: 'Failed to start session' });
   }
 }
 
-// ─── POST /api/classes/sessions/:sessionId/complete ──────────
-// Teacher only — sets status = 'completed'
-
+// ─── POST /api/classes/sessions/:sessionId/complete ───────────
 export async function completeSessionById(req: Request, res: Response) {
   try {
     const { sessionId } = req.params;
     const userRole      = req.user?.role;
 
-    if (!sessionId) {
-      return res.status(400).json({ error: 'sessionId is required' });
-    }
+    if (!sessionId) return res.status(400).json({ error: 'sessionId is required' });
 
-    // FIX: lowercase role check
     if (userRole !== 'teacher' && userRole !== 'admin') {
       return res.status(403).json({ error: 'Only teachers can end sessions' });
     }
@@ -95,9 +112,7 @@ export async function completeSessionById(req: Request, res: Response) {
     return res.json(session);
   } catch (err: any) {
     console.error('[classes] completeSession error:', err);
-    if (err.message === 'Session not found') {
-      return res.status(404).json({ error: 'Session not found' });
-    }
+    if (err.message === 'Session not found') return res.status(404).json({ error: 'Session not found' });
     return res.status(500).json({ error: 'Failed to complete session' });
   }
 }

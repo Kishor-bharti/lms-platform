@@ -104,10 +104,10 @@ export default function SubjectTeacher() {
     try {
       await http.post("/api/classes/sessions/create", {
         subjectId,
-        title:      scheduleForm.title,
+        title:       scheduleForm.title,
         sessionDate: scheduleForm.date,
-        startTime:  scheduleForm.time + ":00+05:30",
-        endTime:    scheduleForm.time + ":00+05:30",  // backend can default +1hr
+        startTime:   scheduleForm.time + ":00+05:30",
+        // endTime calculated by backend (+90 min) to satisfy DB constraint
       });
       setScheduleOpen(false);
       setScheduleForm({ title: "", date: "", time: "" });
