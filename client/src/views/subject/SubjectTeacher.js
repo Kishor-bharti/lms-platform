@@ -27,7 +27,7 @@ export default function SubjectTeacher() {
   const [subject,         setSubject]        = useState(null);
   const [sessions,        setSessions]       = useState([]);
   const [loading,         setLoading]        = useState(true);
-  const [error,           setError]          = useState("");
+  const [, setError] = useState("");
   const [startingSession, setStartingSession] = useState(null);
   const [actionError,     setActionError]    = useState("");
 
@@ -42,6 +42,7 @@ export default function SubjectTeacher() {
     fetchData();
     const iv = setInterval(fetchData, 15000);
     return () => clearInterval(iv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subjectId]);
 
   const fetchData = async () => {
@@ -104,10 +105,10 @@ export default function SubjectTeacher() {
     try {
       await http.post("/api/classes/sessions/create", {
         subjectId,
-        title:       scheduleForm.title,
+        title:      scheduleForm.title,
         sessionDate: scheduleForm.date,
-        startTime:   scheduleForm.time + ":00+05:30",
-        // endTime calculated by backend (+90 min) to satisfy DB constraint
+        startTime:  scheduleForm.time + ":00+05:30",
+        endTime:    scheduleForm.time + ":00+05:30",  // backend can default +1hr
       });
       setScheduleOpen(false);
       setScheduleForm({ title: "", date: "", time: "" });

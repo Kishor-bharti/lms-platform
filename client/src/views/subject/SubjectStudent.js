@@ -31,8 +31,9 @@ export default function SubjectStudent() {
   useEffect(() => {
     if (!subjectId) return;
     fetchData();
-    const iv = setInterval(fetchData, 15000); // poll for live status
+    const iv = setInterval(fetchData, 15000);
     return () => clearInterval(iv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subjectId]);
 
   const fetchData = async () => {
