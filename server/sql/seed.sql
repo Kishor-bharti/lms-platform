@@ -31,7 +31,7 @@ DECLARE
   v_priya_id     UUID;
 
   -- bcrypt cost=12 hashes
-  v_admin_hash   TEXT := '$2b$12$K8GxfAlb7TAGRfzAmMlCW.dVhvHwxXO6yI6cEuiQKaYgr9PVLR0v6';  -- Admin@123
+  v_admin_hash   TEXT := '$2b$12$87VWz.bZZW.H5MMeZSDAau5YrMPLpmQjop8GL.vBLgVweqV9ODg.i';  -- Admin@123
   v_teacher_hash TEXT := '$2b$12$EbCI.Up70eQf/YpWh8KoJer2wilTusfzsJITtioA3Juniw92feZGO';  -- Teacher@123
   v_student_hash TEXT := '$2b$12$7s2T1fr5Qmpq35S5r5Sjyudl35Qls.95ZsySPotGcpNm2YNZl1pVe';  -- Student@123
 
