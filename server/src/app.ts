@@ -1,15 +1,18 @@
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
-import authRouter from './modules/auth/auth.routes';
-import classesRouter from './modules/classes/classes.routes';
-import coursesRouter from './modules/courses/courses.routes';
-import adminRouter from './modules/admin/admin.routes';
-import quizRouter from './modules/quiz/quiz.routes';
+import authRouter       from './modules/auth/auth.routes';
+import classesRouter    from './modules/classes/classes.routes';
+import coursesRouter    from './modules/courses/courses.routes';
+import adminRouter      from './modules/admin/admin.routes';
+import quizRouter       from './modules/quiz/quiz.routes';
 import assignmentRouter from './modules/assignment/assignment.routes';
-import { env } from './config/env';
+import progressRouter   from './modules/progress/progress.routes';
+import materialsRouter  from './modules/materials/materials.routes';
+import profileRouter    from './modules/profile/profile.routes';
+import { env }          from './config/env';
 import { errorHandler } from './middlewares/error.middleware';
-import { pool } from './config/db';
+import { pool }         from './config/db';
 
 const app = express();
 
@@ -48,6 +51,9 @@ app.use('/api/courses',     coursesRouter);
 app.use('/api/admin',       adminRouter);
 app.use('/api/quizzes',     quizRouter);
 app.use('/api/assignments', assignmentRouter);
+app.use('/api/progress',    progressRouter);
+app.use('/api/materials',   materialsRouter);
+app.use('/api/profile',     profileRouter);
 
 app.get('/test-latency', async (req, res) => {
   const start = Date.now();

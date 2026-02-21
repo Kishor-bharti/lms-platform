@@ -39,6 +39,7 @@ export default function SubjectStudent() {
   const [quizzes,     setQuizzes]     = useState([]);
   const [assignments, setAssignments] = useState([]);
   const [loading,     setLoading]     = useState(true);
+  const [materials,   setMaterials]   = useState([]);
 
   // Assignment submit modal
   const [submitOpen,    setSubmitOpen]    = useState(false);
@@ -56,17 +57,19 @@ export default function SubjectStudent() {
 
   const fetchData = async () => {
     try {
-      const [sessRes, classRes, quizRes, assignRes] = await Promise.all([
+      const [sessRes, classRes, quizRes, assignRes, matRes] = await Promise.all([
         http.get('/api/classes/my-sessions-v2'),
         http.get('/api/classes/my-classes-v2'),
         http.get(`/api/quizzes/subject/${subjectId}`),
         http.get(`/api/assignments/subject/${subjectId}`),
+        http.get(`/api/materials/subject/${subjectId}`),
       ]);
       setSessions((sessRes.data || []).filter((s) => s.subject_id === subjectId));
       const found = (classRes.data || []).find((c) => c.id === subjectId);
       if (found) setSubject(found);
       setQuizzes((quizRes.data || []).filter((q) => q.is_published));
       setAssignments(assignRes.data || []);
+      setMaterials(matRes.data || []);
     } catch (err) {
       console.error('[SubjectStudent]', err);
     } finally {
@@ -113,6 +116,7 @@ export default function SubjectStudent() {
     { key: 'sessions',    label: `Sessions (${sessions.length})` },
     { key: 'quizzes',     label: `Quizzes (${quizzes.length})` },
     { key: 'assignments', label: `Assignments (${assignments.length})` },
+    { key: 'materials',   label: `Materials (${materials.length})` },
   ];
 
   if (loading) return (
@@ -367,6 +371,49 @@ export default function SubjectStudent() {
                     </Card>
                   );
                 })
+              )}
+            </Col>
+          </Row>
+        )}
+
+        {/* ---- MATERIALS TAB ---- */}
+        {tab === 'materials' && (
+          <Row>
+            <Col>
+              {materials.length === 0 ? (
+                <Card className="shadow" style={{ borderRadius: 12 }}>
+                  <CardBody className="text-center py-5">
+                    <p className="text-muted">No materials uploaded yet. Check back later.</p>
+                  </CardBody>
+                </Card>
+              ) : (
+                <Row>
+                  {materials.map((m) => {
+                    const typeIcon  = { pdf: '📄', video: '🎥', link: '🔗', doc: '📝', image: '🖼' }[m.material_type] || '📁';
+                    const typeColor = { pdf: '#f5365c', video: '#825ee4', link: '#5e72e4', doc: '#fb6340', image: '#2dce89' }[m.material_type] || '#8898aa';
+                    return (
+                      <Col key={m.id} md="6" lg="4" className="mb-3">
+                        <a href={m.file_url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
+                          <Card className="shadow h-100" style={{ borderRadius: 12, borderTop: `3px solid ${typeColor}`, cursor: 'pointer', transition: 'transform 0.15s ease' }}
+                            onMouseEnter={(e) => e.currentTarget.style.transform='translateY(-2px)'}
+                            onMouseLeave={(e) => e.currentTarget.style.transform='translateY(0)'}>
+                            <CardBody style={{ padding: 16 }}>
+                              <div style={{ fontSize: 32, marginBottom: 8 }}>{typeIcon}</div>
+                              <h6 style={{ color: '#32325d', marginBottom: 4, lineHeight: 1.3 }}>{m.title}</h6>
+                              {m.description && <p style={{ fontSize: 12, color: '#8898aa', marginBottom: 8 }}>{m.description}</p>}
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontSize: 10, color: typeColor, fontWeight: 700, textTransform: 'uppercase', background: typeColor + '20', padding: '2px 8px', borderRadius: 10 }}>
+                                  {m.material_type}
+                                </span>
+                                <span style={{ fontSize: 11, color: '#8898aa' }}>by {m.uploader_name}</span>
+                              </div>
+                            </CardBody>
+                          </Card>
+                        </a>
+                      </Col>
+                    );
+                  })}
+                </Row>
               )}
             </Col>
           </Row>

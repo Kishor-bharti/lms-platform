@@ -43,6 +43,13 @@ export default function SubjectTeacher() {
   const [assignSaving, setAssignSaving] = useState(false);
   const [assignError,  setAssignError]  = useState('');
 
+  // Materials
+  const [materials,    setMaterials]    = useState([]);
+  const [matModalOpen, setMatModalOpen] = useState(false);
+  const [matForm,      setMatForm]      = useState({ title: '', description: '', material_type: 'link', file_url: '' });
+  const [matSaving,    setMatSaving]    = useState(false);
+  const [matError,     setMatError]     = useState('');
+
   // Submissions panel
   const [viewSubs,      setViewSubs]      = useState(null); // assignmentId
   const [submissions,   setSubmissions]   = useState([]);
@@ -57,17 +64,19 @@ export default function SubjectTeacher() {
 
   const fetchData = async () => {
     try {
-      const [sessRes, classRes, quizRes, assignRes] = await Promise.all([
+      const [sessRes, classRes, quizRes, assignRes, matRes] = await Promise.all([
         http.get('/api/classes/my-sessions-v2'),
         http.get('/api/classes/my-classes-v2'),
         http.get(`/api/quizzes/subject/${subjectId}`),
         http.get(`/api/assignments/subject/${subjectId}`),
+        http.get(`/api/materials/subject/${subjectId}`),
       ]);
       setSessions((sessRes.data || []).filter((s) => s.subject_id === subjectId));
       const found = (classRes.data || []).find((c) => c.id === subjectId);
       if (found) setSubject(found);
       setQuizzes(quizRes.data || []);
       setAssignments(assignRes.data || []);
+      setMaterials(matRes.data || []);
     } catch (err) {
       console.error('[SubjectTeacher]', err);
     } finally {
@@ -112,6 +121,25 @@ export default function SubjectTeacher() {
     } catch (err) {
       setScheduleError(err?.response?.data?.error || 'Failed to schedule');
     } finally { setScheduling(false); }
+  };
+
+  const handleAddMaterial = async (e) => {
+    e.preventDefault(); setMatError('');
+    if (!matForm.title || !matForm.file_url) { setMatError('Title and URL are required'); return; }
+    setMatSaving(true);
+    try {
+      await http.post('/api/materials', { subjectId, ...matForm });
+      setMatModalOpen(false);
+      setMatForm({ title: '', description: '', material_type: 'link', file_url: '' });
+      fetchData();
+    } catch (err) {
+      setMatError(err?.response?.data?.error || 'Failed to add material');
+    } finally { setMatSaving(false); }
+  };
+
+  const handleDeleteMaterial = async (matId) => {
+    try { await http.delete(`/api/materials/${matId}`); fetchData(); }
+    catch (err) { console.error(err); }
   };
 
   const toggleQuizPublish = async (quizId, current) => {
@@ -163,6 +191,7 @@ export default function SubjectTeacher() {
     { key: 'sessions',    label: `Sessions (${sessions.length})` },
     { key: 'quizzes',     label: `Quizzes (${quizzes.length})` },
     { key: 'assignments', label: `Assignments (${assignments.length})` },
+    { key: 'materials',   label: `Materials (${materials.length})` },
   ];
 
   if (loading) return (
@@ -199,6 +228,7 @@ export default function SubjectTeacher() {
                       + Quiz
                     </Button>
                     <Button color="warning" size="sm" style={{ borderRadius: 8 }} onClick={() => setAssignOpen(true)}>+ Assignment</Button>
+                    <Button color="secondary" size="sm" style={{ borderRadius: 8 }} onClick={() => setMatModalOpen(true)}>+ Material</Button>
                   </div>
                 </div>
               </CardBody>
@@ -475,6 +505,49 @@ export default function SubjectTeacher() {
           </Row>
         )}
 
+        {/* ---- MATERIALS TAB ---- */}
+        {tab === 'materials' && (
+          <Row>
+            <Col>
+              <Card className="shadow" style={{ borderRadius: 12 }}>
+                <CardHeader style={{ background: '#eaf3ff', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
+                  <div className="d-flex justify-content-between align-items-center">
+                    <CardTitle className="mb-0">Study Materials</CardTitle>
+                    <Button color="secondary" size="sm" style={{ borderRadius: 8 }} onClick={() => setMatModalOpen(true)}>
+                      + Add Material
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardBody>
+                  {materials.length === 0 ? (
+                    <div className="text-center py-4">
+                      <p className="text-muted">No materials yet. Add PDFs, videos, or links.</p>
+                      <Button color="secondary" size="sm" onClick={() => setMatModalOpen(true)}>Add First Material</Button>
+                    </div>
+                  ) : (
+                    materials.map((m) => {
+                      const typeIcon = { pdf: '📄', video: '🎥', link: '🔗', doc: '📝', image: '🖼' }[m.material_type] || '📁';
+                      const typeColor = { pdf: '#f5365c', video: '#825ee4', link: '#5e72e4', doc: '#fb6340', image: '#2dce89' }[m.material_type] || '#8898aa';
+                      return (
+                        <div key={m.id} className="d-flex align-items-center mb-3 p-3 bg-white border rounded" style={{ borderLeft: `3px solid ${typeColor}`, gap: 12 }}>
+                          <div style={{ fontSize: 24, flexShrink: 0 }}>{typeIcon}</div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <a href={m.file_url} target="_blank" rel="noreferrer" style={{ fontWeight: 700, color: '#32325d', display: 'block' }}>{m.title}</a>
+                            {m.description && <p className="small text-muted mb-0 mt-1">{m.description}</p>}
+                            <span style={{ fontSize: 10, color: typeColor, fontWeight: 700, textTransform: 'uppercase', background: typeColor + '20', padding: '2px 8px', borderRadius: 10 }}>{m.material_type}</span>
+                          </div>
+                          <Button size="sm" color="danger" outline style={{ borderRadius: 20, fontSize: 11, flexShrink: 0 }}
+                            onClick={() => handleDeleteMaterial(m.id)}>Remove</Button>
+                        </div>
+                      );
+                    })
+                  )}
+                </CardBody>
+              </Card>
+            </Col>
+          </Row>
+        )}
+
         {/* Schedule Session Modal */}
         <Modal isOpen={scheduleOpen} toggle={() => setScheduleOpen(false)} centered>
           <ModalHeader toggle={() => setScheduleOpen(false)}>Schedule New Session</ModalHeader>
@@ -510,6 +583,32 @@ export default function SubjectTeacher() {
           <ModalFooter>
             <Button color="warning" disabled={assignSaving} onClick={handleCreateAssignment}>{assignSaving ? 'Creating...' : 'Create Assignment'}</Button>
             <Button color="link" onClick={() => setAssignOpen(false)}>Cancel</Button>
+          </ModalFooter>
+        </Modal>
+
+      {/* Add Material Modal */}
+        <Modal isOpen={matModalOpen} toggle={() => setMatModalOpen(false)} centered>
+          <ModalHeader toggle={() => setMatModalOpen(false)}>Add Study Material</ModalHeader>
+          <ModalBody>
+            <Form onSubmit={handleAddMaterial}>
+              <FormGroup><Label>Title *</Label><Input value={matForm.title} onChange={(e) => setMatForm({ ...matForm, title: e.target.value })} placeholder="e.g. Chapter 3 Notes" /></FormGroup>
+              <FormGroup><Label>Type</Label>
+                <Input type="select" value={matForm.material_type} onChange={(e) => setMatForm({ ...matForm, material_type: e.target.value })}>
+                  <option value="link">Link</option>
+                  <option value="pdf">PDF</option>
+                  <option value="video">Video</option>
+                  <option value="doc">Document</option>
+                  <option value="image">Image</option>
+                </Input>
+              </FormGroup>
+              <FormGroup><Label>URL *</Label><Input value={matForm.file_url} onChange={(e) => setMatForm({ ...matForm, file_url: e.target.value })} placeholder="https://..." /></FormGroup>
+              <FormGroup><Label>Description</Label><Input type="textarea" rows={2} value={matForm.description} onChange={(e) => setMatForm({ ...matForm, description: e.target.value })} placeholder="Optional..." /></FormGroup>
+              {matError && <p className="text-danger small">{matError}</p>}
+            </Form>
+          </ModalBody>
+          <ModalFooter>
+            <Button color="secondary" disabled={matSaving} onClick={handleAddMaterial}>{matSaving ? 'Adding...' : 'Add Material'}</Button>
+            <Button color="link" onClick={() => setMatModalOpen(false)}>Cancel</Button>
           </ModalFooter>
         </Modal>
 
