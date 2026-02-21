@@ -5,6 +5,8 @@ import authRouter from './modules/auth/auth.routes';
 import classesRouter from './modules/classes/classes.routes';
 import coursesRouter from './modules/courses/courses.routes';
 import adminRouter from './modules/admin/admin.routes';
+import quizRouter from './modules/quiz/quiz.routes';
+import assignmentRouter from './modules/assignment/assignment.routes';
 import { env } from './config/env';
 import { errorHandler } from './middlewares/error.middleware';
 import { pool } from './config/db';
@@ -40,10 +42,12 @@ const corsOptions: cors.CorsOptions = {
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 
-app.use('/api/auth',    authRouter);
-app.use('/api/classes', classesRouter);
-app.use('/api/courses', coursesRouter);
-app.use('/api/admin',   adminRouter);
+app.use('/api/auth',        authRouter);
+app.use('/api/classes',     classesRouter);
+app.use('/api/courses',     coursesRouter);
+app.use('/api/admin',       adminRouter);
+app.use('/api/quizzes',     quizRouter);
+app.use('/api/assignments', assignmentRouter);
 
 app.get('/test-latency', async (req, res) => {
   const start = Date.now();

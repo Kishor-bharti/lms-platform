@@ -13,6 +13,8 @@ import AdminUsers from 'views/admin/AdminUsers.js';
 import AdminCourses from 'views/admin/AdminCourses.js';
 import AdminSubjects from 'views/admin/AdminSubjects.js';
 import AdminSessions from 'views/admin/AdminSessions.js';
+import QuizBuilder from 'views/quiz/QuizBuilder.js';
+import QuizTaker from 'views/quiz/QuizTaker.js';
 
 var routes = [
   // ---- Visible to ALL roles ----
@@ -128,13 +130,33 @@ var routes = [
     hidden: true,
   },
 
-  // ---- Subject detail page (navigated from sidebar course links) ----
+  // ---- Subject detail (hidden — navigated via course sidebar links) ----
   {
     path: '/subject/:subjectId',
     name: 'Subject',
     icon: 'ni ni-collection text-info',
     component: <SubjectPage />,
     layout: '/admin',
+    hidden: true,
+  },
+
+  // ---- Quiz routes (hidden) ----
+  {
+    path: '/quiz-builder',
+    name: 'Quiz Builder',
+    icon: 'ni ni-collection text-primary',
+    component: <QuizBuilder />,
+    layout: '/admin',
+    roles: ['TEACHER', 'ADMIN'],
+    hidden: true,
+  },
+  {
+    path: '/quiz/:quizId',
+    name: 'Take Quiz',
+    icon: 'ni ni-collection text-primary',
+    component: <QuizTaker />,
+    layout: '/admin',
+    roles: ['STUDENT'],
     hidden: true,
   },
 
