@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Container, Row, Col, Card, CardHeader, CardBody, CardTitle, Badge, Button } from 'reactstrap';
+import { Container, Row, Col, Card, CardHeader, CardBody, CardTitle, Button } from 'reactstrap';
 import Header from 'components/Headers/Header.js';
 import http from 'utils/http';
 

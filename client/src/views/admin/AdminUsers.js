@@ -15,7 +15,7 @@ export default function AdminUsers() {
   const [formError,   setFormError]   = useState('');
   const [form, setForm] = useState({ email: '', password: '', first_name: '', last_name: '', phone: '', role: 'student' });
 
-  useEffect(() => { fetchUsers(); }, [roleFilter]);
+  useEffect(() => { fetchUsers(); }, [roleFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchUsers = async () => {
     setLoading(true);

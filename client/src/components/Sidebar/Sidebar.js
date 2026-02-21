@@ -95,8 +95,6 @@ const Sidebar = (props) => {
   // Dynamic course sections — each course expands to show subjects
   const createCourseLinks = () => {
     if (!courses.length) return null;
-    const role = typeof window !== "undefined" ? window.localStorage.getItem("role") : null;
-
     return courses.map((course) => {
       const { icon, color } = COURSE_ICONS[course.code] ?? DEFAULT_COURSE;
       const isOpen = expandedCourse === course.id;
