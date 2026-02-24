@@ -1,6 +1,6 @@
 import { query } from '../../config/db';
 import { comparePassword } from '../../utils/password';
-import { signAccessToken, signRefreshToken } from '../../utils/jwt';
+import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../utils/jwt';
 import { UserRow, LoginAsRole, LoginResponse } from './auth.types';
 
 // ─── Typed auth error ───────────────────────────────────────────
@@ -83,4 +83,34 @@ export async function login(
       activeRole: loginAs,
     },
   };
+}
+
+// ─── Refresh tokens service ────────────────────────────────────
+export async function refreshTokens(
+  refreshToken: string
+): Promise<{ accessToken: string; refreshToken: string }> {
+  try {
+    // Verify the refresh token
+    const payload = verifyRefreshToken(refreshToken);
+
+    // Sign new tokens with the same payload
+    const tokenPayload = {
+      userId: payload.userId,
+      email: payload.email,
+      firstName: payload.firstName,
+      lastName: payload.lastName,
+      roles: payload.roles,
+      activeRole: payload.activeRole,
+    };
+
+    const newAccessToken = signAccessToken(tokenPayload);
+    const newRefreshToken = signRefreshToken(tokenPayload);
+
+    return {
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+    };
+  } catch (err) {
+    throw authError('INVALID_REFRESH_TOKEN');
+  }
 }

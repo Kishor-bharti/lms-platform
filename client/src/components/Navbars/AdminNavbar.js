@@ -31,7 +31,8 @@ const AdminNavbar = (props) => {
   const handleLogout = (e) => {
     if (e) e.preventDefault();
     try {
-      window.localStorage.removeItem("token");
+      window.localStorage.removeItem("accessToken");
+      window.localStorage.removeItem("refreshToken");
       window.localStorage.removeItem("role");
       window.localStorage.removeItem("user");
     } catch {}

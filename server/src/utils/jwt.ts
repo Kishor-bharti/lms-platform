@@ -33,3 +33,10 @@ export function verifyAccessToken(token: string): JwtPayload {
   if (!secret) throw new Error('JWT_SECRET not configured');
   return jwt.verify(token, secret) as JwtPayload;
 }
+
+// ─── Verify refresh token (used by refresh endpoint) ────────────
+export function verifyRefreshToken(token: string): JwtPayload {
+  const secret = env.JWT_REFRESH_SECRET as Secret;
+  if (!secret) throw new Error('JWT_REFRESH_SECRET not configured');
+  return jwt.verify(token, secret) as JwtPayload;
+}
