@@ -5,6 +5,7 @@ import { Container } from "reactstrap";
 import AdminNavbar from "components/Navbars/AdminNavbar.js";
 import AdminFooter from "components/Footers/AdminFooter.js";
 import Sidebar from "components/Sidebar/Sidebar.js";
+import SessionExpiryBanner from "components/SessionExpiryBanner.js";
 import { RoleBasedRoute } from "components/ProtectedRoute.js";
 import routes from "routes.js";
 
@@ -68,6 +69,7 @@ const Admin = (props) => {
           <AdminFooter />
         </Container>
       </div>
+      <SessionExpiryBanner />
     </>
   );
 };

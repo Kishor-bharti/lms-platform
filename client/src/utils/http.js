@@ -1,6 +1,17 @@
 import axios from "axios";
 import { API_BASE } from "./api";
 
+export function getTokenExpiresInSeconds() {
+  try {
+    const token = window.localStorage.getItem('accessToken');
+    if (!token) return 0;
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return Math.max(0, payload.exp - Math.floor(Date.now() / 1000));
+  } catch {
+    return 0;
+  }
+}
+
 const http = axios.create({
   baseURL: API_BASE || undefined,
   timeout: 15000,

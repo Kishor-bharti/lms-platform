@@ -72,6 +72,8 @@ const Sidebar = (props) => {
             onClick={(e) => {
               if (prop.name === "Logout") {
                 e.preventDefault();
+                const confirmed = window.confirm('Are you sure you want to logout?');
+                if (!confirmed) return;
                 window.localStorage.removeItem("accessToken");
                 window.localStorage.removeItem("refreshToken");
                 window.localStorage.removeItem("role");

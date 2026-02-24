@@ -17,7 +17,11 @@ import { pool }         from './config/db';
 const app = express();
 
 app.set('trust proxy', 1);
-app.use(helmet());
+app.use(helmet({
+  crossOriginEmbedderPolicy: false, // needed for Zoom iframes
+  ...(env.NODE_ENV !== 'production' && { contentSecurityPolicy: false }),
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+}));
 app.use(express.json());
 
 const normalizeOrigin = (value?: string): string | undefined =>

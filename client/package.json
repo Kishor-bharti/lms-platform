@@ -3,6 +3,10 @@
   "version": "1.2.4",
   "description": "lms-learning-platform-react-app",
   "main": "index.js",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Kishor-bharti/lms-platform.git"

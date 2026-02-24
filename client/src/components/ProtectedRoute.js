@@ -26,12 +26,18 @@ export function RoleBasedRoute({ children, allowedRoles }) {
     return <Navigate to="/auth/login" replace />;
   }
 
+  const roleRedirect = () => {
+    const r = (window.localStorage.getItem('role') || '').toLowerCase();
+    if (r === 'admin')   return '/admin/admin-overview';
+    if (r === 'teacher') return '/admin/sessions';
+    return '/admin/index';  // student default
+  };
+
   if (allowedRoles && allowedRoles.length > 0) {
     const normalizedAllowed = allowedRoles.map((r) => r.toLowerCase());
     const normalizedRole    = (role ?? "").toLowerCase();
     if (!normalizedAllowed.includes(normalizedRole)) {
-      // Redirect to dashboard instead of showing blank/forbidden
-      return <Navigate to="/admin/index" replace />;
+      return <Navigate to={roleRedirect()} replace />;
     }
   }
 
