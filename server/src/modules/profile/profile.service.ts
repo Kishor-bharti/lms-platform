@@ -53,12 +53,26 @@ export async function updateProfile(userId: string, data: {
   sets.push(`updated_at = now()`);
   params.push(userId);
 
-  await query(
-    `UPDATE users SET ${sets.join(', ')} WHERE id = $${idx}`,
+  const updated = await query<any>(
+    `UPDATE users SET ${sets.join(', ')} WHERE id = $${idx}
+     RETURNING id, email, first_name, last_name, phone,
+               avatar_url, is_active, last_login_at, created_at`,
     params
   );
 
-  return getProfile(userId);
+  const roleRows = await query<any>(
+    `SELECT r.name
+     FROM   user_roles ur
+     JOIN   roles r ON r.id = ur.role_id
+     WHERE  ur.user_id = $1
+     ORDER  BY r.id`,
+    [userId]
+  );
+
+  return {
+    ...updated[0],
+    roles: roleRows.map((r: any) => r.name),
+  };
 }
 
 export async function changePassword(userId: string, data: {

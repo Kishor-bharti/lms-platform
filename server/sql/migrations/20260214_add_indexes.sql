@@ -1,7 +1,14 @@
--- Add non-breaking performance indexes
-
-CREATE INDEX IF NOT EXISTS idx_classes_teacher_id ON classes(teacher_id);
-CREATE INDEX IF NOT EXISTS idx_enrollments_class_id ON enrollments(class_id);
-CREATE INDEX IF NOT EXISTS idx_enrollments_student_id ON enrollments(student_id);
-CREATE INDEX IF NOT EXISTS idx_sessions_class_id ON sessions(class_id);
-CREATE INDEX IF NOT EXISTS idx_sessions_scheduled_at ON sessions(scheduled_at);
+-- 20260214_add_indexes.sql
+--
+-- !! DO NOT RUN THIS FILE !!
+--
+-- This migration is superseded by schema.sql (v2.1 rewrite).
+-- It references old table names (classes, enrollments) that no longer exist.
+--
+-- All equivalent indexes for the current schema are defined inline in schema.sql:
+--   idx_subject_teachers_teacher_id
+--   idx_subject_enrollments_student_id
+--   idx_sessions_subject_id
+--   idx_sessions_session_date
+--
+-- This file is retained for migration history only.
