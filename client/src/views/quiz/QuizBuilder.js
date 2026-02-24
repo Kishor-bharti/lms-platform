@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   Container, Row, Col, Card, CardHeader, CardBody, CardTitle,
-  Button, Form, FormGroup, Label, Input, Badge,
+  Button, FormGroup, Label, Input,
 } from 'reactstrap';
 import Header from 'components/Headers/Header.js';
 import { useNavigate, useLocation } from 'react-router-dom';

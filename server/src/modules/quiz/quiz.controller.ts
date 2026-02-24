@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { query } from '../../config/db';
 import * as quizService from './quiz.service';
 
 export async function getQuizzesBySubject(req: Request, res: Response) {
@@ -8,7 +9,7 @@ export async function getQuizzesBySubject(req: Request, res: Response) {
     if (!subjectId) {
       return res.status(400).json({ error: 'subjectId is required' });
     }
-    const quizzes = await quizService.getQuizzesBySubject(subjectId);
+    const quizzes = await quizService.getQuizzesBySubject(subjectId, role);
     return res.json(quizzes);
   } catch (err) {
     console.error('[quiz] getQuizzesBySubject:', err);
@@ -61,10 +62,23 @@ export async function publishQuiz(req: Request, res: Response) {
     if (!quizId) {
       return res.status(400).json({ error: 'quizId is required' });
     }
+    const userId = req.user!.id;
     const role = req.user!.role;
     if (role !== 'teacher' && role !== 'admin') {
       return res.status(403).json({ error: 'Only teachers can publish quizzes' });
     }
+
+    // Ownership check (skip for admin)
+    if (role === 'teacher') {
+      const owned = await query<any>(
+        `SELECT id FROM quizzes WHERE id = $1 AND created_by = $2`,
+        [quizId, userId]
+      );
+      if (!owned[0]) {
+        return res.status(403).json({ error: 'You do not own this quiz' });
+      }
+    }
+
     await quizService.setQuizPublished(quizId, Boolean(is_published));
     return res.json({ success: true });
   } catch (err) {
@@ -83,6 +97,15 @@ export async function startAttempt(req: Request, res: Response) {
     const result = await quizService.startAttempt(quizId, studentId);
     return res.status(201).json(result);
   } catch (err: any) {
+    if (err.message === 'NOT_ENROLLED') {
+      return res.status(403).json({ error: 'Not enrolled in this subject' });
+    }
+    if (err.message === 'QUIZ_NOT_FOUND') {
+      return res.status(404).json({ error: 'Quiz not found' });
+    }
+    if (err.message === 'QUIZ_NOT_PUBLISHED') {
+      return res.status(403).json({ error: 'Quiz is not available yet' });
+    }
     if (err.message === 'MAX_ATTEMPTS_REACHED') {
       return res.status(409).json({ error: 'Maximum attempts reached for this quiz' });
     }

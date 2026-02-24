@@ -3,7 +3,7 @@
 
 import { Request, Response } from 'express';
 import * as classesService from './classes.service';
-import { createSession } from './createSession.service';
+import { createSession } from './classes.service';
 
 // ─── GET /api/classes/my-classes-v2 ───────────────────────────
 export async function getMyClasses(req: Request, res: Response) {
@@ -86,10 +86,11 @@ export async function startSessionById(req: Request, res: Response) {
       return res.status(403).json({ error: 'Only teachers can start sessions' });
     }
 
-    const session = await classesService.startSessionById(sessionId);
+    const session = await classesService.startSessionById(sessionId, req.user!.id);
     return res.json(session);
   } catch (err: any) {
     console.error('[classes] startSession error:', err);
+    if (err.message === 'FORBIDDEN')           return res.status(403).json({ error: 'Not your session' });
     if (err.message === 'Session not found')     return res.status(404).json({ error: 'Session not found' });
     if (err.message === 'Session is already LIVE') return res.status(409).json({ error: 'Session is already live' });
     return res.status(500).json({ error: 'Failed to start session' });
@@ -108,10 +109,11 @@ export async function completeSessionById(req: Request, res: Response) {
       return res.status(403).json({ error: 'Only teachers can end sessions' });
     }
 
-    const session = await classesService.completeSessionById(sessionId);
+    const session = await classesService.completeSessionById(sessionId, req.user!.id);
     return res.json(session);
   } catch (err: any) {
     console.error('[classes] completeSession error:', err);
+    if (err.message === 'FORBIDDEN')         return res.status(403).json({ error: 'Not your session' });
     if (err.message === 'Session not found') return res.status(404).json({ error: 'Session not found' });
     return res.status(500).json({ error: 'Failed to complete session' });
   }

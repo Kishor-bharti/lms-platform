@@ -51,7 +51,7 @@ export interface AttemptResult {
 
 // ---- Teacher: get quizzes for a subject ----
 
-export async function getQuizzesBySubject(subjectId: string, includeCorrect = false): Promise<QuizSummary[]> {
+export async function getQuizzesBySubject(subjectId: string, role: string = 'student'): Promise<QuizSummary[]> {
   const rows = await query<any>(`
     SELECT
       q.id, q.subject_id, q.title, q.quiz_type, q.description,
@@ -61,6 +61,7 @@ export async function getQuizzesBySubject(subjectId: string, includeCorrect = fa
     FROM quizzes q
     LEFT JOIN questions qs ON qs.quiz_id = q.id AND qs.is_active = true
     WHERE q.subject_id = $1
+    ${role === 'student' ? 'AND q.is_published = true' : ''}
     GROUP BY q.id
     ORDER BY q.created_at DESC
   `, [subjectId]);
@@ -197,6 +198,30 @@ export async function setQuizPublished(quizId: string, published: boolean): Prom
 // ---- Student: start attempt ----
 
 export async function startAttempt(quizId: string, studentId: string): Promise<{ attemptId: string; attempt_number: number }> {
+  // Enrollment check — student must be enrolled in the subject
+  const enrolled = await query<any>(`
+    SELECT 1
+    FROM subject_enrollments se
+    JOIN quizzes q ON q.subject_id = se.subject_id
+    WHERE q.id = $1
+      AND se.student_id = $2
+      AND se.enrollment_status = 'active'
+  `, [quizId, studentId]);
+
+  if (enrolled.length === 0) {
+    throw new Error('NOT_ENROLLED');
+  }
+
+  // Published + max_attempts check
+  const quizCheck = await query<any>(
+    `SELECT max_attempts, is_published FROM quizzes WHERE id = $1`,
+    [quizId]
+  );
+  if (!quizCheck[0]) throw new Error('QUIZ_NOT_FOUND');
+  if (!quizCheck[0].is_published) throw new Error('QUIZ_NOT_PUBLISHED');
+
+  const maxAttempts = quizCheck[0].max_attempts;
+
   const existing = await query<any>(`
     SELECT attempt_number FROM quiz_attempts
     WHERE quiz_id=$1 AND student_id=$2
@@ -205,8 +230,7 @@ export async function startAttempt(quizId: string, studentId: string): Promise<{
 
   const nextAttempt = existing.length > 0 ? existing[0].attempt_number + 1 : 1;
 
-  const quiz = await query<any>(`SELECT max_attempts FROM quizzes WHERE id=$1`, [quizId]);
-  if (quiz[0]?.max_attempts && nextAttempt > quiz[0].max_attempts) {
+  if (maxAttempts && nextAttempt > maxAttempts) {
     throw new Error('MAX_ATTEMPTS_REACHED');
   }
 

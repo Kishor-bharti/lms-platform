@@ -4,6 +4,7 @@ import * as materialsService from './materials.service';
 export async function getMaterials(req: Request, res: Response) {
   try {
     const { subjectId } = req.params;
+    if (!subjectId) return res.status(400).json({ error: 'subjectId is required' });
     const materials = await materialsService.getMaterials(subjectId);
     return res.json(materials);
   } catch (err) {
@@ -40,6 +41,7 @@ export async function addMaterial(req: Request, res: Response) {
 export async function deleteMaterial(req: Request, res: Response) {
   try {
     const { materialId } = req.params;
+    if (!materialId) return res.status(400).json({ error: 'materialId is required' });
     const userId = req.user!.id;
     await materialsService.deleteMaterial(materialId, userId);
     return res.json({ success: true });

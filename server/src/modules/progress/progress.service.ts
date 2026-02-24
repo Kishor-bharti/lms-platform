@@ -14,7 +14,6 @@ export interface SubjectProgress {
   assignments_graded: number;
   avg_assignment_marks: number | null;
   max_assignment_marks: number | null;
-  sessions_attended: number;
   last_activity_at: string | null;
 }
 
@@ -70,9 +69,6 @@ export async function getStudentProgress(studentId: string): Promise<SubjectProg
       AVG(a.max_marks)
         FILTER (WHERE asub.status = 'graded')                          AS max_assignment_marks,
 
-      -- Session attendance (count completed sessions in enrolled subjects)
-      0                                                                  AS sessions_attended,
-
       -- Last activity
       GREATEST(
         MAX(qa.submitted_at) FILTER (WHERE qa.status = 'submitted'),
@@ -107,7 +103,6 @@ export async function getStudentProgress(studentId: string): Promise<SubjectProg
     assignments_graded:    Number(r.assignments_graded),
     avg_assignment_marks:  r.avg_assignment_marks != null ? Number(Number(r.avg_assignment_marks).toFixed(1)) : null,
     max_assignment_marks:  r.max_assignment_marks != null ? Number(Number(r.max_assignment_marks).toFixed(1)) : null,
-    sessions_attended:     Number(r.sessions_attended),
     last_activity_at:      r.last_activity_at ?? null,
   }));
 }

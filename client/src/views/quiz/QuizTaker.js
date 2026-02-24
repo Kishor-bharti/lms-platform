@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  Container, Row, Col, Card, CardHeader, CardBody, CardTitle, Button, Badge,
+  Container, Row, Col, Card, CardHeader, CardBody, Button, Badge,
 } from 'reactstrap';
 import Header from 'components/Headers/Header.js';
 import { useNavigate, useParams } from 'react-router-dom';

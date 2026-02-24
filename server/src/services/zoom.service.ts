@@ -48,7 +48,13 @@ export async function createZoomMeeting(params: {
     type: 2,
     start_time: params.startTime,
     duration: 60,
-    settings: { host_video: true, participant_video: true }
+    settings: {
+      host_video: true,
+      participant_video: true,
+      join_before_host: false,
+      waiting_room: true,
+      auto_recording: 'none',
+    }
   };
 
   try {

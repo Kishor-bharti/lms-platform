@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Container, Row, Col, Card, CardHeader, CardBody, CardTitle,
-  Button, Form, FormGroup, Label, Input, Badge,
+  Container, Row, Col, Card, CardHeader, CardBody,
+  Button, Form, FormGroup, Label, Input,
 } from 'reactstrap';
 import UserHeader from 'components/Headers/UserHeader.js';
 import http from 'utils/http';

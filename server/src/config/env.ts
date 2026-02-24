@@ -35,13 +35,13 @@ export const env = {
 export function validateEnv(): void {
   const required: (keyof typeof env)[] = [
     'JWT_SECRET',
+    'JWT_REFRESH_SECRET',
     'DATABASE_URL',
   ];
 
   // Additional required in production
   if (env.NODE_ENV === 'production') {
     required.push(
-      'JWT_REFRESH_SECRET',
       'ZOOM_ACCOUNT_ID',
       'ZOOM_CLIENT_ID',
       'ZOOM_CLIENT_SECRET',
