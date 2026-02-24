@@ -183,7 +183,8 @@ export async function getSessionsByTeacher(
      JOIN   subjects         sub ON sub.id = s.subject_id
      JOIN   subject_teachers st  ON st.subject_id = sub.id
      WHERE  st.teacher_id = $1
-     ORDER  BY s.session_date DESC, s.start_time DESC`,
+     ORDER  BY s.session_date DESC, s.start_time DESC
+     LIMIT  100`,
     [teacherId]
   );
 
@@ -221,7 +222,8 @@ export async function getSessionsByStudent(
      JOIN   subject_enrollments  se  ON se.subject_id = sub.id
      WHERE  se.student_id        = $1
        AND  se.enrollment_status = 'active'
-     ORDER  BY s.session_date DESC, s.start_time DESC`,
+     ORDER  BY s.session_date DESC, s.start_time DESC
+     LIMIT  100`,
     [studentId]
   );
 
@@ -254,7 +256,8 @@ export async function getAllSessions(): Promise<SessionWithDetails[]> {
        s.status
      FROM   sessions s
      JOIN   subjects sub ON sub.id = s.subject_id
-     ORDER  BY s.session_date DESC, s.start_time DESC`
+     ORDER  BY s.session_date DESC, s.start_time DESC
+     LIMIT  100`
   );
 
   const now = new Date();

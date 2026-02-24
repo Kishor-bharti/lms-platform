@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Button, Card, CardHeader, CardBody, CardTitle,
   Container, Row, Col, Badge,
@@ -14,12 +14,19 @@ const Sessions = () => {
   const [startingSession, setStartingSession] = useState(null);
   const [selectedView, setSelectedView] = useState('day');
   const [actionError, setActionError] = useState("");
+  const errorCount = useRef(0);
 
   useEffect(() => {
     const role = typeof window !== "undefined" ? window.localStorage.getItem("role") : null;
     setUserRole(role);
     fetchSessions();
-    const interval = setInterval(fetchSessions, 15000);
+    const interval = setInterval(() => {
+      if (errorCount.current >= 3) {
+        clearInterval(interval);
+        return;
+      }
+      fetchSessions();
+    }, 60000);
     return () => clearInterval(interval);
   }, []);
 
@@ -28,10 +35,15 @@ const Sessions = () => {
       const response = await http.get('/api/classes/my-sessions-v2');
       setSessions(Array.isArray(response?.data) ? response.data : []);
       setLoading(false);
+      errorCount.current = 0;
     } catch (error) {
       console.error('Failed to fetch sessions:', error);
       setSessions([]);
       setLoading(false);
+      errorCount.current += 1;
+      if (errorCount.current >= 3) {
+        console.warn('[polling] Stopped after 3 consecutive errors');
+      }
     }
   };
 

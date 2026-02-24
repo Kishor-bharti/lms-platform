@@ -14,14 +14,23 @@ export default function AdminUsers() {
   const [submitting,  setSubmitting]  = useState(false);
   const [formError,   setFormError]   = useState('');
   const [form, setForm] = useState({ email: '', password: '', first_name: '', last_name: '', phone: '', role: 'student' });
+  const [page,       setPage]       = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total,      setTotal]      = useState(0);
 
-  useEffect(() => { fetchUsers(); }, [roleFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setPage(1); }, [roleFilter]);
+
+  useEffect(() => { fetchUsers(); }, [roleFilter, page]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const res = await http.get(`/api/admin/users${roleFilter !== 'all' ? `?role=${roleFilter}` : ''}`);
-      setUsers(res.data || []);
+      const res = await http.get(
+        `/api/admin/users?page=${page}${roleFilter !== 'all' ? `&role=${roleFilter}` : ''}`
+      );
+      setUsers(res.data.users || []);
+      setTotalPages(res.data.totalPages || 1);
+      setTotal(res.data.total || 0);
     } catch (err) {
       console.error('[AdminUsers]', err);
     } finally {
@@ -146,6 +155,20 @@ export default function AdminUsers() {
                     </tbody>
                   </table>
                 )}
+                <div className="d-flex justify-content-between align-items-center mt-3">
+                  <small className="text-muted">
+                    Showing {users.length} of {total} users
+                  </small>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <Button size="sm" disabled={page <= 1}
+                      onClick={() => setPage(p => p - 1)}>← Prev</Button>
+                    <span style={{ padding: '4px 12px' }}>
+                      Page {page} of {totalPages}
+                    </span>
+                    <Button size="sm" disabled={page >= totalPages}
+                      onClick={() => setPage(p => p + 1)}>Next →</Button>
+                  </div>
+                </div>
               </CardBody>
             </Card>
           </Col>

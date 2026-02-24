@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Container, Row, Col, Card, CardHeader, CardBody, CardTitle,
@@ -55,10 +55,17 @@ export default function SubjectTeacher() {
   const [submissions,   setSubmissions]   = useState([]);
   const [gradingId,     setGradingId]     = useState(null);
   const [gradeForm,     setGradeForm]     = useState({ marks: '', feedback: '' });
+  const errorCount = useRef(0);
 
   useEffect(() => {
     fetchData();
-    const iv = setInterval(fetchData, 15000);
+    const iv = setInterval(() => {
+      if (errorCount.current >= 3) {
+        clearInterval(iv);
+        return;
+      }
+      fetchData();
+    }, 60000);
     return () => clearInterval(iv);
   }, [subjectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -77,8 +84,13 @@ export default function SubjectTeacher() {
       setQuizzes(quizRes.data || []);
       setAssignments(assignRes.data || []);
       setMaterials(matRes.data || []);
+      errorCount.current = 0;
     } catch (err) {
       console.error('[SubjectTeacher]', err);
+      errorCount.current += 1;
+      if (errorCount.current >= 3) {
+        console.warn('[polling] Stopped after 3 consecutive errors');
+      }
     } finally {
       setLoading(false);
     }

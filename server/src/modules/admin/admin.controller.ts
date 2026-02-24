@@ -13,9 +13,11 @@ export async function getStats(req: Request, res: Response) {
 
 export async function getUsers(req: Request, res: Response) {
   try {
-    const role = req.query.role as string | undefined;
-    const users = await adminService.getUsers(role);
-    return res.json(users);
+    const role  = req.query.role  as string | undefined;
+    const page  = Math.max(1, parseInt(req.query.page  as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
+    const result = await adminService.getUsers(role, page, limit);
+    return res.json(result);
   } catch (err) {
     console.error('[admin] getUsers:', err);
     return res.status(500).json({ error: 'Failed to fetch users' });

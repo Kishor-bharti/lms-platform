@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Card, CardHeader, CardBody, CardTitle, Table, Badge, Button, Modal, ModalHeader, ModalBody, ModalFooter } from "reactstrap";
 import http from "utils/http";
 
@@ -6,10 +6,17 @@ export default function UpcomingClasses() {
   const [sessions, setSessions] = useState([]);
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState(null);
+  const errorCount = useRef(0);
 
   useEffect(() => {
     fetchSessions();
-    const interval = setInterval(fetchSessions, 15000);
+    const interval = setInterval(() => {
+      if (errorCount.current >= 3) {
+        clearInterval(interval);
+        return;
+      }
+      fetchSessions();
+    }, 60000);
     return () => clearInterval(interval);
   }, []);
 
@@ -18,9 +25,14 @@ export default function UpcomingClasses() {
       const response = await http.get('/api/classes/my-sessions-v2');
       const data = Array.isArray(response?.data) ? response.data : [];
       setSessions(data.slice(0, 4));
+      errorCount.current = 0;
     } catch (error) {
       console.error('Failed to fetch sessions:', error);
       setSessions([]);
+      errorCount.current += 1;
+      if (errorCount.current >= 3) {
+        console.warn('[polling] Stopped after 3 consecutive errors');
+      }
     }
   };
 

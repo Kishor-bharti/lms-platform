@@ -41,9 +41,6 @@ export async function createQuiz(req: Request, res: Response) {
       return res.status(403).json({ error: 'Only teachers can create quizzes' });
     }
     const { subjectId, title, quiz_type, description, duration_minutes, passing_score, max_attempts, questions } = req.body;
-    if (!subjectId || !title || !quiz_type || !duration_minutes) {
-      return res.status(400).json({ error: 'subjectId, title, quiz_type, duration_minutes are required' });
-    }
     const quiz = await quizService.createQuiz({
       subjectId, createdBy: userId, title, quiz_type, description,
       duration_minutes, passing_score, max_attempts, questions: questions ?? [],

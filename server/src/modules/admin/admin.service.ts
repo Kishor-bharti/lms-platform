@@ -72,7 +72,11 @@ export async function getStats(): Promise<AdminStats> {
 
 // ---- Users ----
 
-export async function getUsers(roleFilter?: string): Promise<AdminUser[]> {
+export async function getUsers(
+  roleFilter?: string,
+  page: number = 1,
+  limit: number = 20
+): Promise<{ users: AdminUser[]; total: number; page: number; totalPages: number }> {
   let roleWhere = '';
   const params: any[] = [];
 
@@ -87,6 +91,7 @@ export async function getUsers(roleFilter?: string): Promise<AdminUser[]> {
 
   const rows = await query<any>(`
     SELECT
+      COUNT(*) OVER() AS total_count,
       u.id, u.email, u.first_name, u.last_name, u.phone,
       u.is_active, u.last_login_at, u.created_at,
       COALESCE(
@@ -100,19 +105,27 @@ export async function getUsers(roleFilter?: string): Promise<AdminUser[]> {
     GROUP BY u.id, u.email, u.first_name, u.last_name,
              u.phone, u.is_active, u.last_login_at, u.created_at
     ORDER BY u.created_at DESC
-  `, params);
+    LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+  `, [...params, limit, (page - 1) * limit]);
 
-  return rows.map((r) => ({
-    id:            r.id,
-    email:         r.email,
-    first_name:    r.first_name,
-    last_name:     r.last_name,
-    phone:         r.phone,
-    is_active:     r.is_active,
-    last_login_at: r.last_login_at,
-    created_at:    r.created_at,
-    roles:         r.roles ?? [],
-  }));
+  const total = rows[0] ? Number(rows[0].total_count) : 0;
+
+  return {
+    users: rows.map((r) => ({
+      id:            r.id,
+      email:         r.email,
+      first_name:    r.first_name,
+      last_name:     r.last_name,
+      phone:         r.phone,
+      is_active:     r.is_active,
+      last_login_at: r.last_login_at,
+      created_at:    r.created_at,
+      roles:         r.roles ?? [],
+    })),
+    total,
+    page,
+    totalPages: Math.ceil(total / limit),
+  };
 }
 
 export async function createUser(data: {
@@ -345,6 +358,7 @@ export async function getAllSessionsAdmin() {
     JOIN courses  c   ON c.id   = sub.course_id
     JOIN users    u   ON u.id   = s.teacher_id
     ORDER BY s.session_date DESC, s.start_time DESC
+    LIMIT 200
   `);
 
   return rows.map((r) => ({
