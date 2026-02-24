@@ -2,6 +2,7 @@
 import React, { useMemo, useState } from "react";
 import { Card, CardHeader, CardBody } from "reactstrap";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from 'context/AuthContext';
 
 function monthMatrix(date) {
   const first = new Date(date.getFullYear(), date.getMonth(), 1);
@@ -26,11 +27,9 @@ export default function CalendarWidget() {
   const today = new Date();
   const cells = useMemo(() => monthMatrix(current), [current]);
   const navigate = useNavigate();
+  const { role } = useAuth();
 
   // Role-aware: students go to /classes, teachers/admin go to /sessions
-  const role = typeof window !== "undefined"
-    ? window.localStorage.getItem("role")
-    : null;
   const sessionsPath = role === "student" ? "/admin/classes" : "/admin/sessions";
 
   const fmtMonth = (d) => d.toLocaleString(undefined, { month: "long" });

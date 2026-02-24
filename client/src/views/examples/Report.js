@@ -4,6 +4,7 @@ import {
 } from 'reactstrap';
 import Header from 'components/Headers/Header.js';
 import http from 'utils/http';
+import { useAuth } from 'context/AuthContext';
 
 // ---- Mini bar component (no chart lib needed) ----
 function ScoreBar({ value, max = 100, color = '#5e72e4', label }) {
@@ -271,14 +272,12 @@ function TeacherReport({ data }) {
 // ---- Main Report page ----
 export default function Report() {
   const [loading,  setLoading]  = useState(true);
-  const [role,     setRole]     = useState('');
   const [data,     setData]     = useState([]);
   const [error,    setError]    = useState('');
+  const { role } = useAuth();
 
   useEffect(() => {
-    const userRole = (window.localStorage.getItem('role') || '').toLowerCase();
-    setRole(userRole);
-    if (userRole !== 'student' && userRole !== 'teacher') {
+    if (role !== 'student' && role !== 'teacher') {
       setLoading(false);
       return;
     }
@@ -286,7 +285,7 @@ export default function Report() {
       .then((res) => { setData(res.data.data || []); })
       .catch(() => setError('Failed to load progress'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [role]);
 
   return (
     <>

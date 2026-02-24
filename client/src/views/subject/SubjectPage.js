@@ -4,11 +4,10 @@
 import React from "react";
 import SubjectStudent from "./SubjectStudent";
 import SubjectTeacher from "./SubjectTeacher";
+import { useAuth } from 'context/AuthContext';
 
 export default function SubjectPage() {
-  const role = typeof window !== "undefined"
-    ? window.localStorage.getItem("role")
-    : null;
+  const { role } = useAuth();
 
   if (role === "teacher" || role === "admin") {
     return <SubjectTeacher />;

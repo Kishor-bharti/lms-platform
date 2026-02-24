@@ -6,6 +6,7 @@ import {
   NavbarBrand, Navbar, NavItem, NavLink, Nav, Container, Row, Col,
 } from "reactstrap";
 import http from "utils/http";
+import { useAuth } from 'context/AuthContext';
 
 // Course icon map — falls back to a default
 const COURSE_ICONS = {
@@ -21,6 +22,7 @@ const Sidebar = (props) => {
   const [courses, setCourses] = useState([]);          // dynamic courses from API
   const [expandedCourse, setExpandedCourse] = useState(null); // which course is open
   const navigate = useNavigate();
+  const { role } = useAuth();
 
   useEffect(() => {
     const saved = localStorage.getItem("sidebar-mini");
@@ -55,8 +57,7 @@ const Sidebar = (props) => {
 
   // Static nav links — role-filtered
   const createLinks = (routes) => {
-    const userRole = typeof window !== "undefined" ? window.localStorage.getItem("role") : null;
-    const userRoleUpper = (userRole ?? "").toUpperCase();
+    const userRoleUpper = role.toUpperCase();
     return routes
       .filter((prop) => {
         if (prop.layout !== "/admin") return false;
@@ -242,7 +243,7 @@ const Sidebar = (props) => {
           )}
 
           {/* ── Admin Panel section (admin only) ── */}
-          {(typeof window !== "undefined" && (window.localStorage.getItem("role") || "").toLowerCase() === "admin") && (
+          {role === "admin" && (
             <>
               <hr className="my-3" />
               <h6 className="navbar-heading text-muted" style={mini ? { display: "none" } : undefined}>

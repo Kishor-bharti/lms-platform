@@ -9,12 +9,14 @@ import "assets/scss/argon-dashboard-react.scss";
 
 import AdminLayout from "layouts/Admin.js";
 import AuthLayout  from "layouts/Auth.js";
+import { AuthProvider } from 'context/AuthContext';
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 
 root.render(
   <BrowserRouter>
-    <Routes>
+    <AuthProvider>
+      <Routes>
       <Route
         path="/admin/*"
         element={
@@ -34,5 +36,6 @@ root.render(
         }
       />
     </Routes>
+    </AuthProvider>
   </BrowserRouter>
 );

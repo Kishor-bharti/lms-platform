@@ -5,20 +5,19 @@ import {
 } from "reactstrap";
 import Header from "components/Headers/Header.js";
 import http from "utils/http";
+import { useAuth } from 'context/AuthContext';
 
 const Sessions = () => {
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedSession, setExpandedSession] = useState(null);
-  const [userRole, setUserRole] = useState(null);
   const [startingSession, setStartingSession] = useState(null);
   const [selectedView, setSelectedView] = useState('day');
   const [actionError, setActionError] = useState("");
   const errorCount = useRef(0);
+  const { role: userRole } = useAuth();
 
   useEffect(() => {
-    const role = typeof window !== "undefined" ? window.localStorage.getItem("role") : null;
-    setUserRole(role);
     fetchSessions();
     const interval = setInterval(() => {
       if (errorCount.current >= 3) {
@@ -64,8 +63,7 @@ const Sessions = () => {
 
   const toggleDetails = (sessionId) => {
     // Only teachers/admins can expand to see controls
-    const role = typeof window !== "undefined" ? window.localStorage.getItem("role") : null;
-    if (role === 'teacher' || role === 'admin') {
+    if (userRole === 'teacher' || userRole === 'admin') {
       setExpandedSession(expandedSession === sessionId ? null : sessionId);
     }
   };

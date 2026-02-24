@@ -43,7 +43,7 @@ export default function SessionExpiryBanner() {
       gap: 8,
     }}>
       <i className="ni ni-time-alarm" style={{ fontSize: 16 }} />
-      Session refreshing in {label}
+      Session expiring in {label} — please save your work
     </div>
   );
 }
