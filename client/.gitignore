@@ -4,3 +4,8 @@ build/
 .env.production
 .env.development
 .env.production.local
+
+# Local env overrides — never commit
+.env.development.local
+.env.test.local
+.env.*.local

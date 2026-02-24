@@ -52,8 +52,14 @@ export interface AdminStats {
 export async function getStats(): Promise<AdminStats> {
   const rows = await query<any>(`
     SELECT
-      (SELECT COUNT(*) FROM user_roles WHERE role_id = 3)                    AS total_students,
-      (SELECT COUNT(*) FROM user_roles WHERE role_id = 2)                    AS total_teachers,
+      (SELECT COUNT(*)
+       FROM user_roles ur
+       JOIN roles r ON r.id = ur.role_id
+       WHERE r.name = 'student')                                               AS total_students,
+      (SELECT COUNT(*)
+       FROM user_roles ur
+       JOIN roles r ON r.id = ur.role_id
+       WHERE r.name = 'teacher')                                               AS total_teachers,
       (SELECT COUNT(*) FROM sessions)                                         AS total_sessions,
       (SELECT COUNT(*) FROM sessions WHERE status = 'live')                  AS live_sessions,
       (SELECT COUNT(*) FROM courses  WHERE is_active = true)                 AS total_courses,

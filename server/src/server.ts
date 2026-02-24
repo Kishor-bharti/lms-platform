@@ -10,13 +10,6 @@ console.log('[startup] FRONTEND_ORIGINS:', process.env.FRONTEND_ORIGINS);
 
 validateEnv();
 
-const requiredZoom = ['ZOOM_ACCOUNT_ID', 'ZOOM_CLIENT_ID', 'ZOOM_CLIENT_SECRET'];
-for (const key of requiredZoom) {
-  if (!process.env[key]) {
-    throw new Error(`Missing required environment variable: ${key}`);
-  }
-}
-
 // TASK 5: Migration Check Log
 pool.query("SELECT to_regclass('public.users')")
   .then((res) => console.log('[db] Users table exists:', res.rows[0]?.to_regclass))
