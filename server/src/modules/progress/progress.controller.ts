@@ -13,7 +13,12 @@ export async function getMyProgress(req: Request, res: Response) {
       const data = await getTeacherReport(userId);
       return res.json({ role: 'teacher', data });
     }
-    return res.status(403).json({ error: 'Progress not available for this role' });
+    // Admin: return graceful empty data — aggregate reporting not yet implemented
+    return res.json({
+      role: 'admin',
+      data: [],
+      message: 'Aggregate progress reporting for admins is not yet available',
+    });
   } catch (err) {
     console.error('[progress]', err);
     return res.status(500).json({ error: 'Failed to fetch progress' });

@@ -66,21 +66,39 @@ export async function addMaterial(data: {
 }
 
 export async function deleteMaterial(materialId: string, requesterId: string): Promise<void> {
-  // Soft-delete, only owner or admin can delete
-  await query(`
+  const result = await query<any>(`
     UPDATE subject_materials SET is_active = false, updated_at = now()
-    WHERE id = $1 AND (uploaded_by = $2 OR EXISTS (
-      SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id
-      WHERE ur.user_id = $2 AND r.name = 'admin'
-    ))
+    WHERE  id        = $1
+      AND  is_active = true
+      AND (uploaded_by = $2 OR EXISTS (
+        SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id
+        WHERE ur.user_id = $2 AND r.name = 'admin'
+      ))
+    RETURNING id
   `, [materialId, requesterId]);
+
+  if (result.length === 0) {
+    // Distinguish "not found / already deleted" from "wrong owner"
+    const exists = await query<any>(
+      `SELECT id FROM subject_materials WHERE id = $1 AND is_active = true`,
+      [materialId]
+    );
+    if (exists.length === 0) throw new Error('MATERIAL_NOT_FOUND');
+    throw new Error('FORBIDDEN');
+  }
 }
 
 export async function reorderMaterials(subjectId: string, orderedIds: string[]): Promise<void> {
-  for (let i = 0; i < orderedIds.length; i++) {
-    await query(
-      `UPDATE subject_materials SET order_index = $1 WHERE id = $2 AND subject_id = $3`,
-      [i, orderedIds[i], subjectId]
-    );
-  }
+  if (orderedIds.length === 0) return;
+
+  const indexes = orderedIds.map((_, i) => i);
+
+  await query(
+    `UPDATE subject_materials AS sm
+     SET    order_index = v.ord
+     FROM   unnest($1::uuid[], $2::int[]) AS v(id, ord)
+     WHERE  sm.id = v.id
+       AND  sm.subject_id = $3`,
+    [orderedIds, indexes, subjectId]
+  );
 }
