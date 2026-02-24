@@ -24,10 +24,11 @@ export async function getQuizDetail(req: Request, res: Response) {
     if (!quizId) {
       return res.status(400).json({ error: 'quizId is required' });
     }
-    const quiz = await quizService.getQuizWithQuestions(quizId, role);
+    const quiz = await quizService.getQuizWithQuestions(quizId, role, req.user!.id);
     return res.json(quiz);
   } catch (err: any) {
-    if (err.message === 'Quiz not found') return res.status(404).json({ error: 'Quiz not found' });
+    if (err.message === 'Quiz not found')  return res.status(404).json({ error: 'Quiz not found' });
+    if (err.message === 'NOT_ENROLLED')    return res.status(403).json({ error: 'Not enrolled in this subject' });
     console.error('[quiz] getQuizDetail:', err);
     return res.status(500).json({ error: 'Failed to fetch quiz' });
   }

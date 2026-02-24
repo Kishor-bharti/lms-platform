@@ -75,7 +75,11 @@ export async function getQuizzesBySubject(subjectId: string, role: string = 'stu
 
 // ---- Get quiz with questions (teacher sees correct answers, student does not) ----
 
-export async function getQuizWithQuestions(quizId: string, role: string): Promise<QuizWithQuestions> {
+export async function getQuizWithQuestions(
+  quizId: string,
+  role: string,
+  userId?: string
+): Promise<QuizWithQuestions> {
   const quizRows = await query<any>(`
     SELECT q.*, COUNT(qs.id) AS question_count
     FROM quizzes q
@@ -86,6 +90,23 @@ export async function getQuizWithQuestions(quizId: string, role: string): Promis
 
   if (!quizRows[0]) throw new Error('Quiz not found');
   const quiz = quizRows[0];
+
+  // Students: enforce published + enrollment guards
+  if (role === 'student') {
+    if (!quiz.is_published) {
+      throw new Error('Quiz not found'); // treat as 404 — don't leak unpublished quiz existence
+    }
+    if (userId) {
+      const enrolled = await query<any>(`
+        SELECT 1
+        FROM subject_enrollments se
+        WHERE se.subject_id = $1
+          AND se.student_id = $2
+          AND se.enrollment_status = 'active'
+      `, [quiz.subject_id, userId]);
+      if (enrolled.length === 0) throw new Error('NOT_ENROLLED');
+    }
+  }
 
   const questionRows = await query<any>(`
     SELECT id, question_text, explanation, difficulty, marks, order_index

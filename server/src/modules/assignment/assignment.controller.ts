@@ -48,14 +48,25 @@ export async function publishAssignment(req: Request, res: Response) {
     if (!assignmentId) {
       return res.status(400).json({ error: 'assignmentId is required' });
     }
-    if (!assignmentId) {
-      return res.status(400).json({ error: 'assignmentId is required' });
-    }
     const { is_published } = req.body;
-    const role = req.user!.role;
+    const role   = req.user!.role;
+    const userId = req.user!.id;
+
     if (role !== 'teacher' && role !== 'admin') {
       return res.status(403).json({ error: 'Only teachers can publish assignments' });
     }
+
+    // Ownership check — teachers may only publish their own assignments
+    if (role === 'teacher') {
+      const owned = await assignmentService.getAssignmentOwner(assignmentId);
+      if (!owned) {
+        return res.status(404).json({ error: 'Assignment not found' });
+      }
+      if (owned.created_by !== userId) {
+        return res.status(403).json({ error: 'You do not own this assignment' });
+      }
+    }
+
     await assignmentService.setAssignmentPublished(assignmentId, Boolean(is_published));
     return res.json({ success: true });
   } catch (err) {

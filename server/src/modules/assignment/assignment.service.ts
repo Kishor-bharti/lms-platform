@@ -131,6 +131,18 @@ export async function setAssignmentPublished(assignmentId: string, published: bo
   await query(`UPDATE assignments SET is_published=$1, updated_at=now() WHERE id=$2`, [published, assignmentId]);
 }
 
+// ---- Ownership helper (used by controller for auth checks) ----
+
+export async function getAssignmentOwner(
+  assignmentId: string
+): Promise<{ created_by: string } | null> {
+  const rows = await query<any>(
+    `SELECT created_by FROM assignments WHERE id = $1`,
+    [assignmentId]
+  );
+  return rows[0] ?? null;
+}
+
 // ---- Teacher: get all submissions for an assignment ----
 
 export async function getSubmissions(assignmentId: string): Promise<SubmissionSummary[]> {
