@@ -30,7 +30,7 @@ const normalizeOrigin = (value?: string): string | undefined =>
 const allowedOrigins =
   env.NODE_ENV === 'production'
     ? env.FRONTEND_ORIGINS.map(normalizeOrigin).filter(Boolean) as string[]
-    : ['http://localhost:3000','https://viewer-second-phantom-jeremy.trycloudflare.com'];
+    : ['http://localhost:3000'];
 
 console.info(`[cors] Allowed origins: ${allowedOrigins.join(', ') || '(none)'}`);
 

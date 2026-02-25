@@ -13,6 +13,7 @@ export default function AdminSubjects() {
   const [teachers,    setTeachers]    = useState([]);
   const [students,    setStudents]    = useState([]);
   const [loading,     setLoading]     = useState(true);
+  const [fetchError,  setFetchError]  = useState('');
   const [courseFilter, setCourseFilter] = useState('all');
 
   // Create subject modal
@@ -35,19 +36,21 @@ export default function AdminSubjects() {
 
   const fetchAll = async () => {
     setLoading(true);
+    setFetchError('');
     try {
       const [subRes, courseRes, teacherRes, studentRes] = await Promise.all([
-        http.get('/api/admin/subjects'),
-        http.get('/api/admin/courses'),
-        http.get('/api/admin/users?role=teacher'),
-        http.get('/api/admin/users?role=student'),
+        http.get('/api/admin/subjects').catch(() => ({ data: [] })),
+        http.get('/api/admin/courses').catch(() => ({ data: [] })),
+        http.get('/api/admin/users?role=teacher').catch(() => ({ data: { users: [] } })),
+        http.get('/api/admin/users?role=student').catch(() => ({ data: { users: [] } })),
       ]);
       setSubjects(subRes.data || []);
       setCourses(courseRes.data || []);
-      setTeachers(teacherRes.data || []);
-      setStudents(studentRes.data || []);
+      setTeachers(teacherRes.data?.users || []);
+      setStudents(studentRes.data?.users || []);
     } catch (err) {
       console.error('[AdminSubjects]', err);
+      setFetchError('Failed to load data. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -137,7 +140,12 @@ export default function AdminSubjects() {
                 </div>
               </CardHeader>
               <CardBody style={{ overflowX: 'auto' }}>
-                {loading ? (
+                {fetchError ? (
+                  <div className="text-center py-5">
+                    <p className="text-danger mb-3">{fetchError}</p>
+                    <Button color="primary" onClick={fetchAll}>Retry</Button>
+                  </div>
+                ) : loading ? (
                   <p className="text-center text-muted py-4">Loading...</p>
                 ) : filtered.length === 0 ? (
                   <div className="text-center py-5">
