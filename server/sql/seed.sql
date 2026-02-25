@@ -1,5 +1,6 @@
 -- =============================================================
--- seed.sql  —  100xlearning LMS Platform
+-- seed.sql  —  10xlearning LMS Platform
+-- Fresh start with single admin account only
 -- Idempotent: safe to run multiple times.
 -- =============================================================
 
@@ -13,86 +14,31 @@ INSERT INTO roles (id, name) VALUES
 ON CONFLICT DO NOTHING;
 
 -- -------------------------------------------------------------
--- 2. USERS + ROLES + COURSES
+-- 2. SINGLE ADMIN USER
 --
---  Admin    : admin@100xlearning.com   / Admin@123
---  Teacher  : teacher@100xlearning.com / Teacher@123
---  Student 1: kishor@gmail.com   / Student@123
---  Student 2: priya@gmail.com     / Student@123
+--  Admin: admin@10xlearning.com / Admin@#7684
 --
---  Hashes generated with bcrypt cost=12 in Node.js:
---    node -e "require('bcrypt').hash('PASSWORD',12).then(console.log)"
+--  Hash generated with bcrypt cost=12 in Node.js:
+--    node -e "require('bcrypt').hash('Admin@#7684',12).then(console.log)"
 -- -------------------------------------------------------------
 DO $$
 DECLARE
-  v_admin_id   UUID;
-  v_harman_id UUID;
-  v_kishor_id   UUID;
-  v_priya_id     UUID;
-
-  -- bcrypt cost=12 hashes
-  v_admin_hash   TEXT := '$2b$12$87VWz.bZZW.H5MMeZSDAau5YrMPLpmQjop8GL.vBLgVweqV9ODg.i';  -- Admin@123
-  v_teacher_hash TEXT := '$2b$12$EbCI.Up70eQf/YpWh8KoJer2wilTusfzsJITtioA3Juniw92feZGO';  -- Teacher@123
-  v_student_hash TEXT := '$2b$12$7s2T1fr5Qmpq35S5r5Sjyudl35Qls.95ZsySPotGcpNm2YNZl1pVe';  -- Student@123
+  v_admin_id UUID;
+  -- bcrypt cost=12 hash for Admin@#7684
+  v_admin_hash TEXT := '$2b$12$LHMomg9rR.mpDFMdP50wYe4iTmrP4lPb4SezDgFuncYjHHeoZqH8G';
 
 BEGIN
 
   -- ── ADMIN ───────────────────────────────────────────────────
   INSERT INTO users (id, email, password_hash, first_name, last_name, is_active)
-  VALUES (gen_random_uuid(), 'admin@100xlearning.com', v_admin_hash, 'Super', 'Admin', TRUE)
+  VALUES (gen_random_uuid(), 'admin@10xlearning.com', v_admin_hash, 'Super', 'Admin', TRUE)
   ON CONFLICT (email) DO NOTHING;
 
-  SELECT id INTO v_admin_id FROM users WHERE email = 'admin@100xlearning.com';
+  SELECT id INTO v_admin_id FROM users WHERE email = 'admin@10xlearning.com';
 
   INSERT INTO user_roles (user_id, role_id, assigned_by)
   VALUES (v_admin_id, 1, v_admin_id)
   ON CONFLICT DO NOTHING;
-
-  -- ── TEACHER ─────────────────────────────────────────────────
-  INSERT INTO users (id, email, password_hash, first_name, last_name, is_active)
-  VALUES (gen_random_uuid(), 'harman@gmail.com', v_teacher_hash, 'Harmanpreet', 'Singh', TRUE)
-  ON CONFLICT (email) DO NOTHING;
-
-  SELECT id INTO v_harman_id FROM users WHERE email = 'harman@gmail.com';
-
-  INSERT INTO user_roles (user_id, role_id, assigned_by)
-  VALUES (v_harman_id, 2, v_admin_id)
-  ON CONFLICT DO NOTHING;
-
-  -- ── STUDENT 1 — Kishor ────────────────────────────────────────
-  INSERT INTO users (id, email, password_hash, first_name, last_name, is_active)
-  VALUES (gen_random_uuid(), 'kishor@gmail.com', v_student_hash, 'Kishor', 'Bharti', TRUE)
-  ON CONFLICT (email) DO NOTHING;
-
-  SELECT id INTO v_kishor_id FROM users WHERE email = 'kishor@gmail.com';
-
-  INSERT INTO user_roles (user_id, role_id, assigned_by)
-  VALUES (v_kishor_id, 3, v_admin_id)
-  ON CONFLICT DO NOTHING;
-
-  -- ── STUDENT 2 — Priya ─────────────────────────────────────────
-  INSERT INTO users (id, email, password_hash, first_name, last_name, is_active)
-  VALUES (gen_random_uuid(), 'priya@gmail.com', v_student_hash, 'Priya', 'Singh', TRUE)
-  ON CONFLICT (email) DO NOTHING;
-
-  SELECT id INTO v_priya_id FROM users WHERE email = 'priya@gmail.com';
-
-  INSERT INTO user_roles (user_id, role_id, assigned_by)
-  VALUES (v_priya_id, 3, v_admin_id)
-  ON CONFLICT DO NOTHING;
-
-  -- ── COURSES ─────────────────────────────────────────────────
-  INSERT INTO courses (id, name, code, description, is_active, created_by)
-  VALUES (gen_random_uuid(), 'SAT', 'SAT', 'Scholastic Assessment Test preparation', TRUE, v_admin_id)
-  ON CONFLICT (code) DO NOTHING;
-
-  INSERT INTO courses (id, name, code, description, is_active, created_by)
-  VALUES (gen_random_uuid(), 'ACT', 'ACT', 'ACT college readiness preparation', TRUE, v_admin_id)
-  ON CONFLICT (code) DO NOTHING;
-
-  INSERT INTO courses (id, name, code, description, is_active, created_by)
-  VALUES (gen_random_uuid(), 'Advanced Placement', 'AP', 'AP exam preparation', TRUE, v_admin_id)
-  ON CONFLICT (code) DO NOTHING;
 
 END $$;
 
@@ -104,4 +50,4 @@ END $$;
 -- JOIN   user_roles ur ON ur.user_id = u.id
 -- JOIN   roles r ON r.id = ur.role_id
 -- ORDER  BY r.id;
--- Expected: 4 rows — 1 admin, 1 teacher, 2 students
+-- Expected: 1 row — 1 admin only

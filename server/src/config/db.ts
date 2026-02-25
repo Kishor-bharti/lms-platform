@@ -6,7 +6,9 @@ import { env } from './env';
 
 export const pool = new Pool({
   connectionString: env.DATABASE_URL,
-  max: 10,
+  max: 5,
+  idleTimeoutMillis: 40000,
+  connectionTimeoutMillis: 20000,
   ssl: env.NODE_ENV === 'production'
     ? { rejectUnauthorized: false }
     : false,
