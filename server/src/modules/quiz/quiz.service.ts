@@ -88,7 +88,7 @@ export async function getQuizWithQuestions(quizId: string, role: string): Promis
   const quiz = quizRows[0];
 
   const questionRows = await query<any>(`
-    SELECT id, question_text, explanation, difficulty, marks, order_index
+    SELECT id, question_text, image_url, explanation, difficulty, marks, order_index
     FROM questions
     WHERE quiz_id = $1 AND is_active = true
     ORDER BY order_index, created_at
@@ -121,6 +121,7 @@ export async function getQuizWithQuestions(quizId: string, role: string): Promis
     questions: questionRows.map((q: any) => ({
       id: q.id,
       question_text: q.question_text,
+      image_url: q.image_url,
       explanation: q.explanation,
       difficulty: q.difficulty,
       marks: Number(q.marks),
@@ -143,10 +144,12 @@ export async function createQuiz(data: {
   max_attempts?: number;
   questions: Array<{
     question_text: string;
+    image_url?: string;
     explanation?: string;
     difficulty: string;
     marks: number;
     order_index: number;
+    topic_id?: string;
     options: Array<{ label: string; text: string; is_correct: boolean }>;
   }>;
 }): Promise<QuizSummary> {
@@ -169,11 +172,11 @@ export async function createQuiz(data: {
     for (const q of data.questions) {
       const qRows = await queryWithClient<any>(client, `
         INSERT INTO questions
-          (quiz_id, question_text, explanation, difficulty, marks, order_index, created_by)
-        VALUES ($1,$2,$3,$4,$5,$6,$7)
+          (quiz_id, question_text, image_url, explanation, difficulty, marks, order_index, topic_id, created_by)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
         RETURNING id
-      `, [quiz.id, q.question_text, q.explanation ?? null,
-          q.difficulty, q.marks, q.order_index, data.createdBy]);
+      `, [quiz.id, q.question_text, q.image_url ?? null, q.explanation ?? null,
+          q.difficulty, q.marks, q.order_index, q.topic_id ?? null, data.createdBy]);
 
       const questionId = qRows[0].id;
 
@@ -332,7 +335,7 @@ export async function getAttemptResult(attemptId: string, studentId: string) {
   const answerRows = await query<any>(`
     SELECT
       aa.question_id, aa.selected_option_id, aa.is_correct, aa.marks_awarded,
-      q.question_text, q.explanation, q.marks AS total_marks,
+      q.question_text, q.image_url, q.explanation, q.marks AS total_marks,
       sel.option_label AS selected_label, sel.option_text AS selected_text,
       cor.id AS correct_option_id, cor.option_label AS correct_label, cor.option_text AS correct_text
     FROM attempt_answers aa

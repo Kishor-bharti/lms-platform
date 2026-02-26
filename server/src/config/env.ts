@@ -25,6 +25,10 @@ export const env = {
     .map((o) => o.trim())
     .filter(Boolean),
 
+  // Supabase Storage
+  SUPABASE_URL_PUBLIC:  process.env.SUPABASE_URL_PUBLIC  || '',
+  SUPABASE_ANON_KEY:    process.env.SUPABASE_ANON_KEY    || '',
+
   // Zoom
   ZOOM_ACCOUNT_ID:    process.env.ZOOM_ACCOUNT_ID || '',
   ZOOM_CLIENT_ID:     process.env.ZOOM_CLIENT_ID || '',

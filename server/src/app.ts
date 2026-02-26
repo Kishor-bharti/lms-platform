@@ -11,6 +11,7 @@ import progressRouter   from './modules/progress/progress.routes';
 import topicsRouter     from './modules/topics/topics.routes';
 import materialsRouter  from './modules/materials/materials.routes';
 import profileRouter    from './modules/profile/profile.routes';
+import uploadRouter     from './modules/upload/upload.routes';
 import { env }          from './config/env';
 import { errorHandler } from './middlewares/error.middleware';
 import { pool }         from './config/db';
@@ -60,6 +61,7 @@ app.use('/api/progress',    progressRouter);
 app.use('/api/subjects/:subjectId/topics', topicsRouter);
 app.use('/api/materials',   materialsRouter);
 app.use('/api/profile',     profileRouter);
+app.use('/api/upload',      uploadRouter);
 
 app.get('/test-latency', async (req, res) => {
   const start = Date.now();
