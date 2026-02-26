@@ -8,6 +8,7 @@ import adminRouter      from './modules/admin/admin.routes';
 import quizRouter       from './modules/quiz/quiz.routes';
 import assignmentRouter from './modules/assignment/assignment.routes';
 import progressRouter   from './modules/progress/progress.routes';
+import topicsRouter     from './modules/topics/topics.routes';
 import materialsRouter  from './modules/materials/materials.routes';
 import profileRouter    from './modules/profile/profile.routes';
 import { env }          from './config/env';
@@ -56,6 +57,7 @@ app.use('/api/admin',       adminRouter);
 app.use('/api/quizzes',     quizRouter);
 app.use('/api/assignments', assignmentRouter);
 app.use('/api/progress',    progressRouter);
+app.use('/api/subjects/:subjectId/topics', topicsRouter);
 app.use('/api/materials',   materialsRouter);
 app.use('/api/profile',     profileRouter);
 

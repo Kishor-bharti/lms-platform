@@ -62,6 +62,23 @@ CREATE TABLE subjects (
   UNIQUE (course_id, code)
 );
 
+CREATE TABLE topics (
+  id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  subject_id  UUID         NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+  name        VARCHAR(150) NOT NULL,
+  description TEXT,
+  order_index SMALLINT     NOT NULL DEFAULT 0,
+  is_active   BOOLEAN      NOT NULL DEFAULT TRUE,
+  created_by  UUID         NOT NULL REFERENCES users(id),
+  created_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  updated_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  UNIQUE (subject_id, name)
+);
+CREATE INDEX idx_topics_subject ON topics(subject_id);
+CREATE TRIGGER trg_updated_at_topics
+  BEFORE UPDATE ON topics
+  FOR EACH ROW EXECUTE FUNCTION fn_set_updated_at();
+
 CREATE TABLE subject_teachers (
   subject_id  UUID        NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
   teacher_id  UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -113,6 +130,7 @@ CREATE TABLE questions (
   id            UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
   quiz_id       UUID          NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
   set_id        UUID          REFERENCES quiz_sets(id) ON DELETE CASCADE,
+  topic_id      UUID          REFERENCES topics(id) ON DELETE SET NULL,
   question_text TEXT          NOT NULL,
   image_url     TEXT,
   explanation   TEXT,
@@ -296,6 +314,7 @@ CREATE INDEX idx_quizzes_type        ON quizzes(quiz_type);
 CREATE INDEX idx_quizzes_published   ON quizzes(is_published, available_from, available_until);
 CREATE INDEX idx_questions_quiz      ON questions(quiz_id);
 CREATE INDEX idx_questions_set       ON questions(set_id);
+CREATE INDEX idx_questions_topic     ON questions(topic_id);
 CREATE INDEX idx_options_question    ON options(question_id);
 
 -- Activity Indexes

@@ -154,6 +154,19 @@ const Sidebar = (props) => {
                   </NavLink>
                 </NavItem>
               ))}
+              <NavItem key={`quiz-${course.id}`}>
+                <NavLink
+                  to={`/admin/course-quiz/${course.id}`}
+                  tag={NavLinkRRD}
+                  onClick={closeCollapse}
+                  title={`${course.name} — Test Sets`}
+                  style={{ padding: "6px 12px", fontSize: "13px" }}
+                >
+                  <i className="ni ni-paper-diploma"
+                     style={{ fontSize: "9px", color: "#5e72e4", marginRight: "8px" }} />
+                  <span style={{ color: "#5e72e4", fontWeight: 700 }}>Quiz</span>
+                </NavLink>
+              </NavItem>
             </div>
           )}
         </div>

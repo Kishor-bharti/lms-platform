@@ -15,6 +15,7 @@ import AdminSubjects from 'views/admin/AdminSubjects.js';
 import AdminSessions from 'views/admin/AdminSessions.js';
 import QuizBuilder from 'views/quiz/QuizBuilder.js';
 import QuizTaker from 'views/quiz/QuizTaker.js';
+import CourseQuiz from 'views/quiz/CourseQuiz.js';
 
 var routes = [
   // ---- Visible to ALL roles ----
@@ -157,6 +158,14 @@ var routes = [
     component: <QuizTaker />,
     layout: '/admin',
     roles: ['STUDENT'],
+    hidden: true,
+  },
+  {
+    path: '/course-quiz/:courseId',
+    name: 'Course Quiz',
+    icon: 'ni ni-paper-diploma text-primary',
+    component: <CourseQuiz />,
+    layout: '/admin',
     hidden: true,
   },
 
