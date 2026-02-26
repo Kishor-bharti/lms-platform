@@ -3,6 +3,7 @@ import {
   Container, Row, Col, Card, CardHeader, CardBody, Button, Badge,
 } from 'reactstrap';
 import Header from 'components/Headers/Header.js';
+import LatexRenderer from 'components/LatexRenderer.js';
 import { useNavigate, useParams } from 'react-router-dom';
 import http from 'utils/http';
 
@@ -239,9 +240,17 @@ export default function QuizTaker() {
                   </div>
                 </CardHeader>
                 <CardBody style={{ padding: 24 }}>
-                  <p style={{ fontSize: 16, fontWeight: 600, color: '#32325d', lineHeight: 1.6, marginBottom: 24 }}>
-                    {q?.question_text}
-                  </p>
+                  <div style={{ fontSize: 16, fontWeight: 600, color: '#32325d', lineHeight: 1.6, marginBottom: q?.image_url ? 16 : 24 }}>
+                    <LatexRenderer text={q?.question_text || ''} />
+                  </div>
+                  {q?.image_url && (
+                    <div style={{ background: '#f8f9fa', padding: 12, borderRadius: 10, marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 150, maxHeight: 350 }}>
+                      <img src={q.image_url} alt="Question" style={{
+                        maxWidth: '100%', maxHeight: '100%', borderRadius: 8,
+                        objectFit: 'contain'
+                      }} />
+                    </div>
+                  )}
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {q?.options?.map((opt) => {
@@ -266,7 +275,7 @@ export default function QuizTaker() {
                           }}>
                             {opt.option_label}
                           </span>
-                          <span style={{ color: '#32325d' }}>{opt.option_text}</span>
+                          <span style={{ color: '#32325d' }}><LatexRenderer text={opt.option_text || ''} /></span>
                         </button>
                       );
                     })}
@@ -408,13 +417,18 @@ export default function QuizTaker() {
                 <Card key={a.question_id} className="shadow mb-3" style={{ borderRadius: 12, borderLeft: `4px solid ${a.is_correct ? '#2dce89' : '#f5365c'}` }}>
                   <CardBody>
                     <div className="d-flex justify-content-between align-items-start mb-3">
-                      <p style={{ fontWeight: 600, color: '#32325d', margin: 0, flex: 1, lineHeight: 1.5 }}>
-                        {idx + 1}. {a.question_text}
-                      </p>
+                      <div style={{ fontWeight: 600, color: '#32325d', margin: 0, flex: 1, lineHeight: 1.5 }}>
+                        <span>{idx + 1}. </span><LatexRenderer text={a.question_text || ''} />
+                      </div>
                       <Badge color={a.is_correct ? 'success' : 'danger'} style={{ marginLeft: 12, flexShrink: 0 }}>
                         {a.is_correct ? `+${Number(a.marks_awarded).toFixed(1)}` : '0'} marks
                       </Badge>
                     </div>
+                    {a.image_url && (
+                      <div style={{ background: '#f8f9fa', padding: 10, borderRadius: 8, margin: '8px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', maxHeight: 250 }}>
+                        <img src={a.image_url} alt="" style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 6, objectFit: 'contain' }} />
+                      </div>
+                    )}
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                       <div style={{ background: a.is_correct ? '#eafaf1' : '#fde8ec', border: `1px solid ${a.is_correct ? '#2dce89' : '#f5365c'}`, borderRadius: 8, padding: '6px 14px', fontSize: 13 }}>
                         <span style={{ fontWeight: 700 }}>Your answer: </span>

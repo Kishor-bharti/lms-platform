@@ -23,6 +23,7 @@ export interface QuizWithQuestions extends QuizSummary {
 export interface Question {
   id: string;
   question_text: string;
+  image_url: string | null;
   explanation: string | null;
   difficulty: string;
   marks: number;

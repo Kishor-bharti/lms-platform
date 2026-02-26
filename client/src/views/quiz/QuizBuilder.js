@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Container, Row, Col, Card, CardHeader, CardBody, CardTitle,
-  Button, FormGroup, Label, Input,
+  Button, FormGroup, Label, Input, Spinner,
 } from 'reactstrap';
 import Header from 'components/Headers/Header.js';
+import LatexRenderer from 'components/LatexRenderer.js';
 import { useNavigate, useLocation } from 'react-router-dom';
 import http from 'utils/http';
 
@@ -14,6 +15,8 @@ const BLANK_QUESTION = (idx) => ({
   difficulty: 'medium',
   marks: 1,
   order_index: idx,
+  image_url: '',
+  topic_id: '',
   options: ['A', 'B', 'C', 'D'].map(BLANK_OPTION),
 });
 
@@ -34,6 +37,33 @@ export default function QuizBuilder() {
   const [questions, setQuestions] = useState([BLANK_QUESTION(0)]);
   const [saving,    setSaving]    = useState(false);
   const [error,     setError]     = useState('');
+  const [topics,    setTopics]    = useState([]);
+  const [uploading, setUploading] = useState(null); // qi of uploading question
+  const fileInputRefs = useRef({});
+
+  useEffect(() => {
+    if (!subjectId) return;
+    http.get(`/api/subjects/${subjectId}/topics`)
+      .then(res => setTopics(res.data || []))
+      .catch(() => {});
+  }, [subjectId]);
+
+  const handleImageUpload = async (qi, file) => {
+    if (!file) return;
+    setUploading(qi);
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const res = await http.post('/api/upload/quiz-image', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      updateQuestion(qi, 'image_url', res.data.url);
+    } catch (err) {
+      setError(`Image upload failed for Q${qi + 1}`);
+    } finally {
+      setUploading(null);
+    }
+  };
 
   const updateQuestion = (qi, field, value) => {
     setQuestions((prev) => prev.map((q, i) => i === qi ? { ...q, [field]: value } : q));
@@ -206,15 +236,66 @@ export default function QuizBuilder() {
                 </CardHeader>
                 <CardBody>
                   <FormGroup>
-                    <Input
-                      type="textarea"
-                      rows={2}
-                      placeholder="Enter question text..."
-                      value={q.question_text}
-                      onChange={(e) => updateQuestion(qi, 'question_text', e.target.value)}
-                      style={{ fontWeight: 500 }}
-                    />
+                    <Label style={{ fontSize: 12, color: '#8898aa' }}>
+                      Question Text <span style={{ fontWeight: 400 }}>(use $...$ for inline math, $$...$$ for block math)</span>
+                    </Label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                      <Input
+                        type="textarea"
+                        rows={4}
+                        placeholder="Enter question text..."
+                        value={q.question_text}
+                        onChange={(e) => updateQuestion(qi, 'question_text', e.target.value)}
+                        style={{ fontWeight: 500 }}
+                      />
+                      <div style={{
+                        border: '1px solid #e9ecef', borderRadius: 6, padding: 12,
+                        minHeight: 100, background: '#fafbfc', overflow: 'auto',
+                      }}>
+                        <LatexRenderer text={q.question_text || 'Preview will appear here...'} style={{ color: q.question_text ? '#32325d' : '#adb5bd' }} />
+                      </div>
+                    </div>
                   </FormGroup>
+
+                  {/* Image upload */}
+                  <div style={{ marginBottom: 12 }}>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      style={{ display: 'none' }}
+                      ref={el => fileInputRefs.current[qi] = el}
+                      onChange={(e) => { handleImageUpload(qi, e.target.files?.[0]); e.target.value = ''; }}
+                    />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Button size="sm" color="info" outline style={{ borderRadius: 6 }}
+                        disabled={uploading === qi}
+                        onClick={() => fileInputRefs.current[qi]?.click()}>
+                        {uploading === qi ? <><Spinner size="sm" /> Uploading...</> : '📷 Add Image'}
+                      </Button>
+                      {q.image_url && (
+                        <Button size="sm" color="danger" outline style={{ borderRadius: 6 }}
+                          onClick={() => updateQuestion(qi, 'image_url', '')}>
+                          Remove Image
+                        </Button>
+                      )}
+                    </div>
+                    {q.image_url && (
+                      <img src={q.image_url} alt="Question" style={{ maxWidth: '100%', maxHeight: 250, borderRadius: 8, marginTop: 8, border: '1px solid #e9ecef', objectFit: 'contain', display: 'block' }} />
+                    )}
+                  </div>
+
+                  {/* Topic selector */}
+                  {topics.length > 0 && (
+                    <FormGroup style={{ marginBottom: 12 }}>
+                      <Label style={{ fontSize: 12, color: '#8898aa' }}>Topic</Label>
+                      <Input type="select" bsSize="sm" value={q.topic_id}
+                        onChange={(e) => updateQuestion(qi, 'topic_id', e.target.value)}
+                        style={{ maxWidth: 300 }}>
+                        <option value="">-- No topic --</option>
+                        {topics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </Input>
+                    </FormGroup>
+                  )}
 
                   {/* Options */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>

@@ -5,7 +5,7 @@ import { uploadQuizImage } from './upload.controller';
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB max
 });
 const router = Router();
 router.use(authMiddleware);
