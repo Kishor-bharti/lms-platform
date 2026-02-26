@@ -1,5 +1,103 @@
 import { query } from '../../config/db';
 
+// ---- Student: weekly activity (last 7 days) ----
+
+export interface DayActivity {
+  date: string;       // YYYY-MM-DD
+  quizzes: number;
+  correct: number;
+  incorrect: number;
+  time_mins: number;
+}
+
+export async function getWeeklyActivity(studentId: string): Promise<DayActivity[]> {
+  const rows = await query<any>(`
+    SELECT
+      DATE(qa.submitted_at AT TIME ZONE 'UTC') AS day,
+      COUNT(DISTINCT qa.id)                    AS quizzes,
+      COALESCE(SUM(aa.is_correct::int), 0)     AS correct,
+      COALESCE(SUM((NOT aa.is_correct)::int), 0) AS incorrect,
+      COALESCE(SUM(qa.time_taken_seconds) / 60, 0) AS time_mins
+    FROM quiz_attempts qa
+    LEFT JOIN attempt_answers aa ON aa.attempt_id = qa.id
+    WHERE qa.student_id = $1
+      AND qa.status = 'submitted'
+      AND qa.submitted_at >= NOW() - INTERVAL '7 days'
+    GROUP BY day
+    ORDER BY day
+  `, [studentId]);
+
+  // Build full 7-day array with zeros for missing days
+  const result: DayActivity[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() - i);
+    const dateStr = d.toISOString().slice(0, 10);
+    const found = rows.find((r: any) => r.day?.toISOString?.()?.slice(0,10) === dateStr || r.day === dateStr);
+    result.push({
+      date:       dateStr,
+      quizzes:    found ? Number(found.quizzes)   : 0,
+      correct:    found ? Number(found.correct)    : 0,
+      incorrect:  found ? Number(found.incorrect)  : 0,
+      time_mins:  found ? Number(found.time_mins)  : 0,
+    });
+  }
+  return result;
+}
+
+// ---- Student: quiz score history (last 20 attempts) ----
+
+export interface QuizHistoryItem {
+  attempt_id: string;
+  quiz_title: string;
+  subject_name: string;
+  score_pct: number | null;
+  correct: number;
+  incorrect: number;
+  total_questions: number;
+  time_taken_seconds: number | null;
+  submitted_at: string;
+  is_passed: boolean | null;
+}
+
+export async function getQuizHistory(studentId: string): Promise<QuizHistoryItem[]> {
+  const rows = await query<any>(`
+    SELECT
+      qa.id             AS attempt_id,
+      qz.title          AS quiz_title,
+      sub.name          AS subject_name,
+      qa.score_pct,
+      qa.time_taken_seconds,
+      qa.submitted_at,
+      qa.is_passed,
+      COUNT(aa.id)                              AS total_questions,
+      COALESCE(SUM(aa.is_correct::int), 0)      AS correct,
+      COALESCE(SUM((NOT aa.is_correct)::int), 0) AS incorrect
+    FROM quiz_attempts qa
+    JOIN quizzes  qz  ON qz.id  = qa.quiz_id
+    JOIN subjects sub ON sub.id = qz.subject_id
+    LEFT JOIN attempt_answers aa ON aa.attempt_id = qa.id
+    WHERE qa.student_id = $1
+      AND qa.status = 'submitted'
+    GROUP BY qa.id, qz.title, sub.name
+    ORDER BY qa.submitted_at DESC
+    LIMIT 20
+  `, [studentId]);
+
+  return rows.map((r: any) => ({
+    attempt_id:         r.attempt_id,
+    quiz_title:         r.quiz_title,
+    subject_name:       r.subject_name,
+    score_pct:          r.score_pct != null ? Number(Number(r.score_pct).toFixed(1)) : null,
+    correct:            Number(r.correct),
+    incorrect:          Number(r.incorrect),
+    total_questions:    Number(r.total_questions),
+    time_taken_seconds: r.time_taken_seconds != null ? Number(r.time_taken_seconds) : null,
+    submitted_at:       r.submitted_at,
+    is_passed:          r.is_passed,
+  }));
+}
+
 export interface SubjectProgress {
   subject_id: string;
   subject_name: string;
