@@ -22,7 +22,8 @@ export default function QuizTaker() {
   const [error,     setError]     = useState('');
   const [elapsed,          setElapsed]          = useState(0);           // seconds elapsed (practice count-up)
   const [partialResultData, setPartialResultData] = useState(null);       // scoring data from partial save
-  const [lockedAnswers,    setLockedAnswers]    = useState(new Set());    // question IDs locked after resume
+  const [lockedAnswers,     setLockedAnswers]     = useState(new Set());   // question IDs locked after resume
+  const [showConfirmSubmit, setShowConfirmSubmit] = useState(false);
   const startedAt  = useRef(null);
   const timerRef   = useRef(null);
   const answersRef = useRef({});                                           // always-fresh answers for timer callback
@@ -35,6 +36,14 @@ export default function QuizTaker() {
   // Keep answersRef in sync so timer callbacks always see the latest answers
   useEffect(() => { answersRef.current = answers; }, [answers]);
 
+  // Persist test answers to localStorage on every change — enables page-refresh recovery
+  useEffect(() => {
+    if (phase !== 'taking' || quiz?.quiz_type !== 'test' || !attemptId) return;
+    localStorage.setItem(`quiz_test_${quizId}`, JSON.stringify({
+      attemptId, startedAtMs: startedAt.current, answers,
+    }));
+  }, [answers]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const fetchQuiz = async () => {
     try {
       const [quizRes, attemptsRes] = await Promise.all([
@@ -43,6 +52,33 @@ export default function QuizTaker() {
       ]);
       setQuiz(quizRes.data);
       setAttempts(attemptsRes.data || []);
+
+      // Restore in-progress test attempt from localStorage after page refresh
+      if (quizRes.data?.quiz_type === 'test') {
+        const stored = localStorage.getItem(`quiz_test_${quizId}`);
+        const inProgress = (attemptsRes.data || []).find((a) => a.status === 'in_progress');
+        if (stored && inProgress) {
+          try {
+            const { attemptId: storedId, startedAtMs, answers: savedAnswers } = JSON.parse(stored);
+            if (storedId === inProgress.id) {
+              const elapsedSecs = Math.floor((Date.now() - startedAtMs) / 1000);
+              const remaining   = Math.max(0, (quizRes.data.duration_minutes * 60) - elapsedSecs);
+              if (remaining > 0) {
+                setAttemptId(storedId);
+                setAnswers(savedAnswers || {});
+                answersRef.current = savedAnswers || {};
+                setLockedAnswers(new Set());
+                setCurrent(0);
+                setTimeLeft(remaining);
+                startedAt.current = startedAtMs;
+                setPhase('taking');
+                return; // skip going to intro
+              }
+            }
+          } catch (_) {}
+        }
+      }
+
       setPhase('intro');
     } catch (err) {
       setError('Failed to load quiz');
@@ -67,6 +103,13 @@ export default function QuizTaker() {
         setElapsed(0);
       }
       startedAt.current = Date.now();
+      if (quiz.quiz_type === 'test') {
+        localStorage.setItem(`quiz_test_${quizId}`, JSON.stringify({
+          attemptId: res.data.attemptId,
+          startedAtMs: startedAt.current,
+          answers: {},
+        }));
+      }
       setPhase('taking');
     } catch (err) {
       setError(err?.response?.data?.error || 'Failed to start quiz');
@@ -101,6 +144,7 @@ export default function QuizTaker() {
 
   const handleSubmit = useCallback(async (autoSubmit = false) => {
     clearInterval(timerRef.current);
+    setShowConfirmSubmit(false);
     setPhase('submitting');
     const timeTaken = startedAt.current
       ? Math.floor((Date.now() - startedAt.current) / 1000)
@@ -117,13 +161,14 @@ export default function QuizTaker() {
         timeTakenSeconds: timeTaken,
       });
       const resultRes = await http.get(`/api/quizzes/attempts/${attemptId}/result`);
+      localStorage.removeItem(`quiz_test_${quizId}`);
       setResult(resultRes.data);
       setPhase('result');
     } catch (err) {
       setError('Failed to submit. Please try again.');
       setPhase('taking');
     }
-  }, [attemptId]);
+  }, [attemptId, quizId]);
 
   const handleResume = async (resumeAttemptId) => {
     setError('');
@@ -147,6 +192,7 @@ export default function QuizTaker() {
 
   const handleSaveProgress = async () => {
     clearInterval(timerRef.current);
+    setShowConfirmSubmit(false);
     setPhase('submitting');
     const answersPayload = Object.entries(answersRef.current).map(([question_id, selected_option_id]) => ({
       question_id,
@@ -162,6 +208,18 @@ export default function QuizTaker() {
     } catch (err) {
       setError('Failed to save progress. Please try again.');
       setPhase('taking');
+    }
+  };
+
+  const handleViewResult = async (reviewAttemptId) => {
+    setPhase('loading');
+    try {
+      const res = await http.get(`/api/quizzes/attempts/${reviewAttemptId}/result`);
+      setResult(res.data);
+      setPhase('result');
+    } catch (err) {
+      setError('Failed to load result. Please try again.');
+      setPhase('intro');
     }
   };
 
@@ -249,11 +307,17 @@ export default function QuizTaker() {
                     <div style={{ background: '#f0f4f8', borderRadius: 10, padding: '12px 16px', marginBottom: 20 }}>
                       <p style={{ margin: '0 0 6px', fontWeight: 700, color: '#32325d' }}>Previous Attempts</p>
                       {submittedAttempts.map((a) => (
-                        <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#525f7f', padding: '3px 0' }}>
+                        <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, color: '#525f7f', padding: '4px 0' }}>
                           <span>Attempt #{a.attempt_number}</span>
-                          <span style={{ fontWeight: 700, color: '#32325d' }}>
-                            {Number(a.score_pct || 0).toFixed(1)}%
-                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <span style={{ fontWeight: 700, color: '#32325d' }}>
+                              {Number(a.score_pct || 0).toFixed(1)}%
+                            </span>
+                            <Button size="sm" color="info" outline style={{ borderRadius: 6, padding: '2px 10px', fontSize: 11 }}
+                              onClick={() => handleViewResult(a.id)}>
+                              Review
+                            </Button>
+                          </div>
                         </div>
                       ))}
                       <div style={{ marginTop: 8, fontWeight: 700, color: '#32325d', fontSize: 13 }}>
@@ -337,7 +401,14 @@ export default function QuizTaker() {
                         <button
                           key={opt.id}
                           disabled={isLocked}
-                          onClick={() => { if (!isLocked) setAnswers((prev) => ({ ...prev, [q.id]: opt.id })); }}
+                          onClick={() => {
+                            if (isLocked) return;
+                            setAnswers((prev) => {
+                              const next = { ...prev };
+                              if (next[q.id] === opt.id) { delete next[q.id]; } else { next[q.id] = opt.id; }
+                              return next;
+                            });
+                          }}
                           style={{
                             display: 'flex', alignItems: 'center', gap: 14,
                             padding: '14px 18px', borderRadius: 10, cursor: isLocked ? 'default' : 'pointer', textAlign: 'left',
@@ -368,8 +439,9 @@ export default function QuizTaker() {
                       <Button color="primary" style={{ borderRadius: 8 }} onClick={() => setCurrent((c) => c + 1)}>Next</Button>
                     ) : (
                       <Button color="success" style={{ borderRadius: 8, fontWeight: 700 }}
-                        disabled={phase === 'submitting'} onClick={() => handleSubmit(false)}>
-                        {phase === 'submitting' ? 'Submitting...' : 'Submit Quiz'}
+                        disabled={phase === 'submitting'}
+                        onClick={() => setShowConfirmSubmit(true)}>
+                        Submit Quiz
                       </Button>
                     )}
                   </div>
@@ -446,11 +518,31 @@ export default function QuizTaker() {
                       {phase === 'submitting' ? 'Saving...' : '💾 Save & Continue Later'}
                     </Button>
                   )}
-                  <Button
-                    color="success" style={{ borderRadius: 8, marginTop: 8, width: '100%', fontWeight: 700 }}
-                    disabled={phase === 'submitting'} onClick={() => handleSubmit(false)}>
-                    {phase === 'submitting' ? 'Submitting...' : 'Submit Quiz'}
-                  </Button>
+                  {!showConfirmSubmit ? (
+                    <Button
+                      color="success" style={{ borderRadius: 8, marginTop: 8, width: '100%', fontWeight: 700 }}
+                      disabled={phase === 'submitting'}
+                      onClick={() => setShowConfirmSubmit(true)}>
+                      Submit Quiz
+                    </Button>
+                  ) : (
+                    <div style={{ marginTop: 8 }}>
+                      <div style={{ background: '#fff8e6', border: '1px solid #f6c23e', borderRadius: 8, padding: '10px 12px', marginBottom: 8, fontSize: 12, color: '#856404', fontWeight: 600, textAlign: 'center' }}>
+                        ⚠️ Once submitted, answers cannot be changed.
+                      </div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <Button color="danger" style={{ flex: 1, borderRadius: 8, fontWeight: 700, fontSize: 13 }}
+                          disabled={phase === 'submitting'}
+                          onClick={() => handleSubmit(false)}>
+                          {phase === 'submitting' ? 'Submitting...' : 'Yes, Submit'}
+                        </Button>
+                        <Button color="secondary" outline style={{ flex: 1, borderRadius: 8, fontSize: 13 }}
+                          onClick={() => setShowConfirmSubmit(false)}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </CardBody>
               </Card>
             </Col>
