@@ -432,18 +432,18 @@ export default function QuizTaker() {
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                       <div style={{ background: a.is_correct ? '#eafaf1' : '#fde8ec', border: `1px solid ${a.is_correct ? '#2dce89' : '#f5365c'}`, borderRadius: 8, padding: '6px 14px', fontSize: 13 }}>
                         <span style={{ fontWeight: 700 }}>Your answer: </span>
-                        {a.selected_label ? `${a.selected_label}. ${a.selected_text}` : 'Not answered'}
+                        {a.selected_label ? <><span>{a.selected_label}. </span><LatexRenderer text={a.selected_text || ''} /></> : 'Not answered'}
                       </div>
                       {!a.is_correct && (
                         <div style={{ background: '#eafaf1', border: '1px solid #2dce89', borderRadius: 8, padding: '6px 14px', fontSize: 13 }}>
                           <span style={{ fontWeight: 700 }}>Correct: </span>
-                          {a.correct_label}. {a.correct_text}
+                          <span>{a.correct_label}. </span><LatexRenderer text={a.correct_text || ''} />
                         </div>
                       )}
                     </div>
                     {a.explanation && (
                       <div style={{ marginTop: 10, padding: '8px 12px', background: '#fff8e6', borderRadius: 8, fontSize: 13, color: '#525f7f' }}>
-                        <span style={{ fontWeight: 700 }}>Explanation: </span>{a.explanation}
+                        <span style={{ fontWeight: 700 }}>Explanation: </span><LatexRenderer text={a.explanation} />
                       </div>
                     )}
                   </CardBody>

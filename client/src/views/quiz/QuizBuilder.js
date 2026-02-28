@@ -327,11 +327,17 @@ export default function QuizBuilder() {
                   </div>
 
                   <FormGroup className="mb-0">
-                    <Input
-                      bsSize="sm"
-                      placeholder="Explanation (shown after attempt)..."
+                    <textarea
+                      className="form-control form-control-sm"
+                      placeholder="Explanation (shown after attempt — supports $LaTeX$)..."
                       value={q.explanation}
-                      onChange={(e) => updateQuestion(qi, 'explanation', e.target.value)}
+                      onChange={(e) => {
+                        updateQuestion(qi, 'explanation', e.target.value);
+                        e.target.style.height = 'auto';
+                        e.target.style.height = e.target.scrollHeight + 'px';
+                      }}
+                      rows={1}
+                      style={{ resize: 'none', overflow: 'hidden', minHeight: 34 }}
                     />
                   </FormGroup>
                 </CardBody>
