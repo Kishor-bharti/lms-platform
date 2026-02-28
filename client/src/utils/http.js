@@ -60,40 +60,63 @@ http.interceptors.response.use(
 
       originalRequest._retry = true;
 
-      // Get refresh token from storage
-      const refreshToken = window.localStorage.getItem("refreshToken");
-      if (!refreshToken) {
-        clearAuthAndRedirect();
-        return Promise.reject(error);
-      }
-
-      try {
-        // Use plain axios (not http instance) to avoid infinite loops
-        const refreshResponse = await axios.post(
-          `${API_BASE || ""}/api/auth/refresh`,
-          { refreshToken },
-          { headers: { "Content-Type": "application/json" } }
-        );
-
-        const { accessToken: newAccessToken, refreshToken: newRefreshToken } =
-          refreshResponse.data;
-
-        // Store new tokens
-        window.localStorage.setItem("accessToken", newAccessToken);
-        window.localStorage.setItem("refreshToken", newRefreshToken);
-
-        // Retry the original request with new token
-        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+      // Use the shared silentRefresh to avoid race conditions
+      // when multiple 401s fire at the same time
+      const newToken = await silentRefresh();
+      if (newToken) {
+        originalRequest.headers.Authorization = `Bearer ${newToken}`;
         return http(originalRequest);
-      } catch (refreshError) {
-        // Refresh failed — clear auth and redirect to login
-        clearAuthAndRedirect();
-        return Promise.reject(refreshError);
       }
+
+      // Refresh failed — clear auth and redirect
+      clearAuthAndRedirect();
+      return Promise.reject(error);
     }
 
     return Promise.reject(error);
   }
 );
+
+// ─── Proactive silent token refresh ────────────────────────────
+// Checks every 30s. If access token has <2min left, silently
+// refresh in the background so it never actually expires.
+let _refreshingPromise = null;
+
+export async function silentRefresh() {
+  if (_refreshingPromise) return _refreshingPromise; // deduplicate
+
+  const refreshToken = window.localStorage.getItem('refreshToken');
+  if (!refreshToken) return null;
+
+  _refreshingPromise = axios
+    .post(
+      `${API_BASE || ''}/api/auth/refresh`,
+      { refreshToken },
+      { headers: { 'Content-Type': 'application/json' } }
+    )
+    .then((res) => {
+      const { accessToken: newAccess, refreshToken: newRefresh } = res.data;
+      window.localStorage.setItem('accessToken', newAccess);
+      window.localStorage.setItem('refreshToken', newRefresh);
+      return newAccess;
+    })
+    .catch(() => null)
+    .finally(() => {
+      _refreshingPromise = null;
+    });
+
+  return _refreshingPromise;
+}
+
+// Start the proactive refresh loop (only in browser)
+if (typeof window !== 'undefined') {
+  setInterval(() => {
+    const secs = getTokenExpiresInSeconds();
+    // If token exists and has <2min left, refresh proactively
+    if (secs > 0 && secs <= 120) {
+      silentRefresh();
+    }
+  }, 30_000);
+}
 
 export default http;

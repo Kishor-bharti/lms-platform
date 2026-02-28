@@ -1,28 +1,35 @@
 import { useEffect, useState } from 'react';
-import { getTokenExpiresInSeconds } from 'utils/http';
+import { getTokenExpiresInSeconds, silentRefresh } from 'utils/http';
 
+/**
+ * Only shows a banner when the token is critically low (<30s)
+ * AND the proactive silent-refresh has already been running.
+ * In normal operation this banner should never appear — the
+ * silent refresh in http.js keeps the token alive.
+ */
 export default function SessionExpiryBanner() {
-  const [secondsLeft, setSecondsLeft] = useState(null);
+  const [critical, setCritical] = useState(false);
 
   useEffect(() => {
     const check = () => {
       const secs = getTokenExpiresInSeconds();
-      // Only show banner when under 2 minutes
-      setSecondsLeft(secs > 0 && secs <= 120 ? secs : null);
+      if (secs > 0 && secs <= 30) {
+        // Last-resort: try one more silent refresh
+        silentRefresh().then((newToken) => {
+          // If refresh succeeded, token is renewed — not critical
+          setCritical(!newToken);
+        });
+      } else {
+        setCritical(false);
+      }
     };
 
     check();
-    const interval = setInterval(check, 10000); // check every 10s
+    const interval = setInterval(check, 5000);
     return () => clearInterval(interval);
   }, []);
 
-  if (!secondsLeft) return null;
-
-  const mins = Math.floor(secondsLeft / 60);
-  const secs = secondsLeft % 60;
-  const label = mins > 0
-    ? `${mins}m ${secs}s`
-    : `${secs}s`;
+  if (!critical) return null;
 
   return (
     <div style={{
@@ -30,20 +37,20 @@ export default function SessionExpiryBanner() {
       bottom: 20,
       right: 20,
       zIndex: 9999,
-      background: '#fff3cd',
-      border: '1px solid #ffc107',
+      background: '#f8d7da',
+      border: '1px solid #f5c6cb',
       borderRadius: 8,
       padding: '10px 16px',
       fontSize: 13,
       fontWeight: 600,
-      color: '#856404',
+      color: '#721c24',
       boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
       display: 'flex',
       alignItems: 'center',
       gap: 8,
     }}>
       <i className="ni ni-time-alarm" style={{ fontSize: 16 }} />
-      Session refreshing in {label}
+      Session expired — please save your work and log in again
     </div>
   );
 }
