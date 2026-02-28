@@ -2,8 +2,11 @@ import React, { useState, useEffect, useRef } from "react";
 import { Card, CardHeader, CardBody, CardTitle, Table, Badge, Button, Modal, ModalHeader, ModalBody, ModalFooter } from "reactstrap";
 import http from "utils/http";
 
+const INITIAL_SHOW = 4;
+
 export default function UpcomingClasses() {
-  const [sessions, setSessions] = useState([]);
+  const [allSessions, setAllSessions] = useState([]);
+  const [showAll, setShowAll] = useState(false);
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState(null);
   const errorCount = useRef(0);
@@ -24,17 +27,26 @@ export default function UpcomingClasses() {
     try {
       const response = await http.get('/api/classes/my-sessions-v2');
       const data = Array.isArray(response?.data) ? response.data : [];
-      setSessions(data.slice(0, 4));
+
+      // Filter out completed sessions — dashboard should show upcoming only
+      // Sort ascending by scheduled_at so nearest-upcoming is first
+      const upcoming = data
+        .filter((s) => s.status !== 'COMPLETED')
+        .sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at));
+
+      setAllSessions(upcoming);
       errorCount.current = 0;
     } catch (error) {
       console.error('Failed to fetch sessions:', error);
-      setSessions([]);
+      setAllSessions([]);
       errorCount.current += 1;
       if (errorCount.current >= 3) {
         console.warn('[polling] Stopped after 3 consecutive errors');
       }
     }
   };
+
+  const sessions = showAll ? allSessions : allSessions.slice(0, INITIAL_SHOW);
 
   const openDetails = (session) => { setCurrent(session); setOpen(true); };
   const closeDetails = () => setOpen(false);
@@ -126,6 +138,21 @@ export default function UpcomingClasses() {
             </tbody>
           </Table>
         </div>
+        {allSessions.length > INITIAL_SHOW && (
+          <div className="text-center mt-3">
+            <Button
+              size="sm"
+              color="primary"
+              outline
+              style={{ borderRadius: 20, padding: '6px 20px', fontWeight: 600 }}
+              onClick={() => setShowAll(!showAll)}
+            >
+              {showAll
+                ? 'Show Less'
+                : `View All ${allSessions.length} Sessions`}
+            </Button>
+          </div>
+        )}
         <Modal isOpen={open} toggle={closeDetails} centered className="details-modal">
           <ModalHeader
             toggle={closeDetails}
