@@ -20,14 +20,20 @@ export default function QuizTaker() {
   const [timeLeft,  setTimeLeft]  = useState(0);    // seconds remaining
   const [result,    setResult]    = useState(null);
   const [error,     setError]     = useState('');
-  const [elapsed,   setElapsed]   = useState(0);    // seconds elapsed (practice count-up)
+  const [elapsed,          setElapsed]          = useState(0);           // seconds elapsed (practice count-up)
+  const [partialResultData, setPartialResultData] = useState(null);       // scoring data from partial save
+  const [lockedAnswers,    setLockedAnswers]    = useState(new Set());    // question IDs locked after resume
   const startedAt  = useRef(null);
   const timerRef   = useRef(null);
+  const answersRef = useRef({});                                           // always-fresh answers for timer callback
 
   useEffect(() => {
     fetchQuiz();
     return () => clearInterval(timerRef.current);
   }, [quizId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keep answersRef in sync so timer callbacks always see the latest answers
+  useEffect(() => { answersRef.current = answers; }, [answers]);
 
   const fetchQuiz = async () => {
     try {
@@ -51,6 +57,8 @@ export default function QuizTaker() {
       const res = await http.post(`/api/quizzes/${quizId}/attempts`);
       setAttemptId(res.data.attemptId);
       setAnswers({});
+      answersRef.current = {};
+      setLockedAnswers(new Set());
       setCurrent(0);
       if (quiz.quiz_type === 'test') {
         const secs = (quiz.duration_minutes || 30) * 60;
@@ -98,7 +106,7 @@ export default function QuizTaker() {
       ? Math.floor((Date.now() - startedAt.current) / 1000)
       : 0;
 
-    const answersPayload = Object.entries(answers).map(([question_id, selected_option_id]) => ({
+    const answersPayload = Object.entries(answersRef.current).map(([question_id, selected_option_id]) => ({
       question_id,
       selected_option_id: selected_option_id || null,
     }));
@@ -115,15 +123,18 @@ export default function QuizTaker() {
       setError('Failed to submit. Please try again.');
       setPhase('taking');
     }
-  }, [answers, attemptId]);
+  }, [attemptId]);
 
   const handleResume = async (resumeAttemptId) => {
     setError('');
     setPhase('loading');
     try {
       const res = await http.get(`/api/quizzes/attempts/${resumeAttemptId}/resume`);
+      const saved = res.data.savedAnswers || {};
       setAttemptId(res.data.attemptId);
-      setAnswers(res.data.savedAnswers || {});
+      setAnswers(saved);
+      answersRef.current = saved;
+      setLockedAnswers(new Set(Object.keys(saved)));
       setCurrent(res.data.lastQuestionIndex || 0);
       setElapsed(0);
       startedAt.current = Date.now();
@@ -137,15 +148,16 @@ export default function QuizTaker() {
   const handleSaveProgress = async () => {
     clearInterval(timerRef.current);
     setPhase('submitting');
-    const answersPayload = Object.entries(answers).map(([question_id, selected_option_id]) => ({
+    const answersPayload = Object.entries(answersRef.current).map(([question_id, selected_option_id]) => ({
       question_id,
       selected_option_id: selected_option_id || null,
     }));
     try {
-      await http.post(`/api/quizzes/attempts/${attemptId}/partial-submit`, {
+      const res = await http.post(`/api/quizzes/attempts/${attemptId}/partial-submit`, {
         answers: answersPayload,
         lastQuestionIndex: current,
       });
+      setPartialResultData(res.data);
       setPhase('partial-result');
     } catch (err) {
       setError('Failed to save progress. Please try again.');
@@ -225,7 +237,7 @@ export default function QuizTaker() {
                   {partialAttempt && (
                     <div style={{ background: '#fff8e6', border: '1px solid #f6c23e', borderRadius: 10, padding: '12px 16px', marginBottom: 16 }}>
                       <p style={{ margin: '0 0 8px', fontWeight: 700, color: '#856404' }}>📂 You have a saved practice session</p>
-                      <p style={{ margin: '0 0 10px', fontSize: 13, color: '#856404' }}>Your progress was saved at question {(partialAttempt.last_question_index || 0) + 1}. Resume where you left off?</p>
+                      <p style={{ margin: '0 0 10px', fontSize: 13, color: '#856404' }}>{partialAttempt.answered_count || 0} questions answered and saved. Resume where you left off?</p>
                       <Button size="sm" color="warning" style={{ borderRadius: 8, fontWeight: 700 }} onClick={() => handleResume(partialAttempt.id)}>
                         ▶ Resume Practice
                       </Button>
@@ -280,7 +292,8 @@ export default function QuizTaker() {
     const answered = Object.keys(answers).length;
     const total    = quiz?.questions?.length ?? 0;
     const pct      = total > 0 ? Math.round((answered / total) * 100) : 0;
-    const danger   = timeLeft <= 60;
+    const danger   = quiz?.quiz_type === 'test' && timeLeft <= 300;
+    const isLocked = lockedAnswers.has(q?.id);
 
     return (
       <>
@@ -296,6 +309,7 @@ export default function QuizTaker() {
                       Question {current + 1} <span style={{ color: '#8898aa', fontWeight: 400 }}>of {total}</span>
                     </span>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      {isLocked && <Badge color="secondary" style={{ fontWeight: 600 }}>🔒 Saved</Badge>}
                       <Badge color="light" style={{ fontWeight: 600 }}>
                         {q?.difficulty}
                       </Badge>
@@ -322,19 +336,21 @@ export default function QuizTaker() {
                       return (
                         <button
                           key={opt.id}
-                          onClick={() => setAnswers((prev) => ({ ...prev, [q.id]: opt.id }))}
+                          disabled={isLocked}
+                          onClick={() => { if (!isLocked) setAnswers((prev) => ({ ...prev, [q.id]: opt.id })); }}
                           style={{
                             display: 'flex', alignItems: 'center', gap: 14,
-                            padding: '14px 18px', borderRadius: 10, cursor: 'pointer', textAlign: 'left',
-                            border: `2px solid ${selected ? '#5e72e4' : '#e9ecef'}`,
-                            background: selected ? '#eef0fd' : '#fff',
+                            padding: '14px 18px', borderRadius: 10, cursor: isLocked ? 'default' : 'pointer', textAlign: 'left',
+                            border: `2px solid ${selected ? (isLocked ? '#8898aa' : '#5e72e4') : '#e9ecef'}`,
+                            background: selected ? (isLocked ? '#f0f4f8' : '#eef0fd') : '#fff',
                             transition: 'all 0.15s ease', fontWeight: selected ? 700 : 400,
+                            opacity: isLocked ? 0.8 : 1,
                           }}
                         >
                           <span style={{
                             width: 32, height: 32, borderRadius: '50%', display: 'flex',
                             alignItems: 'center', justifyContent: 'center', fontWeight: 800, flexShrink: 0,
-                            background: selected ? '#5e72e4' : '#f0f4f8',
+                            background: selected ? (isLocked ? '#8898aa' : '#5e72e4') : '#f0f4f8',
                             color: selected ? '#fff' : '#525f7f', fontSize: 14,
                           }}>
                             {opt.option_label}
@@ -406,14 +422,15 @@ export default function QuizTaker() {
                     {quiz?.questions?.map((qItem, idx) => {
                       const isAnswered = !!answers[qItem.id];
                       const isCurrent  = idx === current;
+                      const isLocked_  = lockedAnswers.has(qItem.id);
                       return (
                         <button
                           key={idx}
                           onClick={() => setCurrent(idx)}
                           style={{
                             padding: '6px', borderRadius: 6, cursor: 'pointer', fontWeight: 700, fontSize: 13,
-                            border: `2px solid ${isCurrent ? '#5e72e4' : isAnswered ? '#2dce89' : '#e9ecef'}`,
-                            background: isCurrent ? '#5e72e4' : isAnswered ? '#eafaf1' : '#fff',
+                            border: `2px solid ${isCurrent ? '#5e72e4' : isLocked_ ? '#8898aa' : isAnswered ? '#2dce89' : '#e9ecef'}`,
+                            background: isCurrent ? '#5e72e4' : isLocked_ ? '#f0f4f8' : isAnswered ? '#eafaf1' : '#fff',
                             color: isCurrent ? '#fff' : '#32325d',
                           }}
                         >
@@ -443,31 +460,85 @@ export default function QuizTaker() {
     );
   }
 
-  // ---- Partial-result screen (saved progress) ----
-  if (phase === 'partial-result') {
+  // ---- Partial-result screen (saved progress + answer review) ----
+  if (phase === 'partial-result' && partialResultData) {
+    const { answeredCount, correctCount, marksObtained, partialTotalMarks, scorePct, reviewAnswers } = partialResultData;
+    const incorrectCount = answeredCount - correctCount;
     return (
       <>
         <Header />
-        <Container className="mt--7" fluid style={{ backgroundColor: 'rgb(196,214,226)', minHeight: '100vh', paddingTop: 30 }}>
-          <Row className="justify-content-center">
-            <Col lg="6">
-              <Card className="shadow" style={{ borderRadius: 16, textAlign: 'center' }}>
-                <CardBody style={{ padding: 40 }}>
-                  <div style={{ fontSize: 56, marginBottom: 16 }}>💾</div>
-                  <h3 style={{ color: '#32325d', marginBottom: 8 }}>Progress Saved!</h3>
-                  <p style={{ color: '#8898aa', marginBottom: 24 }}>
-                    Your answers have been saved. Resume this practice anytime from the quiz intro screen.
-                  </p>
-                  <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-                    <Button color="primary" style={{ borderRadius: 8 }} onClick={() => { setPhase('loading'); fetchQuiz(); }}>
-                      Continue Practice
-                    </Button>
-                    <Button color="secondary" outline style={{ borderRadius: 8 }} onClick={() => navigate(-1)}>
-                      Back to Subject
-                    </Button>
+        <Container className="mt--7" fluid style={{ backgroundColor: 'rgb(196,214,226)', minHeight: '100vh', paddingTop: 30, paddingBottom: 30 }}>
+          <Row className="justify-content-center mb-4">
+            <Col lg="8">
+              <Card className="shadow" style={{ borderRadius: 16, textAlign: 'center', overflow: 'hidden' }}>
+                <div style={{ background: 'linear-gradient(135deg, #5e72e4, #825ee4)', padding: '32px 24px' }}>
+                  <div style={{ fontSize: 48, marginBottom: 8 }}>💾</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: '#fff' }}>Progress Saved!</div>
+                  <div style={{ color: 'rgba(255,255,255,0.8)', marginTop: 4 }}>
+                    {answeredCount} questions answered — {Number(scorePct).toFixed(1)}% running score
+                  </div>
+                </div>
+                <CardBody>
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: 28, padding: '16px 0', flexWrap: 'wrap' }}>
+                    {[{ label: 'Answered', value: answeredCount, color: '#32325d' },
+                      { label: 'Correct',  value: correctCount,   color: '#2dce89' },
+                      { label: 'Incorrect', value: incorrectCount, color: '#f5365c' },
+                      { label: 'Score',    value: `${Number(marksObtained).toFixed(1)}/${Number(partialTotalMarks).toFixed(1)}`, color: '#32325d' },
+                    ].map(item => (
+                      <div key={item.label}>
+                        <div style={{ fontSize: 11, color: '#8898aa', fontWeight: 700, textTransform: 'uppercase' }}>{item.label}</div>
+                        <div style={{ fontSize: 22, fontWeight: 700, color: item.color }}>{item.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 8 }}>
+                    <Button color="primary" style={{ borderRadius: 8 }} onClick={() => { setPhase('loading'); fetchQuiz(); }}>Continue Practice</Button>
+                    <Button color="secondary" outline style={{ borderRadius: 8 }} onClick={() => navigate(-1)}>Back to Subject</Button>
                   </div>
                 </CardBody>
               </Card>
+            </Col>
+          </Row>
+
+          <Row className="justify-content-center">
+            <Col lg="8">
+              <h4 style={{ color: '#32325d', marginBottom: 16 }}>Your Answers So Far</h4>
+              {reviewAnswers?.map((a, idx) => (
+                <Card key={a.question_id} className="shadow mb-3" style={{ borderRadius: 12, borderLeft: `4px solid ${a.is_correct ? '#2dce89' : '#f5365c'}` }}>
+                  <CardBody>
+                    <div className="d-flex justify-content-between align-items-start mb-3">
+                      <div style={{ fontWeight: 600, color: '#32325d', margin: 0, flex: 1, lineHeight: 1.5 }}>
+                        <span>{idx + 1}. </span><LatexRenderer text={a.question_text || ''} />
+                      </div>
+                      <Badge color={a.is_correct ? 'success' : 'danger'} style={{ marginLeft: 12, flexShrink: 0 }}>
+                        {a.is_correct ? `+${Number(a.marks_awarded).toFixed(1)}` : '0'} marks
+                      </Badge>
+                    </div>
+                    {a.image_url && (
+                      <div style={{ background: '#f8f9fa', padding: 10, borderRadius: 8, margin: '8px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', maxHeight: 250 }}>
+                        <img src={a.image_url} alt="" style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 6, objectFit: 'contain' }} />
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                      <div style={{ background: a.is_correct ? '#eafaf1' : '#fde8ec', border: `1px solid ${a.is_correct ? '#2dce89' : '#f5365c'}`, borderRadius: 8, padding: '6px 14px', fontSize: 13 }}>
+                        <span style={{ fontWeight: 700 }}>Your answer: </span>
+                        {a.selected_label ? <><span>{a.selected_label}. </span><LatexRenderer text={a.selected_text || ''} /></> : 'Not answered'}
+                      </div>
+                      {!a.is_correct && (
+                        <div style={{ background: '#eafaf1', border: '1px solid #2dce89', borderRadius: 8, padding: '6px 14px', fontSize: 13 }}>
+                          <span style={{ fontWeight: 700 }}>Correct: </span>
+                          <span>{a.correct_label}. </span><LatexRenderer text={a.correct_text || ''} />
+                        </div>
+                      )}
+                    </div>
+                    {a.explanation && (
+                      <div style={{ marginTop: 10, padding: '8px 12px', background: '#fff8e6', borderRadius: 8, fontSize: 13, color: '#525f7f' }}>
+                        <span style={{ fontWeight: 700 }}>Explanation: </span><LatexRenderer text={a.explanation} />
+                      </div>
+                    )}
+                  </CardBody>
+                </Card>
+              ))}
             </Col>
           </Row>
         </Container>

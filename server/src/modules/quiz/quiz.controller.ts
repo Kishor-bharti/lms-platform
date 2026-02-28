@@ -171,10 +171,10 @@ export async function partialSubmitPractice(req: Request, res: Response) {
     const studentId = req.user!.id;
     const { answers, lastQuestionIndex } = req.body;
     if (!attemptId) return res.status(400).json({ error: 'attemptId is required' });
-    await quizService.partialSubmitPractice({
+    const result = await quizService.partialSubmitPractice({
       attemptId, studentId, answers: answers ?? [], lastQuestionIndex: lastQuestionIndex ?? 0,
     });
-    return res.json({ success: true });
+    return res.json(result);
   } catch (err: any) {
     if (err.message === 'ATTEMPT_NOT_FOUND') return res.status(404).json({ error: 'Attempt not found' });
     if (err.message === 'NOT_PRACTICE') return res.status(400).json({ error: 'Only practice quizzes support partial save' });
