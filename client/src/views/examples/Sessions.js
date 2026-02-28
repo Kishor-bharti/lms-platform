@@ -30,10 +30,26 @@ const Sessions = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // Priority order: LIVE → TODAY → TOMORROW → SCHEDULED → COMPLETED
+  const STATUS_PRIORITY = { LIVE: 0, TODAY: 1, TOMORROW: 2, SCHEDULED: 3, COMPLETED: 4 };
+
+  const sortSessions = (list) => {
+    return [...list].sort((a, b) => {
+      const pa = STATUS_PRIORITY[a.status] ?? 9;
+      const pb = STATUS_PRIORITY[b.status] ?? 9;
+      if (pa !== pb) return pa - pb;
+      // Within the same status group: upcoming sorted ASC, completed sorted DESC
+      const ta = new Date(a.scheduled_at).getTime();
+      const tb = new Date(b.scheduled_at).getTime();
+      return a.status === 'COMPLETED' ? tb - ta : ta - tb;
+    });
+  };
+
   const fetchSessions = async () => {
     try {
       const response = await http.get('/api/classes/my-sessions-v2');
-      setSessions(Array.isArray(response?.data) ? response.data : []);
+      const data = Array.isArray(response?.data) ? response.data : [];
+      setSessions(sortSessions(data));
       setLoading(false);
       errorCount.current = 0;
     } catch (error) {

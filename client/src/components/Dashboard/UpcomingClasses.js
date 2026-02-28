@@ -2,11 +2,11 @@ import React, { useState, useEffect, useRef } from "react";
 import { Card, CardHeader, CardBody, CardTitle, Table, Badge, Button, Modal, ModalHeader, ModalBody, ModalFooter } from "reactstrap";
 import http from "utils/http";
 
-const INITIAL_SHOW = 4;
+const BATCH_SIZE = 4;
 
 export default function UpcomingClasses() {
   const [allSessions, setAllSessions] = useState([]);
-  const [showAll, setShowAll] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(BATCH_SIZE);
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState(null);
   const errorCount = useRef(0);
@@ -46,7 +46,7 @@ export default function UpcomingClasses() {
     }
   };
 
-  const sessions = showAll ? allSessions : allSessions.slice(0, INITIAL_SHOW);
+  const sessions = allSessions.slice(0, visibleCount);
 
   const openDetails = (session) => { setCurrent(session); setOpen(true); };
   const closeDetails = () => setOpen(false);
@@ -138,19 +138,31 @@ export default function UpcomingClasses() {
             </tbody>
           </Table>
         </div>
-        {allSessions.length > INITIAL_SHOW && (
-          <div className="text-center mt-3">
-            <Button
-              size="sm"
-              color="primary"
-              outline
-              style={{ borderRadius: 20, padding: '6px 20px', fontWeight: 600 }}
-              onClick={() => setShowAll(!showAll)}
-            >
-              {showAll
-                ? 'Show Less'
-                : `View All ${allSessions.length} Sessions`}
-            </Button>
+        {allSessions.length > BATCH_SIZE && (
+          <div className="d-flex justify-content-center align-items-center mt-3" style={{ gap: 8 }}>
+            {visibleCount < allSessions.length && (
+              <Button
+                size="sm"
+                color="primary"
+                outline
+                style={{ borderRadius: 20, padding: '6px 20px', fontWeight: 600 }}
+                onClick={() => setVisibleCount((c) => Math.min(c + BATCH_SIZE, allSessions.length))}
+              >
+                Show More ({Math.min(BATCH_SIZE, allSessions.length - visibleCount)} more)
+              </Button>
+            )}
+            {visibleCount > BATCH_SIZE && (
+              <Button
+                size="sm"
+                color="secondary"
+                outline
+                style={{ borderRadius: 20, padding: '6px 20px', fontWeight: 600 }}
+                onClick={() => setVisibleCount(BATCH_SIZE)}
+              >
+                Show Less
+              </Button>
+            )}
+            <span className="text-muted small">Showing {Math.min(visibleCount, allSessions.length)} of {allSessions.length}</span>
           </div>
         )}
         <Modal isOpen={open} toggle={closeDetails} centered className="details-modal">
