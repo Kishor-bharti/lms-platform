@@ -37,6 +37,7 @@ export default function SubjectStudent() {
   const [subject,     setSubject]     = useState(null);
   const [sessions,    setSessions]    = useState([]);
   const [quizzes,     setQuizzes]     = useState([]);
+  const [quizStatuses, setQuizStatuses] = useState({});
   const [assignments, setAssignments] = useState([]);
   const [loading,     setLoading]     = useState(true);
   const [materials,   setMaterials]   = useState([]);
@@ -70,6 +71,11 @@ export default function SubjectStudent() {
       setQuizzes((quizRes.data || []).filter((q) => q.is_published));
       setAssignments(assignRes.data || []);
       setMaterials(matRes.data || []);
+      // Fetch attempt status for all quizzes in one call
+      try {
+        const statusRes = await http.get(`/api/quizzes/subject/${subjectId}/status`);
+        setQuizStatuses(statusRes.data || {});
+      } catch (_) {}
     } catch (err) {
       console.error('[SubjectStudent]', err);
     } finally {
@@ -259,9 +265,27 @@ export default function SubjectStudent() {
                           <div style={{ flex: 1 }}>
                             <div className="d-flex justify-content-between align-items-start mb-2">
                               <h5 style={{ color: '#32325d', marginBottom: 4, lineHeight: 1.3 }}>{q.title}</h5>
-                              <Badge color={q.quiz_type === 'test' ? 'danger' : 'info'} style={{ flexShrink: 0, marginLeft: 8, textTransform: 'capitalize' }}>
-                                {q.quiz_type}
-                              </Badge>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end', flexShrink: 0, marginLeft: 8 }}>
+                                <Badge color={q.quiz_type === 'test' ? 'danger' : 'info'} style={{ textTransform: 'capitalize' }}>
+                                  {q.quiz_type}
+                                </Badge>
+                                {(() => {
+                                  const s = quizStatuses[q.id];
+                                  if (!s || s.attempts_used === 0) return (
+                                    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10,
+                                      background: '#f0f0f0', color: '#8898aa' }}>Not Attempted</span>
+                                  );
+                                  if (s.has_submitted) return (
+                                    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10,
+                                      background: '#d4edda', color: '#155724' }}>✓ Submitted</span>
+                                  );
+                                  if (s.has_partial) return (
+                                    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10,
+                                      background: '#fff3cd', color: '#856404' }}>⏸ In Progress</span>
+                                  );
+                                  return null;
+                                })()}
+                              </div>
                             </div>
                             {q.description && <p className="text-muted small mb-3">{q.description}</p>}
 
@@ -284,7 +308,7 @@ export default function SubjectStudent() {
                             style={{ borderRadius: 8, fontWeight: 700 }}
                             onClick={() => navigate(`/admin/quiz/${q.id}`)}
                           >
-                            Attempt Quiz
+                            {quizStatuses[q.id]?.has_submitted ? 'View Results' : quizStatuses[q.id]?.has_partial ? 'Resume' : 'Attempt Quiz'}
                           </Button>
                         </CardBody>
                       </Card>

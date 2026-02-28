@@ -90,7 +90,7 @@ export async function getQuizWithQuestions(quizId: string, role: string): Promis
   const quiz = quizRows[0];
 
   const questionRows = await query<any>(`
-    SELECT id, question_text, image_url, explanation, difficulty, marks, order_index
+    SELECT id, question_text, image_url, explanation, difficulty, marks, order_index, topic_id
     FROM questions
     WHERE quiz_id = $1 AND is_active = true
     ORDER BY order_index, created_at
@@ -128,6 +128,7 @@ export async function getQuizWithQuestions(quizId: string, role: string): Promis
       difficulty: q.difficulty,
       marks: Number(q.marks),
       order_index: q.order_index,
+      topic_id: q.topic_id ?? null,
       options: optsByQuestion.get(q.id) ?? [],
     })),
   };
@@ -516,6 +517,98 @@ export async function getAttemptResult(attemptId: string, studentId: string) {
     attempt,
     answers: answerRows,
   };
+}
+
+// ---- Teacher: update quiz (replace questions) ----
+
+export async function updateQuiz(data: {
+  quizId: string;
+  updatedBy: string;
+  title: string;
+  quiz_type: 'test' | 'practice';
+  description?: string;
+  duration_minutes: number;
+  max_attempts?: number;
+  questions: Array<{
+    question_text: string;
+    image_url?: string;
+    explanation?: string;
+    difficulty: string;
+    marks: number;
+    order_index: number;
+    topic_id?: string;
+    options: Array<{ label: string; text: string; is_correct: boolean }>;
+  }>;
+}): Promise<QuizSummary> {
+  return withTransaction(async (client) => {
+    const quizRows = await queryWithClient<any>(client, `
+      UPDATE quizzes
+      SET title=$1, quiz_type=$2, description=$3, duration_minutes=$4, max_attempts=$5, updated_at=now()
+      WHERE id=$6
+      RETURNING id, subject_id, title, quiz_type, description,
+                duration_minutes, passing_score, is_published, max_attempts, created_at
+    `, [data.title, data.quiz_type, data.description ?? null,
+        data.duration_minutes, data.max_attempts ?? 1, data.quizId]);
+
+    if (!quizRows[0]) throw new Error('Quiz not found');
+    const quiz = quizRows[0];
+
+    // Soft-delete existing questions
+    await queryWithClient(client, `
+      UPDATE questions SET is_active=false WHERE quiz_id=$1
+    `, [data.quizId]);
+
+    // Insert new questions and options
+    for (const q of data.questions) {
+      const qRows = await queryWithClient<any>(client, `
+        INSERT INTO questions
+          (quiz_id, question_text, image_url, explanation, difficulty, marks, order_index, topic_id, created_by)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+        RETURNING id
+      `, [data.quizId, q.question_text, q.image_url ?? null, q.explanation ?? null,
+          q.difficulty, q.marks, q.order_index, q.topic_id ?? null, data.updatedBy]);
+
+      const questionId = qRows[0].id;
+
+      for (const opt of q.options) {
+        await queryWithClient(client, `
+          INSERT INTO options (question_id, option_label, option_text, is_correct)
+          VALUES ($1,$2,$3,$4)
+        `, [questionId, opt.label, opt.text, opt.is_correct]);
+      }
+    }
+
+    return { ...quiz, question_count: data.questions.length };
+  });
+}
+
+// ---- Student: get attempt status for all quizzes in a subject ----
+
+export async function getStudentQuizStatuses(
+  subjectId: string,
+  studentId: string
+): Promise<Record<string, { has_submitted: boolean; has_partial: boolean; attempts_used: number }>> {
+  const rows = await query<any>(`
+    SELECT
+      q.id AS quiz_id,
+      COUNT(qa.id)::int AS attempts_used,
+      BOOL_OR(qa.status = 'submitted') AS has_submitted,
+      BOOL_OR(qa.status = 'partial')   AS has_partial
+    FROM quizzes q
+    LEFT JOIN quiz_attempts qa ON qa.quiz_id = q.id AND qa.student_id = $2
+    WHERE q.subject_id = $1 AND q.is_published = true
+    GROUP BY q.id
+  `, [subjectId, studentId]);
+
+  const result: Record<string, { has_submitted: boolean; has_partial: boolean; attempts_used: number }> = {};
+  for (const r of rows) {
+    result[r.quiz_id] = {
+      has_submitted: Boolean(r.has_submitted),
+      has_partial:   Boolean(r.has_partial),
+      attempts_used: r.attempts_used ?? 0,
+    };
+  }
+  return result;
 }
 
 // ---- Student: get my attempts for a quiz ----

@@ -376,10 +376,18 @@ export default function SubjectTeacher() {
                               </span>
                             </td>
                             <td style={{ padding: '12px 14px' }}>
-                              <Button size="sm" color={q.is_published ? 'warning' : 'success'} outline style={{ borderRadius: 20, fontSize: 11 }}
-                                onClick={() => toggleQuizPublish(q.id, q.is_published)}>
-                                {q.is_published ? 'Unpublish' : 'Publish'}
-                              </Button>
+                              <div style={{ display: 'flex', gap: 6 }}>
+                                <Button size="sm" color="info" outline style={{ borderRadius: 20, fontSize: 11 }}
+                                  onClick={() => navigate('/admin/quiz-builder', {
+                                    state: { subjectId, subjectName: subject?.title, editQuizId: q.id }
+                                  })}>
+                                  Edit
+                                </Button>
+                                <Button size="sm" color={q.is_published ? 'warning' : 'success'} outline style={{ borderRadius: 20, fontSize: 11 }}
+                                  onClick={() => toggleQuizPublish(q.id, q.is_published)}>
+                                  {q.is_published ? 'Unpublish' : 'Publish'}
+                                </Button>
+                              </div>
                             </td>
                           </tr>
                         ))}

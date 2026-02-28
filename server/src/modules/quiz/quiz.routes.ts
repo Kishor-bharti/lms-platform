@@ -35,11 +35,22 @@ const createQuizSchema = z.object({
   questions:         z.array(questionSchema).min(1),
 });
 
+const updateQuizSchema = z.object({
+  title:             z.string().min(1).max(255),
+  quiz_type:         z.enum(['test', 'practice']),
+  description:       z.string().optional(),
+  duration_minutes:  z.number().int().min(0).max(300).default(0),
+  max_attempts:      z.number().int().min(1).max(10).optional().default(1),
+  questions:         z.array(questionSchema).min(1),
+});
+
 // Quiz CRUD (teacher)
 router.post('/', validateBody(createQuizSchema), quizController.createQuiz);
 router.get('/subject/:subjectId', quizController.getQuizzesBySubject);
+router.get('/subject/:subjectId/status', quizController.getStudentQuizStatuses);
 router.get('/:quizId', quizController.getQuizDetail);
 router.patch('/:quizId/publish', quizController.publishQuiz);
+router.put('/:quizId', validateBody(updateQuizSchema), quizController.updateQuiz);
 
 // Attempts (student)
 router.post('/:quizId/attempts', quizController.startAttempt);

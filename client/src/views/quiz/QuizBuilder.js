@@ -23,8 +23,9 @@ const BLANK_QUESTION = (idx) => ({
 export default function QuizBuilder() {
   const navigate  = useNavigate();
   const location  = useLocation();
-  const subjectId = location.state?.subjectId;
+  const subjectId   = location.state?.subjectId;
   const subjectName = location.state?.subjectName;
+  const editQuizId  = location.state?.editQuizId; // present only in edit mode
 
   const [meta, setMeta] = useState({
     title: '',
@@ -35,6 +36,7 @@ export default function QuizBuilder() {
   });
   const [questions, setQuestions] = useState([BLANK_QUESTION(0)]);
   const [saving,    setSaving]    = useState(false);
+  const [loadingQuiz, setLoadingQuiz] = useState(false);
   const [error,     setError]     = useState('');
   const [topics,    setTopics]    = useState([]);
   const [uploading, setUploading] = useState(null); // qi of uploading question
@@ -46,6 +48,41 @@ export default function QuizBuilder() {
       .then(res => setTopics(res.data || []))
       .catch(() => {});
   }, [subjectId]);
+
+  // Load existing quiz when in edit mode
+  useEffect(() => {
+    if (!editQuizId) return;
+    setLoadingQuiz(true);
+    http.get(`/api/quizzes/${editQuizId}`)
+      .then(res => {
+        const q = res.data;
+        setMeta({
+          title:            q.title,
+          quiz_type:        q.quiz_type,
+          description:      q.description || '',
+          duration_minutes: q.duration_minutes || 60,
+          max_attempts:     q.max_attempts || 1,
+        });
+        setQuestions(
+          (q.questions || []).map((qItem, idx) => ({
+            question_text: qItem.question_text,
+            explanation:   qItem.explanation || '',
+            difficulty:    qItem.difficulty || 'medium',
+            marks:         qItem.marks || 1,
+            order_index:   qItem.order_index ?? idx,
+            image_url:     qItem.image_url || '',
+            topic_id:      qItem.topic_id  || '',
+            options: (qItem.options || []).map(o => ({
+              label:      o.option_label,
+              text:       o.option_text,
+              is_correct: Boolean(o.is_correct),
+            })),
+          }))
+        );
+      })
+      .catch(() => setError('Failed to load quiz for editing'))
+      .finally(() => setLoadingQuiz(false));
+  }, [editQuizId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleImageUpload = async (qi, file) => {
     if (!file) return;
@@ -86,7 +123,7 @@ export default function QuizBuilder() {
   const handleSave = async (publish) => {
     setError('');
     if (!meta.title) { setError('Quiz title is required'); return; }
-    if (!subjectId)  { setError('No subject selected — go back and try again'); return; }
+    if (!subjectId && !editQuizId) { setError('No subject selected — go back and try again'); return; }
 
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
@@ -97,18 +134,34 @@ export default function QuizBuilder() {
 
     setSaving(true);
     try {
-      const res = await http.post('/api/quizzes', {
-        subjectId,
-        title: meta.title,
-        quiz_type: meta.quiz_type,
-        description: meta.description,
-        duration_minutes: meta.quiz_type === 'practice' ? 0 : Number(meta.duration_minutes),
-        max_attempts: Number(meta.max_attempts) || 1,
-        questions,
-      });
+      let savedId;
+      if (editQuizId) {
+        // Edit mode — PUT to update existing quiz
+        const res = await http.put(`/api/quizzes/${editQuizId}`, {
+          title: meta.title,
+          quiz_type: meta.quiz_type,
+          description: meta.description,
+          duration_minutes: meta.quiz_type === 'practice' ? 0 : Number(meta.duration_minutes),
+          max_attempts: Number(meta.max_attempts) || 1,
+          questions,
+        });
+        savedId = res.data.id;
+      } else {
+        // Create mode — POST
+        const res = await http.post('/api/quizzes', {
+          subjectId,
+          title: meta.title,
+          quiz_type: meta.quiz_type,
+          description: meta.description,
+          duration_minutes: meta.quiz_type === 'practice' ? 0 : Number(meta.duration_minutes),
+          max_attempts: Number(meta.max_attempts) || 1,
+          questions,
+        });
+        savedId = res.data.id;
+      }
 
       if (publish) {
-        await http.patch(`/api/quizzes/${res.data.id}/publish`, { is_published: true });
+        await http.patch(`/api/quizzes/${savedId}/publish`, { is_published: true });
       }
 
       navigate(-1);
@@ -118,6 +171,15 @@ export default function QuizBuilder() {
       setSaving(false);
     }
   };
+
+  if (loadingQuiz) return (
+    <>
+      <Header />
+      <Container className="mt--7" fluid style={{ backgroundColor: 'rgb(196,214,226)', minHeight: '100vh', paddingTop: 30 }}>
+        <Row><Col><div className="text-center py-5"><p>Loading quiz...</p></div></Col></Row>
+      </Container>
+    </>
+  );
 
   return (
     <>
@@ -130,7 +192,7 @@ export default function QuizBuilder() {
             <Card className="shadow" style={{ borderRadius: 12 }}>
               <CardBody style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
                 <div>
-                  <h3 style={{ margin: 0, color: '#32325d' }}>Create Quiz</h3>
+                  <h3 style={{ margin: 0, color: '#32325d' }}>{editQuizId ? 'Edit Quiz' : 'Create Quiz'}</h3>
                   {subjectName && <small className="text-muted">for {subjectName}</small>}
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>

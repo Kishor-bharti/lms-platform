@@ -165,6 +165,54 @@ export async function getMyAttempts(req: Request, res: Response) {
   }
 }
 
+export async function updateQuiz(req: Request, res: Response) {
+  try {
+    const { quizId } = req.params;
+    const userId = req.user!.id;
+    const role = req.user!.role;
+    if (role !== 'teacher' && role !== 'admin') {
+      return res.status(403).json({ error: 'Only teachers can edit quizzes' });
+    }
+
+    // Ownership check (skip for admin)
+    if (role === 'teacher') {
+      const owned = await query<any>(
+        `SELECT id FROM quizzes WHERE id = $1 AND created_by = $2`,
+        [quizId, userId]
+      );
+      if (!owned[0]) {
+        return res.status(403).json({ error: 'You do not own this quiz' });
+      }
+    }
+
+    const { title, quiz_type, description, duration_minutes, max_attempts, questions } = req.body;
+    const quiz = await quizService.updateQuiz({
+      quizId, updatedBy: userId, title, quiz_type, description,
+      duration_minutes, max_attempts, questions: questions ?? [],
+    });
+    return res.json(quiz);
+  } catch (err: any) {
+    if (err.message === 'Quiz not found') return res.status(404).json({ error: 'Quiz not found' });
+    console.error('[quiz] updateQuiz:', err);
+    return res.status(500).json({ error: err.message || 'Failed to update quiz' });
+  }
+}
+
+export async function getStudentQuizStatuses(req: Request, res: Response) {
+  try {
+    const { subjectId } = req.params;
+    const studentId = req.user!.id;
+    if (!subjectId) {
+      return res.status(400).json({ error: 'subjectId is required' });
+    }
+    const statuses = await quizService.getStudentQuizStatuses(subjectId, studentId);
+    return res.json(statuses);
+  } catch (err) {
+    console.error('[quiz] getStudentQuizStatuses:', err);
+    return res.status(500).json({ error: 'Failed to fetch quiz statuses' });
+  }
+}
+
 export async function partialSubmitPractice(req: Request, res: Response) {
   try {
     const { attemptId } = req.params;
