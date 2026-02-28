@@ -30,9 +30,8 @@ const createQuizSchema = z.object({
   title:             z.string().min(1).max(255),
   quiz_type:         z.enum(['test', 'practice']),
   description:       z.string().optional(),
-  duration_minutes:  z.number().int().min(1).max(300),
-  passing_score:     z.number().min(0).max(100).optional(),
-  max_attempts:      z.number().int().min(1).max(10).optional(),
+  duration_minutes:  z.number().int().min(0).max(300).default(0),
+  max_attempts:      z.number().int().min(1).max(10).optional().default(1),
   questions:         z.array(questionSchema).min(1),
 });
 
@@ -46,6 +45,8 @@ router.patch('/:quizId/publish', quizController.publishQuiz);
 router.post('/:quizId/attempts', quizController.startAttempt);
 router.get('/:quizId/attempts', quizController.getMyAttempts);
 router.post('/attempts/:attemptId/submit', quizController.submitAttempt);
+router.post('/attempts/:attemptId/partial-submit', quizController.partialSubmitPractice);
+router.get('/attempts/:attemptId/resume', quizController.resumePractice);
 router.get('/attempts/:attemptId/result', quizController.getAttemptResult);
 
 export default router;

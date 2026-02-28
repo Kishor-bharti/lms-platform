@@ -40,10 +40,10 @@ export async function createQuiz(req: Request, res: Response) {
     if (role !== 'teacher' && role !== 'admin') {
       return res.status(403).json({ error: 'Only teachers can create quizzes' });
     }
-    const { subjectId, title, quiz_type, description, duration_minutes, passing_score, max_attempts, questions } = req.body;
+    const { subjectId, title, quiz_type, description, duration_minutes, max_attempts, questions } = req.body;
     const quiz = await quizService.createQuiz({
       subjectId, createdBy: userId, title, quiz_type, description,
-      duration_minutes, passing_score, max_attempts, questions: questions ?? [],
+      duration_minutes, max_attempts, questions: questions ?? [],
     });
     return res.status(201).json(quiz);
   } catch (err: any) {
@@ -106,6 +106,9 @@ export async function startAttempt(req: Request, res: Response) {
     if (err.message === 'MAX_ATTEMPTS_REACHED') {
       return res.status(409).json({ error: 'Maximum attempts reached for this quiz' });
     }
+    if (err.message === 'HAS_PARTIAL_ATTEMPT') {
+      return res.status(409).json({ error: 'You have a saved practice session — resume it first' });
+    }
     console.error('[quiz] startAttempt:', err);
     return res.status(500).json({ error: 'Failed to start attempt' });
   }
@@ -159,5 +162,40 @@ export async function getMyAttempts(req: Request, res: Response) {
   } catch (err) {
     console.error('[quiz] getMyAttempts:', err);
     return res.status(500).json({ error: 'Failed to get attempts' });
+  }
+}
+
+export async function partialSubmitPractice(req: Request, res: Response) {
+  try {
+    const { attemptId } = req.params;
+    const studentId = req.user!.id;
+    const { answers, lastQuestionIndex } = req.body;
+    if (!attemptId) return res.status(400).json({ error: 'attemptId is required' });
+    await quizService.partialSubmitPractice({
+      attemptId, studentId, answers: answers ?? [], lastQuestionIndex: lastQuestionIndex ?? 0,
+    });
+    return res.json({ success: true });
+  } catch (err: any) {
+    if (err.message === 'ATTEMPT_NOT_FOUND') return res.status(404).json({ error: 'Attempt not found' });
+    if (err.message === 'NOT_PRACTICE') return res.status(400).json({ error: 'Only practice quizzes support partial save' });
+    if (err.message === 'ATTEMPT_NOT_RESUMABLE') return res.status(409).json({ error: 'Attempt cannot be saved' });
+    console.error('[quiz] partialSubmitPractice:', err);
+    return res.status(500).json({ error: 'Failed to save progress' });
+  }
+}
+
+export async function resumePractice(req: Request, res: Response) {
+  try {
+    const { attemptId } = req.params;
+    const studentId = req.user!.id;
+    if (!attemptId) return res.status(400).json({ error: 'attemptId is required' });
+    const result = await quizService.resumePractice(attemptId, studentId);
+    return res.json(result);
+  } catch (err: any) {
+    if (err.message === 'ATTEMPT_NOT_FOUND') return res.status(404).json({ error: 'Attempt not found' });
+    if (err.message === 'NOT_PRACTICE') return res.status(400).json({ error: 'Only practice attempts can be resumed' });
+    if (err.message === 'ATTEMPT_NOT_PARTIAL') return res.status(409).json({ error: 'Attempt is not in partial state' });
+    console.error('[quiz] resumePractice:', err);
+    return res.status(500).json({ error: 'Failed to resume attempt' });
   }
 }

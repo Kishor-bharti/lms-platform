@@ -48,6 +48,7 @@ export interface AttemptResult {
   is_passed: boolean | null;
   time_taken_seconds: number | null;
   submitted_at: string | null;
+  last_question_index: number;
 }
 
 // ---- Teacher: get quizzes for a subject ----
@@ -141,7 +142,6 @@ export async function createQuiz(data: {
   quiz_type: 'test' | 'practice';
   description?: string;
   duration_minutes: number;
-  passing_score?: number;
   max_attempts?: number;
   questions: Array<{
     question_text: string;
@@ -158,14 +158,14 @@ export async function createQuiz(data: {
     const quizRows = await queryWithClient<any>(client, `
       INSERT INTO quizzes
         (subject_id, created_by, title, quiz_type, description,
-         duration_minutes, passing_score, max_attempts, is_published)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,false)
+         duration_minutes, max_attempts, is_published)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,false)
       RETURNING id, subject_id, title, quiz_type, description,
                 duration_minutes, passing_score, is_published, max_attempts, created_at
     `, [
       data.subjectId, data.createdBy, data.title, data.quiz_type,
       data.description ?? null, data.duration_minutes,
-      data.passing_score ?? null, data.max_attempts ?? null,
+      data.max_attempts ?? null,
     ]);
 
     const quiz = quizRows[0];
@@ -226,6 +226,13 @@ export async function startAttempt(quizId: string, studentId: string): Promise<{
 
   const maxAttempts = quizCheck[0].max_attempts;
 
+  // Block starting a new attempt while a saved (partial) practice session exists
+  const partialCheck = await query<any>(`
+    SELECT id FROM quiz_attempts
+    WHERE quiz_id=$1 AND student_id=$2 AND status='partial'
+  `, [quizId, studentId]);
+  if (partialCheck.length > 0) throw new Error('HAS_PARTIAL_ATTEMPT');
+
   const existing = await query<any>(`
     SELECT attempt_number FROM quiz_attempts
     WHERE quiz_id=$1 AND student_id=$2
@@ -245,6 +252,80 @@ export async function startAttempt(quizId: string, studentId: string): Promise<{
   `, [quizId, studentId, nextAttempt]);
 
   return { attemptId: rows[0].id, attempt_number: rows[0].attempt_number };
+}
+
+// ---- Student: save progress mid-practice ----
+
+export async function partialSubmitPractice(data: {
+  attemptId: string;
+  studentId: string;
+  answers: Array<{ question_id: string; selected_option_id: string | null }>;
+  lastQuestionIndex: number;
+}): Promise<void> {
+  await withTransaction(async (client) => {
+    const attemptRows = await queryWithClient<any>(client, `
+      SELECT qa.id, qa.status, q.quiz_type
+      FROM quiz_attempts qa
+      JOIN quizzes q ON q.id = qa.quiz_id
+      WHERE qa.id=$1 AND qa.student_id=$2
+    `, [data.attemptId, data.studentId]);
+
+    if (!attemptRows[0]) throw new Error('ATTEMPT_NOT_FOUND');
+    if (attemptRows[0].quiz_type !== 'practice') throw new Error('NOT_PRACTICE');
+    if (!['in_progress', 'partial'].includes(attemptRows[0].status)) throw new Error('ATTEMPT_NOT_RESUMABLE');
+
+    // Upsert saved answers (no scoring yet — NULLs for is_correct/marks_awarded)
+    for (const ans of data.answers) {
+      await queryWithClient(client, `
+        INSERT INTO attempt_answers
+          (attempt_id, question_id, selected_option_id, answered_at)
+        VALUES ($1,$2,$3,now())
+        ON CONFLICT (attempt_id, question_id) DO UPDATE
+          SET selected_option_id=$3, answered_at=now()
+      `, [data.attemptId, ans.question_id, ans.selected_option_id]);
+    }
+
+    await queryWithClient(client, `
+      UPDATE quiz_attempts SET status='partial', last_question_index=$1 WHERE id=$2
+    `, [data.lastQuestionIndex, data.attemptId]);
+  });
+}
+
+// ---- Student: resume a saved practice attempt ----
+
+export async function resumePractice(attemptId: string, studentId: string): Promise<{
+  attemptId: string;
+  lastQuestionIndex: number;
+  savedAnswers: Record<string, string | null>;
+}> {
+  const attemptRows = await query<any>(`
+    SELECT qa.id, qa.status, qa.last_question_index, q.quiz_type
+    FROM quiz_attempts qa
+    JOIN quizzes q ON q.id = qa.quiz_id
+    WHERE qa.id=$1 AND qa.student_id=$2
+  `, [attemptId, studentId]);
+
+  if (!attemptRows[0]) throw new Error('ATTEMPT_NOT_FOUND');
+  if (attemptRows[0].quiz_type !== 'practice') throw new Error('NOT_PRACTICE');
+  if (attemptRows[0].status !== 'partial') throw new Error('ATTEMPT_NOT_PARTIAL');
+
+  const answerRows = await query<any>(`
+    SELECT question_id, selected_option_id FROM attempt_answers WHERE attempt_id=$1
+  `, [attemptId]);
+
+  const savedAnswers: Record<string, string | null> = {};
+  for (const row of answerRows) {
+    savedAnswers[row.question_id] = row.selected_option_id;
+  }
+
+  // Reactivate the attempt so the submit endpoint accepts it
+  await query(`UPDATE quiz_attempts SET status='in_progress' WHERE id=$1`, [attemptId]);
+
+  return {
+    attemptId: attemptRows[0].id,
+    lastQuestionIndex: attemptRows[0].last_question_index,
+    savedAnswers,
+  };
 }
 
 // ---- Student: submit attempt ----
@@ -358,7 +439,8 @@ export async function getAttemptResult(attemptId: string, studentId: string) {
 export async function getMyAttempts(quizId: string, studentId: string): Promise<AttemptResult[]> {
   const rows = await query<any>(`
     SELECT id, quiz_id, attempt_number, status, score_pct,
-           marks_obtained, total_marks, is_passed, time_taken_seconds, submitted_at
+           marks_obtained, total_marks, is_passed, time_taken_seconds,
+           submitted_at, last_question_index
     FROM quiz_attempts
     WHERE quiz_id=$1 AND student_id=$2
     ORDER BY attempt_number

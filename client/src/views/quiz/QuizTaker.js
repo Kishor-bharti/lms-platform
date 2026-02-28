@@ -20,6 +20,7 @@ export default function QuizTaker() {
   const [timeLeft,  setTimeLeft]  = useState(0);    // seconds remaining
   const [result,    setResult]    = useState(null);
   const [error,     setError]     = useState('');
+  const [elapsed,   setElapsed]   = useState(0);    // seconds elapsed (practice count-up)
   const startedAt  = useRef(null);
   const timerRef   = useRef(null);
 
@@ -51,8 +52,12 @@ export default function QuizTaker() {
       setAttemptId(res.data.attemptId);
       setAnswers({});
       setCurrent(0);
-      const secs = (quiz.duration_minutes || 30) * 60;
-      setTimeLeft(secs);
+      if (quiz.quiz_type === 'test') {
+        const secs = (quiz.duration_minutes || 30) * 60;
+        setTimeLeft(secs);
+      } else {
+        setElapsed(0);
+      }
       startedAt.current = Date.now();
       setPhase('taking');
     } catch (err) {
@@ -61,9 +66,9 @@ export default function QuizTaker() {
     }
   };
 
-  // Timer countdown
+  // Timer countdown (test only)
   useEffect(() => {
-    if (phase !== 'taking') return;
+    if (phase !== 'taking' || quiz?.quiz_type !== 'test') return;
     timerRef.current = setInterval(() => {
       setTimeLeft((t) => {
         if (t <= 1) {
@@ -75,7 +80,16 @@ export default function QuizTaker() {
       });
     }, 1000);
     return () => clearInterval(timerRef.current);
-  }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [phase, quiz?.quiz_type]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Elapsed count-up (practice only)
+  useEffect(() => {
+    if (phase !== 'taking' || quiz?.quiz_type !== 'practice') return;
+    timerRef.current = setInterval(() => {
+      setElapsed((e) => e + 1);
+    }, 1000);
+    return () => clearInterval(timerRef.current);
+  }, [phase, quiz?.quiz_type]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = useCallback(async (autoSubmit = false) => {
     clearInterval(timerRef.current);
@@ -102,6 +116,42 @@ export default function QuizTaker() {
       setPhase('taking');
     }
   }, [answers, attemptId]);
+
+  const handleResume = async (resumeAttemptId) => {
+    setError('');
+    setPhase('loading');
+    try {
+      const res = await http.get(`/api/quizzes/attempts/${resumeAttemptId}/resume`);
+      setAttemptId(res.data.attemptId);
+      setAnswers(res.data.savedAnswers || {});
+      setCurrent(res.data.lastQuestionIndex || 0);
+      setElapsed(0);
+      startedAt.current = Date.now();
+      setPhase('taking');
+    } catch (err) {
+      setError(err?.response?.data?.error || 'Failed to resume practice');
+      setPhase('intro');
+    }
+  };
+
+  const handleSaveProgress = async () => {
+    clearInterval(timerRef.current);
+    setPhase('submitting');
+    const answersPayload = Object.entries(answers).map(([question_id, selected_option_id]) => ({
+      question_id,
+      selected_option_id: selected_option_id || null,
+    }));
+    try {
+      await http.post(`/api/quizzes/attempts/${attemptId}/partial-submit`, {
+        answers: answersPayload,
+        lastQuestionIndex: current,
+      });
+      setPhase('partial-result');
+    } catch (err) {
+      setError('Failed to save progress. Please try again.');
+      setPhase('taking');
+    }
+  };
 
   const formatTime = (secs) => {
     const m = Math.floor(secs / 60).toString().padStart(2, '0');
@@ -138,10 +188,11 @@ export default function QuizTaker() {
   // ---- Intro screen ----
   if (phase === 'intro') {
     const submittedAttempts = attempts.filter((a) => a.status === 'submitted');
+    const partialAttempt    = attempts.find((a) => a.status === 'partial');
     const bestScore = submittedAttempts.length
       ? Math.max(...submittedAttempts.map((a) => Number(a.score_pct || 0)))
       : null;
-    const maxReached = quiz?.max_attempts && attempts.length >= quiz.max_attempts;
+    const maxReached = !partialAttempt && quiz?.max_attempts && attempts.filter(a => a.status !== 'partial').length >= quiz.max_attempts;
 
     return (
       <>
@@ -158,10 +209,10 @@ export default function QuizTaker() {
                   {/* Quiz info grid */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 24 }}>
                     {[
-                      { icon: '⏱', label: 'Duration',     value: `${quiz?.duration_minutes} minutes` },
-                      { icon: '❓', label: 'Questions',    value: quiz?.question_count },
-                      { icon: '✅', label: 'Passing Score', value: quiz?.passing_score ? `${quiz.passing_score}%` : 'N/A' },
-                      { icon: '🔄', label: 'Attempts',     value: `${attempts.length} / ${quiz?.max_attempts ?? 'Unlimited'}` },
+                      { icon: '⏱', label: 'Duration',  value: quiz?.quiz_type === 'practice' ? 'No Timer' : `${quiz?.duration_minutes} mins` },
+                      { icon: '❓', label: 'Questions', value: quiz?.question_count },
+                      { icon: '📝', label: 'Type',      value: quiz?.quiz_type === 'practice' ? 'Practice' : 'Test' },
+                      { icon: '🔄', label: 'Attempts',  value: `${submittedAttempts.length} / ${quiz?.max_attempts ?? '∞'}` },
                     ].map((item) => (
                       <div key={item.label} style={{ background: '#f8f9fa', borderRadius: 10, padding: '12px 16px' }}>
                         <div style={{ fontSize: 11, color: '#8898aa', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5 }}>{item.icon} {item.label}</div>
@@ -170,6 +221,17 @@ export default function QuizTaker() {
                     ))}
                   </div>
 
+                  {/* Partial attempt resume banner */}
+                  {partialAttempt && (
+                    <div style={{ background: '#fff8e6', border: '1px solid #f6c23e', borderRadius: 10, padding: '12px 16px', marginBottom: 16 }}>
+                      <p style={{ margin: '0 0 8px', fontWeight: 700, color: '#856404' }}>📂 You have a saved practice session</p>
+                      <p style={{ margin: '0 0 10px', fontSize: 13, color: '#856404' }}>Your progress was saved at question {(partialAttempt.last_question_index || 0) + 1}. Resume where you left off?</p>
+                      <Button size="sm" color="warning" style={{ borderRadius: 8, fontWeight: 700 }} onClick={() => handleResume(partialAttempt.id)}>
+                        ▶ Resume Practice
+                      </Button>
+                    </div>
+                  )}
+
                   {/* Previous attempts */}
                   {submittedAttempts.length > 0 && (
                     <div style={{ background: '#f0f4f8', borderRadius: 10, padding: '12px 16px', marginBottom: 20 }}>
@@ -177,8 +239,8 @@ export default function QuizTaker() {
                       {submittedAttempts.map((a) => (
                         <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#525f7f', padding: '3px 0' }}>
                           <span>Attempt #{a.attempt_number}</span>
-                          <span style={{ fontWeight: 700, color: a.is_passed ? '#2dce89' : '#f5365c' }}>
-                            {Number(a.score_pct || 0).toFixed(1)}% {a.is_passed ? 'Passed' : 'Failed'}
+                          <span style={{ fontWeight: 700, color: '#32325d' }}>
+                            {Number(a.score_pct || 0).toFixed(1)}%
                           </span>
                         </div>
                       ))}
@@ -192,14 +254,16 @@ export default function QuizTaker() {
 
                   <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                     <Button color="secondary" outline style={{ borderRadius: 8 }} onClick={() => navigate(-1)}>Back</Button>
-                    <Button
-                      color="primary"
-                      disabled={maxReached}
-                      style={{ borderRadius: 8, padding: '10px 28px', fontWeight: 700 }}
-                      onClick={startQuiz}
-                    >
-                      {maxReached ? 'No Attempts Left' : submittedAttempts.length ? 'Retake Quiz' : 'Start Quiz'}
-                    </Button>
+                    {!partialAttempt && (
+                      <Button
+                        color="primary"
+                        disabled={maxReached}
+                        style={{ borderRadius: 8, padding: '10px 28px', fontWeight: 700 }}
+                        onClick={startQuiz}
+                      >
+                        {maxReached ? 'No Attempts Left' : submittedAttempts.length ? 'Start New Attempt' : 'Start Quiz'}
+                      </Button>
+                    )}
                   </div>
                 </CardBody>
               </Card>
@@ -300,13 +364,24 @@ export default function QuizTaker() {
             {/* Sidebar: timer + question nav */}
             <Col lg="4">
               {/* Timer */}
-              <Card className="shadow mb-3" style={{ borderRadius: 12, border: `2px solid ${danger ? '#f5365c' : '#e9ecef'}` }}>
+              <Card className="shadow mb-3" style={{ borderRadius: 12, border: `2px solid ${quiz?.quiz_type === 'test' && danger ? '#f5365c' : quiz?.quiz_type === 'practice' ? '#5e72e4' : '#e9ecef'}` }}>
                 <CardBody className="text-center" style={{ padding: '16px' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Time Remaining</div>
-                  <div style={{ fontSize: 42, fontWeight: 800, color: danger ? '#f5365c' : '#32325d', fontFamily: 'monospace' }}>
-                    {formatTime(timeLeft)}
-                  </div>
-                  {danger && <div style={{ color: '#f5365c', fontSize: 12, fontWeight: 700 }}>Hurry up!</div>}
+                  {quiz?.quiz_type === 'test' ? (
+                    <>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Time Remaining</div>
+                      <div style={{ fontSize: 42, fontWeight: 800, color: danger ? '#f5365c' : '#32325d', fontFamily: 'monospace' }}>
+                        {formatTime(timeLeft)}
+                      </div>
+                      {danger && <div style={{ color: '#f5365c', fontSize: 12, fontWeight: 700 }}>Hurry up!</div>}
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Time Elapsed</div>
+                      <div style={{ fontSize: 42, fontWeight: 800, color: '#5e72e4', fontFamily: 'monospace' }}>
+                        {formatTime(elapsed)}
+                      </div>
+                    </>
+                  )}
                 </CardBody>
               </Card>
 
@@ -347,8 +422,15 @@ export default function QuizTaker() {
                       );
                     })}
                   </div>
+                  {quiz?.quiz_type === 'practice' && (
+                    <Button
+                      color="warning" outline style={{ borderRadius: 8, marginTop: 10, width: '100%', fontWeight: 700 }}
+                      disabled={phase === 'submitting'} onClick={handleSaveProgress}>
+                      {phase === 'submitting' ? 'Saving...' : '💾 Save & Continue Later'}
+                    </Button>
+                  )}
                   <Button
-                    color="success" style={{ borderRadius: 8, marginTop: 14, width: '100%', fontWeight: 700 }}
+                    color="success" style={{ borderRadius: 8, marginTop: 8, width: '100%', fontWeight: 700 }}
                     disabled={phase === 'submitting'} onClick={() => handleSubmit(false)}>
                     {phase === 'submitting' ? 'Submitting...' : 'Submit Quiz'}
                   </Button>
@@ -361,12 +443,43 @@ export default function QuizTaker() {
     );
   }
 
+  // ---- Partial-result screen (saved progress) ----
+  if (phase === 'partial-result') {
+    return (
+      <>
+        <Header />
+        <Container className="mt--7" fluid style={{ backgroundColor: 'rgb(196,214,226)', minHeight: '100vh', paddingTop: 30 }}>
+          <Row className="justify-content-center">
+            <Col lg="6">
+              <Card className="shadow" style={{ borderRadius: 16, textAlign: 'center' }}>
+                <CardBody style={{ padding: 40 }}>
+                  <div style={{ fontSize: 56, marginBottom: 16 }}>💾</div>
+                  <h3 style={{ color: '#32325d', marginBottom: 8 }}>Progress Saved!</h3>
+                  <p style={{ color: '#8898aa', marginBottom: 24 }}>
+                    Your answers have been saved. Resume this practice anytime from the quiz intro screen.
+                  </p>
+                  <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+                    <Button color="primary" style={{ borderRadius: 8 }} onClick={() => { setPhase('loading'); fetchQuiz(); }}>
+                      Continue Practice
+                    </Button>
+                    <Button color="secondary" outline style={{ borderRadius: 8 }} onClick={() => navigate(-1)}>
+                      Back to Subject
+                    </Button>
+                  </div>
+                </CardBody>
+              </Card>
+            </Col>
+          </Row>
+        </Container>
+      </>
+    );
+  }
+
   // ---- Result screen ----
   if (phase === 'result' && result) {
     const { attempt, answers: reviewAnswers } = result;
-    const scorePct    = Number(attempt.score_pct || 0).toFixed(1);
-    const isPassed    = attempt.is_passed;
-    const timeTaken   = attempt.time_taken_seconds;
+    const scorePct  = Number(attempt.score_pct || 0).toFixed(1);
+    const timeTaken = attempt.time_taken_seconds;
     const mins        = Math.floor(timeTaken / 60);
     const secs        = timeTaken % 60;
 
@@ -378,12 +491,9 @@ export default function QuizTaker() {
             <Col lg="8">
               {/* Score card */}
               <Card className="shadow" style={{ borderRadius: 16, textAlign: 'center', overflow: 'hidden' }}>
-                <div style={{ background: isPassed ? 'linear-gradient(135deg, #2dce89, #26af74)' : 'linear-gradient(135deg, #f5365c, #d42b51)', padding: '36px 24px' }}>
-                  <div style={{ fontSize: 72, fontWeight: 900, color: '#fff', lineHeight: 1 }}>{scorePct}%</div>
-                  <div style={{ fontSize: 22, fontWeight: 700, color: 'rgba(255,255,255,0.9)', marginTop: 8 }}>
-                    {isPassed ? 'Passed!' : 'Not Passed'}
-                  </div>
-                  <div style={{ color: 'rgba(255,255,255,0.75)', marginTop: 4 }}>
+              <div style={{ background: 'linear-gradient(135deg, #5e72e4, #825ee4)', padding: '36px 24px' }}>
+                <div style={{ fontSize: 72, fontWeight: 900, color: '#fff', lineHeight: 1 }}>{scorePct}%</div>
+                <div style={{ color: 'rgba(255,255,255,0.75)', marginTop: 8 }}>
                     {Number(attempt.marks_obtained).toFixed(1)} / {Number(attempt.total_marks).toFixed(1)} marks
                   </div>
                 </div>

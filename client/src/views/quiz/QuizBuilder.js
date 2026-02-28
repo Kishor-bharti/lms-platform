@@ -30,9 +30,8 @@ export default function QuizBuilder() {
     title: '',
     quiz_type: 'practice',
     description: '',
-    duration_minutes: 30,
-    passing_score: 60,
-    max_attempts: 3,
+    duration_minutes: 60,
+    max_attempts: 1,
   });
   const [questions, setQuestions] = useState([BLANK_QUESTION(0)]);
   const [saving,    setSaving]    = useState(false);
@@ -100,10 +99,11 @@ export default function QuizBuilder() {
     try {
       const res = await http.post('/api/quizzes', {
         subjectId,
-        ...meta,
-        duration_minutes: Number(meta.duration_minutes),
-        passing_score: Number(meta.passing_score),
-        max_attempts: Number(meta.max_attempts),
+        title: meta.title,
+        quiz_type: meta.quiz_type,
+        description: meta.description,
+        duration_minutes: meta.quiz_type === 'practice' ? 0 : Number(meta.duration_minutes),
+        max_attempts: Number(meta.max_attempts) || 1,
         questions,
       });
 
@@ -178,26 +178,27 @@ export default function QuizBuilder() {
                     </FormGroup>
                   </Col>
                   <Col md="3">
-                    <FormGroup>
-                      <Label>Duration (mins)</Label>
-                      <Input type="number" min={5} value={meta.duration_minutes} onChange={(e) => setMeta({ ...meta, duration_minutes: e.target.value })} />
-                    </FormGroup>
+                    {meta.quiz_type === 'test' ? (
+                      <FormGroup>
+                        <Label>Duration (mins)</Label>
+                        <Input type="number" min={5} value={meta.duration_minutes} onChange={(e) => setMeta({ ...meta, duration_minutes: e.target.value })} />
+                      </FormGroup>
+                    ) : (
+                      <FormGroup>
+                        <Label>Duration</Label>
+                        <div className="alert alert-info py-2 mb-0" style={{ fontSize: 12, borderRadius: 6 }}>⏱ No timer (practice)</div>
+                      </FormGroup>
+                    )}
                   </Col>
                 </Row>
                 <Row>
-                  <Col md="4">
-                    <FormGroup>
-                      <Label>Passing Score (%)</Label>
-                      <Input type="number" min={0} max={100} value={meta.passing_score} onChange={(e) => setMeta({ ...meta, passing_score: e.target.value })} />
-                    </FormGroup>
-                  </Col>
                   <Col md="4">
                     <FormGroup>
                       <Label>Max Attempts</Label>
                       <Input type="number" min={1} value={meta.max_attempts} onChange={(e) => setMeta({ ...meta, max_attempts: e.target.value })} />
                     </FormGroup>
                   </Col>
-                  <Col md="4">
+                  <Col md="8">
                     <FormGroup>
                       <Label>Description</Label>
                       <Input type="textarea" rows={1} value={meta.description} onChange={(e) => setMeta({ ...meta, description: e.target.value })} placeholder="Optional..." />
