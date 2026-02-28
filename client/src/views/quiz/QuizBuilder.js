@@ -36,6 +36,7 @@ export default function QuizBuilder() {
     description: '',
     duration_minutes: 60,
     max_attempts: 1,
+    topicId: '',
   });
   const [questions, setQuestions] = useState([BLANK_QUESTION(0)]);
   const [saving,    setSaving]    = useState(false);
@@ -65,6 +66,7 @@ export default function QuizBuilder() {
           description:      q.description || '',
           duration_minutes: q.duration_minutes || 60,
           max_attempts:     q.max_attempts || 1,
+          topicId:          q.topic_id || '',
         });
         setQuestions(
           (q.questions || []).map((qItem, idx) => ({
@@ -146,6 +148,7 @@ export default function QuizBuilder() {
           description: meta.description,
           duration_minutes: meta.quiz_type === 'practice' ? 0 : Number(meta.duration_minutes),
           max_attempts: Number(meta.max_attempts) || 1,
+          topicId: meta.topicId || undefined,
           questions,
         });
         savedId = res.data.id;
@@ -157,6 +160,7 @@ export default function QuizBuilder() {
           description: meta.description,
           duration_minutes: meta.quiz_type === 'practice' ? 0 : Number(meta.duration_minutes),
           max_attempts: Number(meta.max_attempts) || 1,
+          topicId: meta.topicId || undefined,
           questions,
         };
         if (isCourseQuiz && courseId) {
@@ -269,12 +273,23 @@ export default function QuizBuilder() {
                       <Input type="number" min={1} value={meta.max_attempts} onChange={(e) => setMeta({ ...meta, max_attempts: e.target.value })} />
                     </FormGroup>
                   </Col>
-                  <Col md="8">
+                  <Col md={subjectId && !isCourseQuiz && topics.length > 0 ? '4' : '8'}>
                     <FormGroup>
                       <Label>Description</Label>
                       <Input type="textarea" rows={1} value={meta.description} onChange={(e) => setMeta({ ...meta, description: e.target.value })} placeholder="Optional..." />
                     </FormGroup>
                   </Col>
+                  {subjectId && !isCourseQuiz && topics.length > 0 && (
+                    <Col md="4">
+                      <FormGroup>
+                        <Label>Topic <span className="text-muted small">(optional)</span></Label>
+                        <Input type="select" value={meta.topicId} onChange={(e) => setMeta({ ...meta, topicId: e.target.value })}>
+                          <option value="">— No specific topic —</option>
+                          {topics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                        </Input>
+                      </FormGroup>
+                    </Col>
+                  )}
                 </Row>
               </CardBody>
             </Card>

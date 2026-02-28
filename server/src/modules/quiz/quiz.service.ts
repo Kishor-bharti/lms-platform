@@ -56,7 +56,7 @@ export interface AttemptResult {
 export async function getQuizzesBySubject(subjectId: string, role: string = 'student'): Promise<QuizSummary[]> {
   const rows = await query<any>(`
     SELECT
-      q.id, q.subject_id, q.title, q.quiz_type, q.description,
+      q.id, q.subject_id, q.topic_id, q.title, q.quiz_type, q.description,
       q.duration_minutes, q.passing_score, q.is_published, q.max_attempts,
       q.created_at,
       COUNT(qs.id) AS question_count
@@ -139,6 +139,7 @@ export async function getQuizWithQuestions(quizId: string, role: string): Promis
 export async function createQuiz(data: {
   subjectId?: string;
   courseId?: string;
+  topicId?: string;
   createdBy: string;
   title: string;
   quiz_type: 'test' | 'practice';
@@ -159,14 +160,14 @@ export async function createQuiz(data: {
   return withTransaction(async (client) => {
     const quizRows = await queryWithClient<any>(client, `
       INSERT INTO quizzes
-        (subject_id, course_id, created_by, title, quiz_type, description,
+        (subject_id, course_id, topic_id, created_by, title, quiz_type, description,
          duration_minutes, max_attempts, is_published)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,false)
-      RETURNING id, subject_id, course_id, title, quiz_type, description,
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,false)
+      RETURNING id, subject_id, course_id, topic_id, title, quiz_type, description,
                 duration_minutes, passing_score, is_published, max_attempts, created_at
     `, [
-      data.subjectId ?? null, data.courseId ?? null, data.createdBy, data.title, data.quiz_type,
-      data.description ?? null, data.duration_minutes,
+      data.subjectId ?? null, data.courseId ?? null, data.topicId ?? null, data.createdBy,
+      data.title, data.quiz_type, data.description ?? null, data.duration_minutes,
       data.max_attempts ?? null,
     ]);
 
@@ -531,6 +532,7 @@ export async function getAttemptResult(attemptId: string, studentId: string) {
 export async function updateQuiz(data: {
   quizId: string;
   updatedBy: string;
+  topicId?: string;
   title: string;
   quiz_type: 'test' | 'practice';
   description?: string;
@@ -550,12 +552,14 @@ export async function updateQuiz(data: {
   return withTransaction(async (client) => {
     const quizRows = await queryWithClient<any>(client, `
       UPDATE quizzes
-      SET title=$1, quiz_type=$2, description=$3, duration_minutes=$4, max_attempts=$5, updated_at=now()
-      WHERE id=$6
-      RETURNING id, subject_id, title, quiz_type, description,
+      SET title=$1, quiz_type=$2, description=$3, duration_minutes=$4, max_attempts=$5,
+          topic_id=$6, updated_at=now()
+      WHERE id=$7
+      RETURNING id, subject_id, topic_id, title, quiz_type, description,
                 duration_minutes, passing_score, is_published, max_attempts, created_at
     `, [data.title, data.quiz_type, data.description ?? null,
-        data.duration_minutes, data.max_attempts ?? 1, data.quizId]);
+        data.duration_minutes, data.max_attempts ?? 1,
+        data.topicId ?? null, data.quizId]);
 
     if (!quizRows[0]) throw new Error('Quiz not found');
     const quiz = quizRows[0];

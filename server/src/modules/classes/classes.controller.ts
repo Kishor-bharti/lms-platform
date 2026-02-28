@@ -46,11 +46,12 @@ export async function createSessionHandler(req: Request, res: Response) {
       return res.status(403).json({ error: 'Only teachers can create sessions' });
     }
 
-    const { subjectId, title, sessionDate, startTime } = req.body as {
+    const { subjectId, title, sessionDate, startTime, topicId } = req.body as {
       subjectId?:   string;
       title?:       string;
       sessionDate?: string;
       startTime?:   string;
+      topicId?:     string;
     };
 
     if (!subjectId || !title || !sessionDate || !startTime) {
@@ -65,6 +66,7 @@ export async function createSessionHandler(req: Request, res: Response) {
       title,
       sessionDate,
       startTime,
+      ...(topicId ? { topicId } : {}),
     });
 
     return res.status(201).json(session);

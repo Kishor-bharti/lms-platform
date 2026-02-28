@@ -28,6 +28,7 @@ const questionSchema = z.object({
 const createQuizSchema = z.object({
   subjectId:         z.string().uuid().optional(),
   courseId:          z.string().uuid().optional(),
+  topicId:           z.string().uuid().optional(),
   title:             z.string().min(1).max(255),
   quiz_type:         z.enum(['test', 'practice']),
   description:       z.string().optional(),
@@ -40,6 +41,7 @@ const createQuizSchema = z.object({
 );
 
 const updateQuizSchema = z.object({
+  topicId:           z.string().uuid().optional(),
   title:             z.string().min(1).max(255),
   quiz_type:         z.enum(['test', 'practice']),
   description:       z.string().optional(),

@@ -20,7 +20,7 @@ export async function addMaterial(req: Request, res: Response) {
     if (role !== 'teacher' && role !== 'admin') {
       return res.status(403).json({ error: 'Only teachers can add materials' });
     }
-    const { subjectId, title, description, material_type, file_url, file_size_kb } = req.body;
+    const { subjectId, title, description, material_type, file_url, file_size_kb, topicId } = req.body;
     if (!subjectId || !title || !material_type || !file_url) {
       return res.status(400).json({ error: 'subjectId, title, material_type, file_url are required' });
     }
@@ -29,7 +29,7 @@ export async function addMaterial(req: Request, res: Response) {
       return res.status(400).json({ error: `material_type must be one of: ${valid.join(', ')}` });
     }
     const material = await materialsService.addMaterial({
-      subjectId, uploadedBy: userId, title, description, material_type, file_url, file_size_kb,
+      subjectId, uploadedBy: userId, title, description, material_type, file_url, file_size_kb, topicId,
     });
     return res.status(201).json(material);
   } catch (err) {

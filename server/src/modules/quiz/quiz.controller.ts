@@ -40,9 +40,9 @@ export async function createQuiz(req: Request, res: Response) {
     if (role !== 'teacher' && role !== 'admin') {
       return res.status(403).json({ error: 'Only teachers can create quizzes' });
     }
-    const { subjectId, courseId, title, quiz_type, description, duration_minutes, max_attempts, questions } = req.body;
+    const { subjectId, courseId, topicId, title, quiz_type, description, duration_minutes, max_attempts, questions } = req.body;
     const quiz = await quizService.createQuiz({
-      subjectId, courseId, createdBy: userId, title, quiz_type, description,
+      subjectId, courseId, topicId, createdBy: userId, title, quiz_type, description,
       duration_minutes, max_attempts, questions: questions ?? [],
     });
     return res.status(201).json(quiz);
@@ -185,9 +185,9 @@ export async function updateQuiz(req: Request, res: Response) {
       }
     }
 
-    const { title, quiz_type, description, duration_minutes, max_attempts, questions } = req.body;
+    const { topicId, title, quiz_type, description, duration_minutes, max_attempts, questions } = req.body;
     const quiz = await quizService.updateQuiz({
-      quizId: quizId!, updatedBy: userId, title, quiz_type, description,
+      quizId: quizId!, updatedBy: userId, topicId, title, quiz_type, description,
       duration_minutes, max_attempts, questions: questions ?? [],
     });
     return res.json(quiz);

@@ -104,6 +104,7 @@ CREATE TABLE quizzes (
   id               UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
   subject_id       UUID          REFERENCES subjects(id) ON DELETE CASCADE,
   course_id        UUID          REFERENCES courses(id) ON DELETE CASCADE,
+  topic_id         UUID          REFERENCES topics(id) ON DELETE SET NULL,
   created_by       UUID          NOT NULL REFERENCES users(id),
   title            VARCHAR(255)  NOT NULL,
   quiz_type        VARCHAR(20)   NOT NULL CHECK (quiz_type IN ('test','practice')),
@@ -190,6 +191,7 @@ CREATE TABLE attempt_answers (
 CREATE TABLE assignments (
   id             UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
   subject_id     UUID         NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+  topic_id       UUID         REFERENCES topics(id) ON DELETE SET NULL,
   created_by     UUID         NOT NULL REFERENCES users(id),
   title          VARCHAR(255) NOT NULL,
   description    TEXT,
@@ -251,6 +253,7 @@ CREATE TABLE session_recurrence (
 CREATE TABLE sessions (
   id               UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
   subject_id       UUID         NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+  topic_id         UUID         REFERENCES topics(id) ON DELETE SET NULL,
   teacher_id       UUID         NOT NULL REFERENCES users(id),
   title            VARCHAR(255) NOT NULL,
   description      TEXT,
@@ -277,6 +280,7 @@ CREATE TABLE sessions (
 CREATE TABLE subject_materials (
   id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
   subject_id    UUID         NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+  topic_id      UUID         REFERENCES topics(id) ON DELETE SET NULL,
   uploaded_by   UUID         NOT NULL REFERENCES users(id),
   title         VARCHAR(255) NOT NULL,
   description   TEXT,

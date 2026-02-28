@@ -33,20 +33,20 @@ export default function SubjectTeacher() {
 
   // Schedule session modal
   const [scheduleOpen,  setScheduleOpen]  = useState(false);
-  const [scheduleForm,  setScheduleForm]  = useState({ title: '', date: '', time: '' });
+  const [scheduleForm,  setScheduleForm]  = useState({ title: '', date: '', time: '', topicId: '' });
   const [scheduling,    setScheduling]    = useState(false);
   const [scheduleError, setScheduleError] = useState('');
 
   // Create assignment modal
   const [assignOpen,   setAssignOpen]   = useState(false);
-  const [assignForm,   setAssignForm]   = useState({ title: '', description: '', due_date: '', max_marks: 100, attachment_url: '' });
+  const [assignForm,   setAssignForm]   = useState({ title: '', description: '', due_date: '', max_marks: 100, attachment_url: '', topicId: '' });
   const [assignSaving, setAssignSaving] = useState(false);
   const [assignError,  setAssignError]  = useState('');
 
   // Materials
   const [materials,    setMaterials]    = useState([]);
   const [matModalOpen, setMatModalOpen] = useState(false);
-  const [matForm,      setMatForm]      = useState({ title: '', description: '', material_type: 'link', file_url: '' });
+  const [matForm,      setMatForm]      = useState({ title: '', description: '', material_type: 'link', file_url: '', topicId: '' });
   const [matSaving,    setMatSaving]    = useState(false);
   const [matError,     setMatError]     = useState('');
 
@@ -140,8 +140,9 @@ export default function SubjectTeacher() {
       await http.post('/api/classes/sessions/create', {
         subjectId, title: scheduleForm.title,
         sessionDate: scheduleForm.date, startTime: scheduleForm.time + ':00+05:30',
+        topicId: scheduleForm.topicId || undefined,
       });
-      setScheduleOpen(false); setScheduleForm({ title: '', date: '', time: '' }); fetchData();
+      setScheduleOpen(false); setScheduleForm({ title: '', date: '', time: '', topicId: '' }); fetchData();
     } catch (err) {
       setScheduleError(err?.response?.data?.error || 'Failed to schedule');
     } finally { setScheduling(false); }
@@ -152,9 +153,9 @@ export default function SubjectTeacher() {
     if (!matForm.title || !matForm.file_url) { setMatError('Title and URL are required'); return; }
     setMatSaving(true);
     try {
-      await http.post('/api/materials', { subjectId, ...matForm });
+      await http.post('/api/materials', { subjectId, ...matForm, topicId: matForm.topicId || undefined });
       setMatModalOpen(false);
-      setMatForm({ title: '', description: '', material_type: 'link', file_url: '' });
+      setMatForm({ title: '', description: '', material_type: 'link', file_url: '', topicId: '' });
       fetchData();
     } catch (err) {
       setMatError(err?.response?.data?.error || 'Failed to add material');
@@ -178,8 +179,8 @@ export default function SubjectTeacher() {
     if (!assignForm.title) { setAssignError('Title is required'); return; }
     setAssignSaving(true);
     try {
-      await http.post('/api/assignments', { subjectId, ...assignForm, max_marks: Number(assignForm.max_marks) });
-      setAssignOpen(false); setAssignForm({ title: '', description: '', due_date: '', max_marks: 100, attachment_url: '' }); fetchData();
+      await http.post('/api/assignments', { subjectId, ...assignForm, max_marks: Number(assignForm.max_marks), topicId: assignForm.topicId || undefined });
+      setAssignOpen(false); setAssignForm({ title: '', description: '', due_date: '', max_marks: 100, attachment_url: '', topicId: '' }); fetchData();
     } catch (err) {
       setAssignError(err?.response?.data?.error || 'Failed to create assignment');
     } finally { setAssignSaving(false); }
@@ -720,6 +721,13 @@ export default function SubjectTeacher() {
               <FormGroup><Label>Title</Label><Input value={scheduleForm.title} onChange={(e) => setScheduleForm({ ...scheduleForm, title: e.target.value })} placeholder="e.g. Algebra Basics" /></FormGroup>
               <FormGroup><Label>Date</Label><Input type="date" value={scheduleForm.date} min={new Date().toISOString().split('T')[0]} onChange={(e) => setScheduleForm({ ...scheduleForm, date: e.target.value })} /></FormGroup>
               <FormGroup><Label>Start Time</Label><Input type="time" value={scheduleForm.time} onChange={(e) => setScheduleForm({ ...scheduleForm, time: e.target.value })} /></FormGroup>
+              <FormGroup>
+                <Label>Topic <span className="text-muted small">(optional)</span></Label>
+                <Input type="select" value={scheduleForm.topicId} onChange={(e) => setScheduleForm({ ...scheduleForm, topicId: e.target.value })}>
+                  <option value="">— No specific topic —</option>
+                  {topics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </Input>
+              </FormGroup>
               {scheduleError && <p className="text-danger small">{scheduleError}</p>}
             </Form>
           </ModalBody>
@@ -741,6 +749,13 @@ export default function SubjectTeacher() {
                 <Col md="6"><FormGroup><Label>Max Marks</Label><Input type="number" value={assignForm.max_marks} onChange={(e) => setAssignForm({ ...assignForm, max_marks: e.target.value })} /></FormGroup></Col>
               </Row>
               <FormGroup><Label>Attachment URL</Label><Input value={assignForm.attachment_url} onChange={(e) => setAssignForm({ ...assignForm, attachment_url: e.target.value })} placeholder="https://..." /></FormGroup>
+              <FormGroup>
+                <Label>Topic <span className="text-muted small">(optional)</span></Label>
+                <Input type="select" value={assignForm.topicId} onChange={(e) => setAssignForm({ ...assignForm, topicId: e.target.value })}>
+                  <option value="">— No specific topic —</option>
+                  {topics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </Input>
+              </FormGroup>
               {assignError && <p className="text-danger small">{assignError}</p>}
             </Form>
           </ModalBody>
@@ -815,6 +830,13 @@ export default function SubjectTeacher() {
               </FormGroup>
               <FormGroup><Label>URL *</Label><Input value={matForm.file_url} onChange={(e) => setMatForm({ ...matForm, file_url: e.target.value })} placeholder="https://..." /></FormGroup>
               <FormGroup><Label>Description</Label><Input type="textarea" rows={2} value={matForm.description} onChange={(e) => setMatForm({ ...matForm, description: e.target.value })} placeholder="Optional..." /></FormGroup>
+              <FormGroup>
+                <Label>Topic <span className="text-muted small">(optional)</span></Label>
+                <Input type="select" value={matForm.topicId} onChange={(e) => setMatForm({ ...matForm, topicId: e.target.value })}>
+                  <option value="">— No specific topic —</option>
+                  {topics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </Input>
+              </FormGroup>
               {matError && <p className="text-danger small">{matError}</p>}
             </Form>
           </ModalBody>

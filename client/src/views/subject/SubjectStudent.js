@@ -119,15 +119,19 @@ export default function SubjectStudent() {
     }
   };
 
-  const upcoming = sessions.filter((s) => s.status !== 'COMPLETED');
-  const past     = sessions.filter((s) => s.status === 'COMPLETED');
-  const practiceQuizzes = quizzes.filter(q => q.quiz_type === 'practice');
+  const allSessions = sessions.filter((s) => !topicView || s.topic_id === topicView.id);
+  const upcoming = allSessions.filter((s) => s.status !== 'COMPLETED');
+  const past     = allSessions.filter((s) => s.status === 'COMPLETED');
+  const allPracticeQuizzes = quizzes.filter(q => q.quiz_type === 'practice');
+  const practiceQuizzes = allPracticeQuizzes.filter(q => !topicView || q.topic_id === topicView.id);
+  const filteredAssignments = topicView ? assignments.filter(a => a.topic_id === topicView.id) : assignments;
+  const filteredMaterials   = topicView ? materials.filter(m => m.topic_id === topicView.id) : materials;
 
   const TABS = [
-    { key: 'sessions',    label: `Sessions (${sessions.length})` },
+    { key: 'sessions',    label: `Sessions (${allSessions.length})` },
     { key: 'quizzes',     label: `Practice (${practiceQuizzes.length})` },
-    { key: 'assignments', label: `Assignments (${assignments.length})` },
-    { key: 'materials',   label: `Materials (${materials.length})` },
+    { key: 'assignments', label: `Assignments (${filteredAssignments.length})` },
+    { key: 'materials',   label: `Materials (${filteredMaterials.length})` },
   ];
 
   if (loading) return (
@@ -280,8 +284,8 @@ export default function SubjectStudent() {
                   <CardTitle className="mb-0">Sessions</CardTitle>
                 </CardHeader>
                 <CardBody>
-                  {sessions.length === 0 ? (
-                    <p className="text-muted text-center py-4">No sessions scheduled yet</p>
+                  {allSessions.length === 0 ? (
+                    <p className="text-muted text-center py-4">No sessions scheduled yet{topicView ? ' for this topic' : ''}</p>
                   ) : (
                     <>
                       {upcoming.length > 0 && (
@@ -344,7 +348,7 @@ export default function SubjectStudent() {
               {practiceQuizzes.length === 0 ? (
                 <Card className="shadow" style={{ borderRadius: 12 }}>
                   <CardBody className="text-center py-5">
-                    <p className="text-muted">No practice quizzes published yet</p>
+                    <p className="text-muted">No practice quizzes published yet{topicView ? ' for this topic' : ''}</p>
                   </CardBody>
                 </Card>
               ) : (
@@ -415,14 +419,14 @@ export default function SubjectStudent() {
         {tab === 'assignments' && (
           <Row>
             <Col>
-              {assignments.length === 0 ? (
+              {filteredAssignments.length === 0 ? (
                 <Card className="shadow" style={{ borderRadius: 12 }}>
                   <CardBody className="text-center py-5">
-                    <p className="text-muted">No assignments yet</p>
+                    <p className="text-muted">No assignments yet{topicView ? ' for this topic' : ''}</p>
                   </CardBody>
                 </Card>
               ) : (
-                assignments.map((a) => {
+                filteredAssignments.map((a) => {
                   const sub = a.my_submission;
                   const isSubmitted = sub && sub.status !== 'pending';
                   const isGraded    = sub?.status === 'graded';
@@ -495,15 +499,15 @@ export default function SubjectStudent() {
         {tab === 'materials' && (
           <Row>
             <Col>
-              {materials.length === 0 ? (
+              {filteredMaterials.length === 0 ? (
                 <Card className="shadow" style={{ borderRadius: 12 }}>
                   <CardBody className="text-center py-5">
-                    <p className="text-muted">No materials uploaded yet. Check back later.</p>
+                    <p className="text-muted">No materials uploaded yet{topicView ? ' for this topic' : ''}.</p>
                   </CardBody>
                 </Card>
               ) : (
                 <Row>
-                  {materials.map((m) => {
+                  {filteredMaterials.map((m) => {
                     const typeIcon  = { pdf: '📄', video: '🎥', link: '🔗', doc: '📝', image: '🖼' }[m.material_type] || '📁';
                     const typeColor = { pdf: '#f5365c', video: '#825ee4', link: '#5e72e4', doc: '#fb6340', image: '#2dce89' }[m.material_type] || '#8898aa';
                     return (

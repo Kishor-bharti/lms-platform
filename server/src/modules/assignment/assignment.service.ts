@@ -3,6 +3,7 @@ import { query } from '../../config/db';
 export interface AssignmentSummary {
   id: string;
   subject_id: string;
+  topic_id: string | null;
   title: string;
   description: string | null;
   due_date: string | null;
@@ -37,7 +38,7 @@ export async function getAssignmentsBySubject(
 ): Promise<AssignmentSummary[]> {
   const rows = await query<any>(`
     SELECT
-      a.id, a.subject_id, a.title, a.description,
+      a.id, a.subject_id, a.topic_id, a.title, a.description,
       a.due_date, a.max_marks, a.is_published, a.attachment_url, a.created_at,
       COUNT(sub.id) FILTER (WHERE sub.status != 'pending') AS submission_count
     FROM assignments a
@@ -62,7 +63,7 @@ export async function getStudentAssignments(
 ): Promise<AssignmentSummary[]> {
   const rows = await query<any>(`
     SELECT
-      a.id, a.subject_id, a.title, a.description,
+      a.id, a.subject_id, a.topic_id, a.title, a.description,
       a.due_date, a.max_marks, a.is_published, a.attachment_url, a.created_at,
       sub.id           AS sub_id,
       sub.submission_url, sub.notes, sub.submitted_at,
@@ -77,6 +78,7 @@ export async function getStudentAssignments(
   return rows.map((r) => ({
     id: r.id,
     subject_id: r.subject_id,
+    topic_id: r.topic_id ?? null,
     title: r.title,
     description: r.description,
     due_date: r.due_date,
@@ -109,17 +111,19 @@ export async function createAssignment(data: {
   due_date?: string;
   max_marks?: number;
   attachment_url?: string;
+  topicId?: string;
 }): Promise<AssignmentSummary> {
   const rows = await query<any>(`
     INSERT INTO assignments
-      (subject_id, created_by, title, description, due_date, max_marks, attachment_url, is_published)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,false)
-    RETURNING id, subject_id, title, description, due_date, max_marks,
+      (subject_id, created_by, title, description, due_date, max_marks, attachment_url, topic_id, is_published)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,false)
+    RETURNING id, subject_id, topic_id, title, description, due_date, max_marks,
               is_published, attachment_url, created_at
   `, [
     data.subjectId, data.createdBy, data.title,
     data.description ?? null, data.due_date ?? null,
     data.max_marks ?? 100, data.attachment_url ?? null,
+    data.topicId ?? null,
   ]);
 
   return { ...rows[0], max_marks: Number(rows[0].max_marks), submission_count: 0 };

@@ -174,6 +174,7 @@ export async function getSessionsByTeacher(
     `SELECT
        s.id,
        s.subject_id,
+       s.topic_id,
        sub.name       AS class_title,
        s.title,
        s.meeting_link,
@@ -195,6 +196,7 @@ export async function getSessionsByTeacher(
   return rows.map((r) => ({
     id:             r.id,
     subject_id:     r.subject_id,
+    topic_id:       r.topic_id ?? undefined,
     class_title:    r.class_title,
     title:          r.title,
     zoom_link:      r.meeting_link,
@@ -214,6 +216,7 @@ export async function getSessionsByStudent(
     `SELECT
        s.id,
        s.subject_id,
+       s.topic_id,
        sub.name       AS class_title,
        s.title,
        s.meeting_link,
@@ -234,6 +237,7 @@ export async function getSessionsByStudent(
   return rows.map((r) => ({
     id:          r.id,
     subject_id:  r.subject_id,
+    topic_id:    r.topic_id ?? undefined,
     class_title: r.class_title,
     title:       r.title,
     zoom_link:   r.meeting_link,
@@ -249,6 +253,7 @@ export async function getAllSessions(): Promise<SessionWithDetails[]> {
     `SELECT
        s.id,
        s.subject_id,
+       s.topic_id,
        sub.name       AS class_title,
        s.title,
        s.meeting_link,
@@ -267,6 +272,7 @@ export async function getAllSessions(): Promise<SessionWithDetails[]> {
   return rows.map((r) => ({
     id:             r.id,
     subject_id:     r.subject_id,
+    topic_id:       r.topic_id ?? undefined,
     class_title:    r.class_title,
     title:          r.title,
     zoom_link:      r.meeting_link,
@@ -421,6 +427,7 @@ export interface CreateSessionInput {
   title:       string;
   sessionDate: string;   // "YYYY-MM-DD"
   startTime:   string;   // "HH:MM:00+05:30"
+  topicId?:    string;
 }
 
 export interface CreatedSession {
@@ -433,7 +440,7 @@ export interface CreatedSession {
 }
 
 export async function createSession(input: CreateSessionInput): Promise<CreatedSession> {
-  const { subjectId, teacherId, title, sessionDate, startTime } = input;
+  const { subjectId, teacherId, title, sessionDate, startTime, topicId } = input;
 
   // End time = start time + 90 minutes (prevents CHECK constraint violation)
   const endTime = computeEndTime(startTime, 90);
@@ -442,9 +449,9 @@ export async function createSession(input: CreateSessionInput): Promise<CreatedS
     `INSERT INTO sessions (
        subject_id, teacher_id, title,
        session_date, start_time, end_time,
-       timezone, status
+       timezone, status, topic_id
      )
-     VALUES ($1, $2, $3, $4, $5, $6, 'Asia/Kolkata', 'scheduled')
+     VALUES ($1, $2, $3, $4, $5, $6, 'Asia/Kolkata', 'scheduled', $7)
      RETURNING
        id,
        subject_id,
@@ -452,7 +459,7 @@ export async function createSession(input: CreateSessionInput): Promise<CreatedS
        session_date::text  AS session_date,
        start_time::text    AS start_time,
        status`,
-    [subjectId, teacherId, title, sessionDate, startTime, endTime]
+    [subjectId, teacherId, title, sessionDate, startTime, endTime, topicId ?? null]
   );
 
   if (!rows[0]) throw new Error('Failed to create session');

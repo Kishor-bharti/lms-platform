@@ -28,12 +28,12 @@ export async function createAssignment(req: Request, res: Response) {
     if (role !== 'teacher' && role !== 'admin') {
       return res.status(403).json({ error: 'Only teachers can create assignments' });
     }
-    const { subjectId, title, description, due_date, max_marks, attachment_url } = req.body;
+    const { subjectId, title, description, due_date, max_marks, attachment_url, topicId } = req.body;
     if (!subjectId || !title) {
       return res.status(400).json({ error: 'subjectId and title are required' });
     }
     const assignment = await assignmentService.createAssignment({
-      subjectId, createdBy: userId, title, description, due_date, max_marks, attachment_url,
+      subjectId, createdBy: userId, title, description, due_date, max_marks, attachment_url, topicId,
     });
     return res.status(201).json(assignment);
   } catch (err: any) {

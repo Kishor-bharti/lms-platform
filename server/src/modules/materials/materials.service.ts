@@ -3,6 +3,7 @@ import { query } from '../../config/db';
 export interface Material {
   id: string;
   subject_id: string;
+  topic_id: string | null;
   uploaded_by: string;
   uploader_name: string;
   title: string;
@@ -18,7 +19,7 @@ export interface Material {
 export async function getMaterials(subjectId: string): Promise<Material[]> {
   const rows = await query<any>(`
     SELECT
-      sm.id, sm.subject_id, sm.uploaded_by,
+      sm.id, sm.subject_id, sm.topic_id, sm.uploaded_by,
       u.first_name || ' ' || u.last_name AS uploader_name,
       sm.title, sm.description, sm.material_type,
       sm.file_url, sm.file_size_kb, sm.order_index, sm.is_active, sm.created_at
@@ -39,6 +40,7 @@ export async function addMaterial(data: {
   material_type: string;
   file_url: string;
   file_size_kb?: number;
+  topicId?: string;
 }): Promise<Material> {
   const countRows = await query<any>(
     `SELECT COUNT(*) AS cnt FROM subject_materials WHERE subject_id = $1 AND is_active = true`,
@@ -48,14 +50,14 @@ export async function addMaterial(data: {
 
   const rows = await query<any>(`
     INSERT INTO subject_materials
-      (subject_id, uploaded_by, title, description, material_type, file_url, file_size_kb, order_index)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-    RETURNING id, subject_id, uploaded_by, title, description, material_type,
+      (subject_id, uploaded_by, title, description, material_type, file_url, file_size_kb, order_index, topic_id)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    RETURNING id, subject_id, topic_id, uploaded_by, title, description, material_type,
               file_url, file_size_kb, order_index, is_active, created_at
   `, [
     data.subjectId, data.uploadedBy, data.title,
     data.description ?? null, data.material_type, data.file_url,
-    data.file_size_kb ?? null, nextIndex,
+    data.file_size_kb ?? null, nextIndex, data.topicId ?? null,
   ]);
 
   const uploaderRows = await query<any>(
