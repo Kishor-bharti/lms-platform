@@ -6,6 +6,7 @@ import Header from 'components/Headers/Header.js';
 import LatexRenderer from 'components/LatexRenderer.js';
 import { useNavigate, useParams } from 'react-router-dom';
 import http from 'utils/http';
+import { API_BASE } from 'utils/api';
 
 export default function QuizTaker() {
   const { quizId } = useParams();
@@ -27,6 +28,10 @@ export default function QuizTaker() {
   const startedAt  = useRef(null);
   const timerRef   = useRef(null);
   const answersRef = useRef({});                                           // always-fresh answers for timer callback
+  const attemptIdRef  = useRef(null);                                      // stale-closure-safe refs for beforeunload
+  const currentRef    = useRef(0);
+  const phaseRef      = useRef('loading');
+  const quizTypeRef   = useRef(null);
 
   useEffect(() => {
     fetchQuiz();
@@ -35,6 +40,35 @@ export default function QuizTaker() {
 
   // Keep answersRef in sync so timer callbacks always see the latest answers
   useEffect(() => { answersRef.current = answers; }, [answers]);
+
+  // Keep stale-closure-safe refs in sync
+  useEffect(() => { attemptIdRef.current = attemptId; }, [attemptId]);
+  useEffect(() => { currentRef.current = current; }, [current]);
+  useEffect(() => { phaseRef.current = phase; }, [phase]);
+  useEffect(() => { quizTypeRef.current = quiz?.quiz_type ?? null; }, [quiz]);
+
+  // Auto partial-save for practice quiz on page refresh / tab close
+  useEffect(() => {
+    const handler = () => {
+      if (phaseRef.current !== 'taking' || quizTypeRef.current !== 'practice' || !attemptIdRef.current) return;
+      const answersPayload = Object.entries(answersRef.current).map(([question_id, selected_option_id]) => ({
+        question_id,
+        selected_option_id: selected_option_id || null,
+      }));
+      const token = localStorage.getItem('accessToken');
+      fetch(`${API_BASE}/api/quizzes/attempts/${attemptIdRef.current}/partial-submit`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ answers: answersPayload, lastQuestionIndex: currentRef.current }),
+        keepalive: true,
+      });
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Persist test answers to localStorage on every change — enables page-refresh recovery
   useEffect(() => {

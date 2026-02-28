@@ -53,6 +53,13 @@ export default function QuizBuilder() {
       .catch(() => {});
   }, [subjectId]);
 
+  useEffect(() => {
+    if (!isCourseQuiz || !courseId) return;
+    http.get(`/api/courses/${courseId}/topics`)
+      .then(res => setTopics(res.data || []))
+      .catch(() => {});
+  }, [courseId, isCourseQuiz]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Load existing quiz when in edit mode
   useEffect(() => {
     if (!editQuizId) return;
@@ -129,12 +136,18 @@ export default function QuizBuilder() {
     setError('');
     if (!meta.title) { setError('Quiz title is required'); return; }
     if (!subjectId && !editQuizId && !isCourseQuiz) { setError('No subject selected — go back and try again'); return; }
+    if (!isCourseQuiz && subjectId && topics.length > 0 && !meta.topicId) {
+      setError('Topic is required — select which topic this practice set covers'); return;
+    }
 
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
       if (!q.question_text.trim()) { setError(`Question ${i + 1} is missing text`); return; }
       const hasCorrect = q.options.some((o) => o.is_correct);
       if (!hasCorrect) { setError(`Question ${i + 1} has no correct answer selected`); return; }
+      if (isCourseQuiz && topics.length > 0 && !q.topic_id) {
+        setError(`Question ${i + 1}: topic is required for test sets`); return;
+      }
     }
 
     setSaving(true);
@@ -204,7 +217,11 @@ export default function QuizBuilder() {
             <Card className="shadow" style={{ borderRadius: 12 }}>
               <CardBody style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
                 <div>
-                  <h3 style={{ margin: 0, color: '#32325d' }}>{editQuizId ? 'Edit Quiz' : isCourseQuiz ? 'Create Test Set' : 'Create Quiz'}</h3>
+                  <h3 style={{ margin: 0, color: '#32325d' }}>
+                    {editQuizId
+                      ? (meta.quiz_type === 'test' ? 'Edit Test Set' : 'Edit Practice Set')
+                      : isCourseQuiz ? 'Create Test Set' : 'Create Practice Set'}
+                  </h3>
                   {subjectName && <small className="text-muted">for {subjectName}</small>}
                   {isCourseQuiz && courseName && <small className="text-muted">for {courseName}</small>}
                 </div>
@@ -233,23 +250,14 @@ export default function QuizBuilder() {
           <Col>
             <Card className="shadow" style={{ borderRadius: 12 }}>
               <CardHeader style={{ background: '#eaf3ff', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
-                <CardTitle className="mb-0">Quiz Settings</CardTitle>
+                <CardTitle className="mb-0">{isCourseQuiz ? 'Test Settings' : 'Practice Settings'}</CardTitle>
               </CardHeader>
               <CardBody>
                 <Row>
-                  <Col md="6">
+                  <Col md="9">
                     <FormGroup>
                       <Label>Quiz Title *</Label>
                       <Input value={meta.title} onChange={(e) => setMeta({ ...meta, title: e.target.value })} placeholder="e.g. Algebra Practice Test" />
-                    </FormGroup>
-                  </Col>
-                  <Col md="3">
-                    <FormGroup>
-                      <Label>Type</Label>
-                      <Input type="select" value={meta.quiz_type} disabled={isCourseQuiz} onChange={(e) => setMeta({ ...meta, quiz_type: e.target.value })}>
-                        <option value="practice">Practice</option>
-                        <option value="test">Test</option>
-                      </Input>
                     </FormGroup>
                   </Col>
                   <Col md="3">
@@ -282,9 +290,9 @@ export default function QuizBuilder() {
                   {subjectId && !isCourseQuiz && topics.length > 0 && (
                     <Col md="4">
                       <FormGroup>
-                        <Label>Topic <span className="text-muted small">(optional)</span></Label>
+                        <Label>Topic <span className="text-danger">*</span></Label>
                         <Input type="select" value={meta.topicId} onChange={(e) => setMeta({ ...meta, topicId: e.target.value })}>
-                          <option value="">— No specific topic —</option>
+                          <option value="">— Select topic —</option>
                           {topics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                         </Input>
                       </FormGroup>
@@ -374,12 +382,18 @@ export default function QuizBuilder() {
                   {/* Topic selector */}
                   {topics.length > 0 && (
                     <FormGroup style={{ marginBottom: 12 }}>
-                      <Label style={{ fontSize: 12, color: '#8898aa' }}>Topic</Label>
+                      <Label style={{ fontSize: 12, color: '#8898aa' }}>
+                        Topic {isCourseQuiz && <span className="text-danger">*</span>}
+                      </Label>
                       <Input type="select" bsSize="sm" value={q.topic_id}
                         onChange={(e) => updateQuestion(qi, 'topic_id', e.target.value)}
-                        style={{ maxWidth: 300 }}>
-                        <option value="">-- No topic --</option>
-                        {topics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                        style={{ maxWidth: 320 }}>
+                        <option value="">{isCourseQuiz ? '-- Select topic (required) --' : '-- No topic --'}</option>
+                        {topics.map(t => (
+                          <option key={t.id} value={t.id}>
+                            {isCourseQuiz && t.subject_name ? `${t.subject_name} — ${t.name}` : t.name}
+                          </option>
+                        ))}
                       </Input>
                     </FormGroup>
                   )}

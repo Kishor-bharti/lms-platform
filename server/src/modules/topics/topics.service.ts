@@ -40,3 +40,14 @@ export async function updateTopic(id: string, data: {
 export async function softDeleteTopic(id: string) {
   await query(`UPDATE topics SET is_active = false, updated_at = now() WHERE id = $1`, [id]);
 }
+
+export async function getTopicsByCourse(courseId: string) {
+  return query<any>(`
+    SELECT t.id, t.subject_id, t.name, t.description, t.order_index,
+           s.title AS subject_name
+    FROM   topics t
+    JOIN   subjects s ON s.id = t.subject_id
+    WHERE  s.course_id = $1 AND t.is_active = true
+    ORDER  BY s.title, t.order_index, t.name
+  `, [courseId]);
+}

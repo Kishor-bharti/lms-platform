@@ -263,7 +263,7 @@ export default function SubjectTeacher() {
   const TABS = [
     { key: 'topics',      label: `Topics (${topics.length})` },
     { key: 'sessions',    label: `Sessions (${sessions.length})` },
-    { key: 'quizzes',     label: `Quizzes (${quizzes.length})` },
+    { key: 'quizzes',     label: `Practice (${quizzes.length})` },
     { key: 'assignments', label: `Assignments (${assignments.length})` },
     { key: 'materials',   label: `Materials (${materials.length})` },
   ];
@@ -299,7 +299,7 @@ export default function SubjectTeacher() {
                     <Button color="success" size="sm" style={{ borderRadius: 8 }} onClick={() => setScheduleOpen(true)}>+ Session</Button>
                     <Button color="primary" size="sm" style={{ borderRadius: 8 }}
                       onClick={() => navigate('/admin/quiz-builder', { state: { subjectId, subjectName: subject?.title } })}>
-                      + Quiz
+                      + Practice
                     </Button>
                     <Button color="warning" size="sm" style={{ borderRadius: 8 }} onClick={() => setAssignOpen(true)}>+ Assignment</Button>
                     <Button color="secondary" size="sm" style={{ borderRadius: 8 }} onClick={() => setMatModalOpen(true)}>+ Material</Button>
@@ -480,20 +480,20 @@ export default function SubjectTeacher() {
               <Card className="shadow" style={{ borderRadius: 12 }}>
                 <CardHeader style={{ background: '#eaf3ff', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
                   <div className="d-flex justify-content-between align-items-center">
-                    <CardTitle className="mb-0">Quizzes</CardTitle>
+                    <CardTitle className="mb-0">Practice Sets</CardTitle>
                     <Button color="primary" size="sm" style={{ borderRadius: 8 }}
                       onClick={() => navigate('/admin/quiz-builder', { state: { subjectId, subjectName: subject?.title } })}>
-                      + Create Quiz
+                      + Create Practice Set
                     </Button>
                   </div>
                 </CardHeader>
                 <CardBody>
                   {quizzes.length === 0 ? (
                     <div className="text-center py-4">
-                      <p className="text-muted">No quizzes yet</p>
+                      <p className="text-muted">No practice sets yet</p>
                       <Button color="primary" size="sm"
                         onClick={() => navigate('/admin/quiz-builder', { state: { subjectId, subjectName: subject?.title } })}>
-                        Create First Quiz
+                        Create First Practice Set
                       </Button>
                     </div>
                   ) : (
