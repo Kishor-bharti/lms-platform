@@ -137,7 +137,8 @@ export async function getQuizWithQuestions(quizId: string, role: string): Promis
 // ---- Teacher: create quiz with questions ----
 
 export async function createQuiz(data: {
-  subjectId: string;
+  subjectId?: string;
+  courseId?: string;
   createdBy: string;
   title: string;
   quiz_type: 'test' | 'practice';
@@ -158,13 +159,13 @@ export async function createQuiz(data: {
   return withTransaction(async (client) => {
     const quizRows = await queryWithClient<any>(client, `
       INSERT INTO quizzes
-        (subject_id, created_by, title, quiz_type, description,
+        (subject_id, course_id, created_by, title, quiz_type, description,
          duration_minutes, max_attempts, is_published)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,false)
-      RETURNING id, subject_id, title, quiz_type, description,
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,false)
+      RETURNING id, subject_id, course_id, title, quiz_type, description,
                 duration_minutes, passing_score, is_published, max_attempts, created_at
     `, [
-      data.subjectId, data.createdBy, data.title, data.quiz_type,
+      data.subjectId ?? null, data.courseId ?? null, data.createdBy, data.title, data.quiz_type,
       data.description ?? null, data.duration_minutes,
       data.max_attempts ?? null,
     ]);
@@ -203,14 +204,20 @@ export async function setQuizPublished(quizId: string, published: boolean): Prom
 // ---- Student: start attempt ----
 
 export async function startAttempt(quizId: string, studentId: string): Promise<{ attemptId: string; attempt_number: number }> {
-  // Enrollment check — student must be enrolled in the subject
+  // Enrollment check — student must be enrolled in the subject or any subject of the course
   const enrolled = await query<any>(`
     SELECT 1
-    FROM subject_enrollments se
-    JOIN quizzes q ON q.subject_id = se.subject_id
+    FROM quizzes q
+    LEFT JOIN subject_enrollments se
+      ON q.subject_id = se.subject_id AND se.student_id = $2 AND se.enrollment_status = 'active'
+    LEFT JOIN (
+      SELECT DISTINCT s.course_id
+      FROM subject_enrollments se2
+      JOIN subjects s ON s.id = se2.subject_id
+      WHERE se2.student_id = $2 AND se2.enrollment_status = 'active'
+    ) ce ON q.course_id = ce.course_id
     WHERE q.id = $1
-      AND se.student_id = $2
-      AND se.enrollment_status = 'active'
+      AND (se.id IS NOT NULL OR ce.course_id IS NOT NULL)
   `, [quizId, studentId]);
 
   if (enrolled.length === 0) {
@@ -627,4 +634,34 @@ export async function getMyAttempts(quizId: string, studentId: string): Promise<
   `, [quizId, studentId]);
 
   return rows;
+}
+
+// ---- Get quizzes by course (for course-level test sets) ----
+
+export async function getQuizzesByCourse(courseId: string, studentId: string, role: string) {
+  const rows = await query<any>(`
+    SELECT
+      q.id, q.course_id, q.title, q.quiz_type, q.description,
+      q.duration_minutes, q.is_published, q.max_attempts,
+      q.created_at,
+      COUNT(qs.id) AS question_count,
+      qa.id      AS attempt_id,
+      qa.status  AS attempt_status,
+      qa.score_pct AS attempt_score
+    FROM quizzes q
+    LEFT JOIN questions qs ON qs.quiz_id = q.id AND qs.is_active = true
+    LEFT JOIN quiz_attempts qa ON qa.quiz_id = q.id AND qa.student_id = $2 AND qa.status = 'submitted'
+    WHERE q.course_id = $1
+      ${role === 'student' ? 'AND q.is_published = true' : ''}
+    GROUP BY q.id, qa.id, qa.status, qa.score_pct
+    ORDER BY q.created_at ASC
+  `, [courseId, studentId]);
+
+  return rows.map((r: any) => ({
+    ...r,
+    question_count: Number(r.question_count),
+    my_attempt: r.attempt_id ? {
+      id: r.attempt_id, status: r.attempt_status, score_pct: r.attempt_score
+    } : null,
+  }));
 }

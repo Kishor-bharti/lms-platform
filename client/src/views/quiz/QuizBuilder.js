@@ -26,10 +26,13 @@ export default function QuizBuilder() {
   const subjectId   = location.state?.subjectId;
   const subjectName = location.state?.subjectName;
   const editQuizId  = location.state?.editQuizId; // present only in edit mode
+  const courseId     = location.state?.courseId;
+  const courseName  = location.state?.courseName;
+  const isCourseQuiz = location.state?.isCourseQuiz;
 
   const [meta, setMeta] = useState({
     title: '',
-    quiz_type: 'practice',
+    quiz_type: isCourseQuiz ? 'test' : 'practice',
     description: '',
     duration_minutes: 60,
     max_attempts: 1,
@@ -123,7 +126,7 @@ export default function QuizBuilder() {
   const handleSave = async (publish) => {
     setError('');
     if (!meta.title) { setError('Quiz title is required'); return; }
-    if (!subjectId && !editQuizId) { setError('No subject selected — go back and try again'); return; }
+    if (!subjectId && !editQuizId && !isCourseQuiz) { setError('No subject selected — go back and try again'); return; }
 
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
@@ -148,15 +151,20 @@ export default function QuizBuilder() {
         savedId = res.data.id;
       } else {
         // Create mode — POST
-        const res = await http.post('/api/quizzes', {
-          subjectId,
+        const payload = {
           title: meta.title,
           quiz_type: meta.quiz_type,
           description: meta.description,
           duration_minutes: meta.quiz_type === 'practice' ? 0 : Number(meta.duration_minutes),
           max_attempts: Number(meta.max_attempts) || 1,
           questions,
-        });
+        };
+        if (isCourseQuiz && courseId) {
+          payload.courseId = courseId;
+        } else {
+          payload.subjectId = subjectId;
+        }
+        const res = await http.post('/api/quizzes', payload);
         savedId = res.data.id;
       }
 
@@ -192,8 +200,9 @@ export default function QuizBuilder() {
             <Card className="shadow" style={{ borderRadius: 12 }}>
               <CardBody style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
                 <div>
-                  <h3 style={{ margin: 0, color: '#32325d' }}>{editQuizId ? 'Edit Quiz' : 'Create Quiz'}</h3>
+                  <h3 style={{ margin: 0, color: '#32325d' }}>{editQuizId ? 'Edit Quiz' : isCourseQuiz ? 'Create Test Set' : 'Create Quiz'}</h3>
                   {subjectName && <small className="text-muted">for {subjectName}</small>}
+                  {isCourseQuiz && courseName && <small className="text-muted">for {courseName}</small>}
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <Button color="secondary" outline style={{ borderRadius: 8 }} onClick={() => navigate(-1)}>Cancel</Button>
@@ -233,7 +242,7 @@ export default function QuizBuilder() {
                   <Col md="3">
                     <FormGroup>
                       <Label>Type</Label>
-                      <Input type="select" value={meta.quiz_type} onChange={(e) => setMeta({ ...meta, quiz_type: e.target.value })}>
+                      <Input type="select" value={meta.quiz_type} disabled={isCourseQuiz} onChange={(e) => setMeta({ ...meta, quiz_type: e.target.value })}>
                         <option value="practice">Practice</option>
                         <option value="test">Test</option>
                       </Input>

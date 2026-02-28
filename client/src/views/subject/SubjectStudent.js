@@ -41,6 +41,8 @@ export default function SubjectStudent() {
   const [assignments, setAssignments] = useState([]);
   const [loading,     setLoading]     = useState(true);
   const [materials,   setMaterials]   = useState([]);
+  const [topics,      setTopics]      = useState([]);
+  const [topicView,   setTopicView]   = useState(null);
 
   // Assignment submit modal
   const [submitOpen,    setSubmitOpen]    = useState(false);
@@ -58,12 +60,13 @@ export default function SubjectStudent() {
 
   const fetchData = async () => {
     try {
-      const [sessRes, classRes, quizRes, assignRes, matRes] = await Promise.all([
+      const [sessRes, classRes, quizRes, assignRes, matRes, topicsRes] = await Promise.all([
         http.get('/api/classes/my-sessions-v2'),
         http.get('/api/classes/my-classes-v2'),
         http.get(`/api/quizzes/subject/${subjectId}`),
         http.get(`/api/assignments/subject/${subjectId}`),
         http.get(`/api/materials/subject/${subjectId}`),
+        http.get(`/api/subjects/${subjectId}/topics`),
       ]);
       setSessions((sessRes.data || []).filter((s) => s.subject_id === subjectId));
       const found = (classRes.data || []).find((c) => c.id === subjectId);
@@ -71,6 +74,7 @@ export default function SubjectStudent() {
       setQuizzes((quizRes.data || []).filter((q) => q.is_published));
       setAssignments(assignRes.data || []);
       setMaterials(matRes.data || []);
+      setTopics(topicsRes.data || []);
       // Fetch attempt status for all quizzes in one call
       try {
         const statusRes = await http.get(`/api/quizzes/subject/${subjectId}/status`);
@@ -117,10 +121,11 @@ export default function SubjectStudent() {
 
   const upcoming = sessions.filter((s) => s.status !== 'COMPLETED');
   const past     = sessions.filter((s) => s.status === 'COMPLETED');
+  const practiceQuizzes = quizzes.filter(q => q.quiz_type === 'practice');
 
   const TABS = [
     { key: 'sessions',    label: `Sessions (${sessions.length})` },
-    { key: 'quizzes',     label: `Quizzes (${quizzes.length})` },
+    { key: 'quizzes',     label: `Practice (${practiceQuizzes.length})` },
     { key: 'assignments', label: `Assignments (${assignments.length})` },
     { key: 'materials',   label: `Materials (${materials.length})` },
   ];
@@ -134,6 +139,81 @@ export default function SubjectStudent() {
     </>
   );
 
+  // ---- TOPICS LIST VIEW ----
+  if (!topicView) {
+    return (
+      <>
+        <Header />
+        <Container className="mt--7" fluid style={{ backgroundColor: 'rgb(196,214,226)', minHeight: '100vh', paddingTop: 30, paddingBottom: 30 }}>
+
+          {/* Subject header */}
+          <Row className="mb-4">
+            <Col>
+              <Card className="shadow" style={{ borderRadius: 12, borderLeft: '5px solid #11cdef' }}>
+                <CardBody>
+                  <div className="d-flex align-items-center justify-content-between flex-wrap" style={{ gap: 10 }}>
+                    <div>
+                      <h2 style={{ margin: 0, color: '#32325d' }}>{subject?.title || 'Subject'}</h2>
+                      <div className="text-muted small mt-1">
+                        <span className="mr-3">Course: {subject?.course_name}</span>
+                        <Badge color="light">{subject?.code}</Badge>
+                      </div>
+                      {subject?.teacher_name && (
+                        <div className="text-muted small mt-1">Teacher: {subject.teacher_name}</div>
+                      )}
+                    </div>
+                  </div>
+                </CardBody>
+              </Card>
+            </Col>
+          </Row>
+
+          {/* Topics grid */}
+          <Row className="mb-3">
+            <Col>
+              <h4 style={{ color: '#32325d', marginBottom: 16 }}>📚 Topics</h4>
+            </Col>
+          </Row>
+          <Row>
+            {topics.length === 0 ? (
+              <Col>
+                <Card className="shadow" style={{ borderRadius: 12 }}>
+                  <CardBody className="text-center py-5">
+                    <div style={{ fontSize: 40, marginBottom: 12 }}>📚</div>
+                    <p className="text-muted">No topics available yet for this subject.</p>
+                  </CardBody>
+                </Card>
+              </Col>
+            ) : (
+              topics.map(topic => (
+                <Col key={topic.id} md="4" lg="3" className="mb-4">
+                  <Card className="shadow" style={{ borderRadius: 14, cursor: 'pointer', border: '2px solid transparent', transition: 'all 0.2s ease' }}
+                    onClick={() => setTopicView(topic)}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = '#5e72e4'}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = 'transparent'}>
+                    <CardBody style={{ padding: 20, textAlign: 'center' }}>
+                      <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'linear-gradient(135deg,#5e72e4,#825ee4)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', fontSize: 20, color: '#fff' }}>
+                        📖
+                      </div>
+                      <h6 style={{ color: '#32325d', marginBottom: 4, lineHeight: 1.3 }}>{topic.name}</h6>
+                      {topic.description && <p style={{ fontSize: 12, color: '#8898aa', marginBottom: 0 }}>{topic.description}</p>}
+                    </CardBody>
+                  </Card>
+                </Col>
+              ))
+            )}
+          </Row>
+        </Container>
+        <style>{`
+          @keyframes liveBlink { 0%,100%{opacity:1} 50%{opacity:.4} }
+          .live-blink { animation: liveBlink 1s infinite; }
+        `}</style>
+      </>
+    );
+  }
+
+  // ---- TABBED VIEW (selected topic) ----
   return (
     <>
       <Header />
@@ -158,6 +238,17 @@ export default function SubjectStudent() {
                 </div>
               </CardBody>
             </Card>
+          </Col>
+        </Row>
+
+        {/* Back to Topics breadcrumb */}
+        <Row className="mb-2">
+          <Col>
+            <button onClick={() => setTopicView(null)} style={{ background: 'none', border: 'none', color: '#5e72e4', fontWeight: 700, cursor: 'pointer', padding: 0, fontSize: 13 }}>
+              ← Back to Topics
+            </button>
+            <span style={{ color: '#8898aa', margin: '0 8px' }}>›</span>
+            <span style={{ color: '#32325d', fontWeight: 600, fontSize: 13 }}>{topicView.name}</span>
           </Col>
         </Row>
 
@@ -250,15 +341,15 @@ export default function SubjectStudent() {
         {tab === 'quizzes' && (
           <Row>
             <Col>
-              {quizzes.length === 0 ? (
+              {practiceQuizzes.length === 0 ? (
                 <Card className="shadow" style={{ borderRadius: 12 }}>
                   <CardBody className="text-center py-5">
-                    <p className="text-muted">No quizzes published yet</p>
+                    <p className="text-muted">No practice quizzes published yet</p>
                   </CardBody>
                 </Card>
               ) : (
                 <Row>
-                  {quizzes.map((q) => (
+                  {practiceQuizzes.map((q) => (
                     <Col key={q.id} lg="4" md="6" className="mb-4">
                       <Card className="shadow h-100" style={{ borderRadius: 12, borderTop: '4px solid #5e72e4' }}>
                         <CardBody style={{ padding: 20, display: 'flex', flexDirection: 'column' }}>

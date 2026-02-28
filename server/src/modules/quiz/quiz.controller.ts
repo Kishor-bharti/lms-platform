@@ -40,9 +40,9 @@ export async function createQuiz(req: Request, res: Response) {
     if (role !== 'teacher' && role !== 'admin') {
       return res.status(403).json({ error: 'Only teachers can create quizzes' });
     }
-    const { subjectId, title, quiz_type, description, duration_minutes, max_attempts, questions } = req.body;
+    const { subjectId, courseId, title, quiz_type, description, duration_minutes, max_attempts, questions } = req.body;
     const quiz = await quizService.createQuiz({
-      subjectId, createdBy: userId, title, quiz_type, description,
+      subjectId, courseId, createdBy: userId, title, quiz_type, description,
       duration_minutes, max_attempts, questions: questions ?? [],
     });
     return res.status(201).json(quiz);
@@ -187,7 +187,7 @@ export async function updateQuiz(req: Request, res: Response) {
 
     const { title, quiz_type, description, duration_minutes, max_attempts, questions } = req.body;
     const quiz = await quizService.updateQuiz({
-      quizId, updatedBy: userId, title, quiz_type, description,
+      quizId: quizId!, updatedBy: userId, title, quiz_type, description,
       duration_minutes, max_attempts, questions: questions ?? [],
     });
     return res.json(quiz);
@@ -195,6 +195,18 @@ export async function updateQuiz(req: Request, res: Response) {
     if (err.message === 'Quiz not found') return res.status(404).json({ error: 'Quiz not found' });
     console.error('[quiz] updateQuiz:', err);
     return res.status(500).json({ error: err.message || 'Failed to update quiz' });
+  }
+}
+
+export async function getQuizzesByCourse(req: Request, res: Response) {
+  try {
+    const data = await quizService.getQuizzesByCourse(
+      req.params.courseId!, req.user!.id, req.user!.role
+    );
+    return res.json(data);
+  } catch (err) {
+    console.error('[quiz:course]', err);
+    return res.status(500).json({ error: 'Failed to fetch course quizzes' });
   }
 }
 

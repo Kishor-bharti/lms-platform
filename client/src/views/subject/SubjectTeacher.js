@@ -22,7 +22,7 @@ export default function SubjectTeacher() {
   const { subjectId } = useParams();
   const navigate = useNavigate();
 
-  const [tab,             setTab]             = useState('sessions');
+  const [tab,             setTab]             = useState('topics');
   const [subject,         setSubject]         = useState(null);
   const [sessions,        setSessions]        = useState([]);
   const [quizzes,         setQuizzes]         = useState([]);
@@ -55,6 +55,16 @@ export default function SubjectTeacher() {
   const [submissions,   setSubmissions]   = useState([]);
   const [gradingId,     setGradingId]     = useState(null);
   const [gradeForm,     setGradeForm]     = useState({ marks: '', feedback: '' });
+
+  // Topics
+  const [topics,        setTopics]        = useState([]);
+  const [topicModal,    setTopicModal]    = useState(false);
+  const [editingTopic,  setEditingTopic]  = useState(null); // null = create, object = edit
+  const [topicForm,     setTopicForm]     = useState({ name: '', description: '', order_index: 0 });
+  const [topicSaving,   setTopicSaving]   = useState(false);
+  const [topicError,    setTopicError]    = useState('');
+  const [topicDeleting, setTopicDeleting] = useState(null);
+
   const errorCount = useRef(0);
 
   useEffect(() => {
@@ -71,12 +81,13 @@ export default function SubjectTeacher() {
 
   const fetchData = async () => {
     try {
-      const [sessRes, classRes, quizRes, assignRes, matRes] = await Promise.all([
+      const [sessRes, classRes, quizRes, assignRes, matRes, topicsRes] = await Promise.all([
         http.get('/api/classes/my-sessions-v2'),
         http.get('/api/classes/my-classes-v2'),
         http.get(`/api/quizzes/subject/${subjectId}`),
         http.get(`/api/assignments/subject/${subjectId}`),
         http.get(`/api/materials/subject/${subjectId}`),
+        http.get(`/api/subjects/${subjectId}/topics`),
       ]);
       setSessions((sessRes.data || []).filter((s) => s.subject_id === subjectId));
       const found = (classRes.data || []).find((c) => c.id === subjectId);
@@ -84,6 +95,7 @@ export default function SubjectTeacher() {
       setQuizzes(quizRes.data || []);
       setAssignments(assignRes.data || []);
       setMaterials(matRes.data || []);
+      setTopics(topicsRes.data || []);
       errorCount.current = 0;
     } catch (err) {
       console.error('[SubjectTeacher]', err);
@@ -196,10 +208,59 @@ export default function SubjectTeacher() {
     } catch (err) { console.error(err); }
   };
 
+  // ---- Topics CRUD ----
+  const openCreateTopic = () => {
+    setEditingTopic(null);
+    setTopicForm({ name: '', description: '', order_index: topics.length });
+    setTopicError('');
+    setTopicModal(true);
+  };
+
+  const openEditTopic = (topic) => {
+    setEditingTopic(topic);
+    setTopicForm({ name: topic.name, description: topic.description || '', order_index: topic.order_index });
+    setTopicError('');
+    setTopicModal(true);
+  };
+
+  const handleSaveTopic = async (e) => {
+    e.preventDefault();
+    setTopicError('');
+    if (!topicForm.name.trim()) { setTopicError('Topic name is required'); return; }
+    setTopicSaving(true);
+    try {
+      if (editingTopic) {
+        await http.patch(`/api/subjects/${subjectId}/topics/${editingTopic.id}`, topicForm);
+      } else {
+        await http.post(`/api/subjects/${subjectId}/topics`, { ...topicForm, order_index: Number(topicForm.order_index) || 0 });
+      }
+      setTopicModal(false);
+      fetchData();
+    } catch (err) {
+      setTopicError(err?.response?.data?.error || 'Failed to save topic');
+    } finally {
+      setTopicSaving(false);
+    }
+  };
+
+  const handleDeleteTopic = async (topicId) => {
+    if (!window.confirm('Delete this topic? Questions tagged to it will be untagged.')) return;
+    setTopicDeleting(topicId);
+    try {
+      await http.delete(`/api/subjects/${subjectId}/topics/${topicId}`);
+      fetchData();
+    } catch (err) {
+      console.error('[topic delete]', err);
+    } finally {
+      setTopicDeleting(null);
+    }
+  };
+
   const upcoming = sessions.filter((s) => s.status !== 'COMPLETED');
   const past     = sessions.filter((s) => s.status === 'COMPLETED');
 
   const TABS = [
+    { key: 'topics',      label: `Topics (${topics.length})` },
     { key: 'sessions',    label: `Sessions (${sessions.length})` },
     { key: 'quizzes',     label: `Quizzes (${quizzes.length})` },
     { key: 'assignments', label: `Assignments (${assignments.length})` },
@@ -268,6 +329,89 @@ export default function SubjectTeacher() {
             </div>
           </Col>
         </Row>
+
+        {/* ---- TOPICS TAB ---- */}
+        {tab === 'topics' && (
+          <Row>
+            <Col lg="8">
+              <Card className="shadow" style={{ borderRadius: 12 }}>
+                <CardHeader style={{ background: 'linear-gradient(135deg,#f0f4ff,#e8edff)', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
+                  <div className="d-flex justify-content-between align-items-center">
+                    <div>
+                      <CardTitle className="mb-0" style={{ color: '#32325d' }}>📚 Topics</CardTitle>
+                      <small className="text-muted">Topics appear as the entry screen for students when they click this subject.</small>
+                    </div>
+                    <Button color="primary" size="sm" style={{ borderRadius: 8, fontWeight: 700 }} onClick={openCreateTopic}>
+                      + Add Topic
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardBody style={{ padding: 0 }}>
+                  {topics.length === 0 ? (
+                    <div className="text-center py-5">
+                      <div style={{ fontSize: 40, marginBottom: 12 }}>📚</div>
+                      <p className="text-muted mb-3">No topics yet. Add topics so students can navigate this subject.</p>
+                      <Button color="primary" size="sm" style={{ borderRadius: 8 }} onClick={openCreateTopic}>Add First Topic</Button>
+                    </div>
+                  ) : (
+                    <div>
+                      {topics.map((topic, idx) => (
+                        <div key={topic.id} style={{
+                          display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px',
+                          borderBottom: idx < topics.length - 1 ? '1px solid #f0f4f8' : 'none',
+                          background: idx % 2 === 0 ? '#fff' : '#fafbfc',
+                        }}>
+                          {/* Order badge */}
+                          <div style={{
+                            width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+                            background: 'linear-gradient(135deg,#5e72e4,#825ee4)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            color: '#fff', fontWeight: 700, fontSize: 13,
+                          }}>
+                            {idx + 1}
+                          </div>
+                          {/* Topic info */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 700, color: '#32325d', fontSize: 14 }}>{topic.name}</div>
+                            {topic.description && (
+                              <div className="text-muted small mt-1" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {topic.description}
+                              </div>
+                            )}
+                          </div>
+                          {/* Actions */}
+                          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                            <Button size="sm" color="info" outline style={{ borderRadius: 20, fontSize: 11, padding: '3px 12px' }}
+                              onClick={() => openEditTopic(topic)}>
+                              ✏️ Edit
+                            </Button>
+                            <Button size="sm" color="danger" outline style={{ borderRadius: 20, fontSize: 11, padding: '3px 12px' }}
+                              disabled={topicDeleting === topic.id}
+                              onClick={() => handleDeleteTopic(topic.id)}>
+                              {topicDeleting === topic.id ? '...' : '🗑 Delete'}
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardBody>
+              </Card>
+
+              {/* Info box */}
+              <div style={{ marginTop: 16, padding: '12px 16px', background: '#eef0fd', borderRadius: 10, border: '1px solid #d1d8f8' }}>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <span style={{ fontSize: 20 }}>💡</span>
+                  <div style={{ fontSize: 13, color: '#525f7f' }}>
+                    <strong>How topics work:</strong> When a student clicks this subject in the sidebar, they first see the topic grid.
+                    Clicking a topic takes them to sessions, practice quizzes, assignments, and materials.
+                    Topics can also be tagged to individual quiz questions in the Quiz Builder.
+                  </div>
+                </div>
+              </div>
+            </Col>
+          </Row>
+        )}
 
         {/* ---- SESSIONS TAB ---- */}
         {tab === 'sessions' && (
@@ -603,6 +747,54 @@ export default function SubjectTeacher() {
           <ModalFooter>
             <Button color="warning" disabled={assignSaving} onClick={handleCreateAssignment}>{assignSaving ? 'Creating...' : 'Create Assignment'}</Button>
             <Button color="link" onClick={() => setAssignOpen(false)}>Cancel</Button>
+          </ModalFooter>
+        </Modal>
+
+      {/* Topic Create / Edit Modal */}
+        <Modal isOpen={topicModal} toggle={() => setTopicModal(false)} centered>
+          <ModalHeader toggle={() => setTopicModal(false)}>
+            {editingTopic ? 'Edit Topic' : 'Add New Topic'}
+          </ModalHeader>
+          <ModalBody>
+            <Form onSubmit={handleSaveTopic}>
+              <FormGroup>
+                <Label>Topic Name *</Label>
+                <Input
+                  value={topicForm.name}
+                  onChange={(e) => setTopicForm({ ...topicForm, name: e.target.value })}
+                  placeholder="e.g. Algebra — Quadratic Equations"
+                  autoFocus
+                />
+              </FormGroup>
+              <FormGroup>
+                <Label>Description <span className="text-muted small">(optional)</span></Label>
+                <Input
+                  type="textarea"
+                  rows={2}
+                  value={topicForm.description}
+                  onChange={(e) => setTopicForm({ ...topicForm, description: e.target.value })}
+                  placeholder="Brief description of this topic..."
+                />
+              </FormGroup>
+              <FormGroup>
+                <Label>Order / Position</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={topicForm.order_index}
+                  onChange={(e) => setTopicForm({ ...topicForm, order_index: Number(e.target.value) })}
+                  style={{ maxWidth: 100 }}
+                />
+                <small className="text-muted">Lower number = appears first (0 = top)</small>
+              </FormGroup>
+              {topicError && <p className="text-danger small mb-0">{topicError}</p>}
+            </Form>
+          </ModalBody>
+          <ModalFooter>
+            <Button color="primary" disabled={topicSaving} onClick={handleSaveTopic} style={{ borderRadius: 8, fontWeight: 700 }}>
+              {topicSaving ? 'Saving...' : editingTopic ? 'Save Changes' : 'Add Topic'}
+            </Button>
+            <Button color="link" onClick={() => setTopicModal(false)}>Cancel</Button>
           </ModalFooter>
         </Modal>
 

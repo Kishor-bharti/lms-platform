@@ -1,5 +1,5 @@
-CREATE DATABASE IF NOT EXISTS "100xlearning";
-USE "100xlearning";
+-- CREATE DATABASE IF NOT EXISTS "100xlearning";
+-- USE "100xlearning";
 
 --  Extensions & Setup
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
@@ -102,7 +102,8 @@ CREATE TABLE subject_enrollments (
 
 CREATE TABLE quizzes (
   id               UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
-  subject_id       UUID          NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+  subject_id       UUID          REFERENCES subjects(id) ON DELETE CASCADE,
+  course_id        UUID          REFERENCES courses(id) ON DELETE CASCADE,
   created_by       UUID          NOT NULL REFERENCES users(id),
   title            VARCHAR(255)  NOT NULL,
   quiz_type        VARCHAR(20)   NOT NULL CHECK (quiz_type IN ('test','practice')),
@@ -289,6 +290,31 @@ CREATE TABLE subject_materials (
   CHECK (material_type IN ('pdf','video','link','doc','image'))
 );
 
+-- addition after phase 2
+
+CREATE TABLE IF NOT EXISTS topics (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  subject_id UUID NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+  name VARCHAR(150) NOT NULL,
+  description TEXT,
+  order_index SMALLINT NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_by UUID NOT NULL REFERENCES users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (subject_id, name)
+);
+CREATE INDEX IF NOT EXISTS idx_topics_subject ON topics(subject_id);
+ALTER TABLE questions ADD COLUMN IF NOT EXISTS topic_id UUID REFERENCES topics(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_questions_topic ON questions(topic_id);
+
+-- addtion before phase 3
+ALTER TABLE quiz_attempts ADD COLUMN IF NOT EXISTS last_question_index INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE quiz_attempts DROP CONSTRAINT IF EXISTS quiz_attempts_status_check;
+ALTER TABLE quiz_attempts ADD CONSTRAINT quiz_attempts_status_check
+  CHECK (status IN ('in_progress','partial','submitted','timed_out','abandoned'));
+
+
 -- Indexes
 
 -- Critical Partial Unique Index
@@ -399,6 +425,10 @@ BEGIN
   -- Skip check if creator is admin (role_id = 1)
   IF EXISTS (SELECT 1 FROM user_roles
              WHERE user_id = NEW.created_by AND role_id = 1) THEN
+    RETURN NEW;
+  END IF;
+  -- Skip subject check for course-level quizzes
+  IF NEW.course_id IS NOT NULL AND NEW.subject_id IS NULL THEN
     RETURN NEW;
   END IF;
   -- Teacher must be assigned to the subject

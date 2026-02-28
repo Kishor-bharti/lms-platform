@@ -26,14 +26,18 @@ const questionSchema = z.object({
 });
 
 const createQuizSchema = z.object({
-  subjectId:         z.string().uuid(),
+  subjectId:         z.string().uuid().optional(),
+  courseId:          z.string().uuid().optional(),
   title:             z.string().min(1).max(255),
   quiz_type:         z.enum(['test', 'practice']),
   description:       z.string().optional(),
   duration_minutes:  z.number().int().min(0).max(300).default(0),
   max_attempts:      z.number().int().min(1).max(10).optional().default(1),
   questions:         z.array(questionSchema).min(1),
-});
+}).refine(
+  (data) => data.subjectId || data.courseId,
+  { message: 'Either subjectId or courseId is required' }
+);
 
 const updateQuizSchema = z.object({
   title:             z.string().min(1).max(255),
@@ -46,6 +50,7 @@ const updateQuizSchema = z.object({
 
 // Quiz CRUD (teacher)
 router.post('/', validateBody(createQuizSchema), quizController.createQuiz);
+router.get('/course/:courseId', quizController.getQuizzesByCourse);
 router.get('/subject/:subjectId', quizController.getQuizzesBySubject);
 router.get('/subject/:subjectId/status', quizController.getStudentQuizStatuses);
 router.get('/:quizId', quizController.getQuizDetail);

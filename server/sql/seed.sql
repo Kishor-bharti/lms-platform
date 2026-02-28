@@ -1,5 +1,5 @@
 -- =============================================================
--- seed.sql  —  10xlearning LMS Platform
+-- seed.sql  —  10xAccel LMS Platform
 -- Fresh start with single admin account only
 -- Idempotent: safe to run multiple times.
 -- =============================================================
@@ -16,7 +16,7 @@ ON CONFLICT DO NOTHING;
 -- -------------------------------------------------------------
 -- 2. SINGLE ADMIN USER
 --
---  Admin: admin@10xlearning.com / Admin@#7684
+--  Admin: admin@10xaccel.com / Admin@#7684
 --
 --  Hash generated with bcrypt cost=12 in Node.js:
 --    node -e "require('bcrypt').hash('Admin@#7684',12).then(console.log)"
@@ -31,10 +31,10 @@ BEGIN
 
   -- ── ADMIN ───────────────────────────────────────────────────
   INSERT INTO users (id, email, password_hash, first_name, last_name, is_active)
-  VALUES (gen_random_uuid(), 'admin@10xlearning.com', v_admin_hash, 'Super', 'Admin', TRUE)
+  VALUES (gen_random_uuid(), 'admin@10xaccel.com', v_admin_hash, 'Super', 'Admin', TRUE)
   ON CONFLICT (email) DO NOTHING;
 
-  SELECT id INTO v_admin_id FROM users WHERE email = 'admin@10xlearning.com';
+  SELECT id INTO v_admin_id FROM users WHERE email = 'admin@10xaccel.com';
 
   INSERT INTO user_roles (user_id, role_id, assigned_by)
   VALUES (v_admin_id, 1, v_admin_id)
