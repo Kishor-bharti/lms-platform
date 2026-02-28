@@ -17,17 +17,13 @@ function calculateSessionStatus(
   dbStatus: string,
   now: Date = new Date()
 ): string {
-  // LIVE always wins
+  // Explicit DB states always win
   if (dbStatus === 'live') return 'LIVE';
   if (dbStatus === 'completed' || dbStatus === 'cancelled') return 'COMPLETED';
 
-  // Build a JS Date from session_date + start_time
-  // Strip timezone suffix from TIMETZ for safe parsing
-  const timeStr = start_time.replace(/[+-]\d{2}:\d{2}$/, '');
-  const sessionDate = new Date(`${session_date}T${timeStr}`);
-
-  // If session time already passed → COMPLETED
-  if (sessionDate < now) return 'COMPLETED';
+  // At this point dbStatus is 'scheduled' — teacher has NOT started or ended it.
+  // We only show COMPLETED if the session day has fully passed (i.e. a past date).
+  // If it's today — even if the start_time has passed — the teacher can still start it.
 
   const todayStart = new Date(now);
   todayStart.setHours(0, 0, 0, 0);
@@ -40,8 +36,15 @@ function calculateSessionStatus(
 
   const sessionDay = new Date(session_date + 'T00:00:00');
 
+  // Past date (before today) and never started → mark as completed
+  if (sessionDay < todayStart) return 'COMPLETED';
+
+  // Today — regardless of whether start_time has passed
   if (sessionDay >= todayStart && sessionDay < tomorrowStart) return 'TODAY';
+
+  // Tomorrow
   if (sessionDay >= tomorrowStart && sessionDay < afterTomorrow) return 'TOMORROW';
+
   return 'SCHEDULED';
 }
 
