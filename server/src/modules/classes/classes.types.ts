@@ -40,6 +40,8 @@ export interface ClassWithTeacher {
 export interface SessionWithDetails {
   id: string;
   subject_id: string;
+  topic_id?: string;
+  topic_name?: string;
   class_title: string;
   title: string;
   zoom_link: string | null;     // meeting_link from DB

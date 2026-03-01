@@ -77,6 +77,11 @@ export default function CourseQuiz() {
                             <Badge color="primary">Not Started</Badge>
                           )}
                         </div>
+                        {q.topic_name && (
+                          <div style={{ marginBottom: 8 }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 10px', borderRadius: 10 }}>📌 {q.topic_name}</span>
+                          </div>
+                        )}
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
                           <span style={{ background: '#f0f4f8', borderRadius: 8, padding: '4px 10px', fontSize: 12, color: '#525f7f' }}>
                             ❓ {q.question_count} questions
@@ -98,6 +103,13 @@ export default function CourseQuiz() {
                         onClick={() => navigate(`/admin/quiz/${q.id}`)}>
                         {isSubmitted ? 'View Results' : 'Start Test'}
                       </Button>
+                      {isStaff && (
+                        <Button color="info" outline size="sm"
+                          style={{ borderRadius: 8, fontWeight: 700, marginTop: 8 }}
+                          onClick={() => navigate('/admin/quiz-builder', { state: { courseId, courseName, isCourseQuiz: true, editQuizId: q.id } })}>
+                          ✏️ Edit
+                        </Button>
+                      )}
                     </CardBody>
                   </Card>
                 </Col>

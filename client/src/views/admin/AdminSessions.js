@@ -33,7 +33,7 @@ export default function AdminSessions() {
   };
 
   const filtered = sessions.filter((s) => {
-    const matchSearch = `${s.title} ${s.subject_name} ${s.teacher_name} ${s.course_name}`
+    const matchSearch = `${s.title} ${s.subject_name} ${s.teacher_name} ${s.course_name} ${s.topic_name || ''}`
       .toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter === 'all' || s.status === statusFilter;
     return matchSearch && matchStatus;
@@ -82,7 +82,7 @@ export default function AdminSessions() {
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr style={{ background: '#f8f9fa' }}>
-                        {['Title', 'Subject', 'Course', 'Teacher', 'Date & Time', 'Status'].map((h) => (
+                        {['Title', 'Topic', 'Subject', 'Course', 'Teacher', 'Date & Time', 'Status'].map((h) => (
                           <th key={h} style={{ padding: '10px 14px', fontSize: 12, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
                         ))}
                       </tr>
@@ -93,6 +93,11 @@ export default function AdminSessions() {
                         return (
                           <tr key={s.id} style={{ borderBottom: '1px solid #f0f4f8' }}>
                             <td style={{ padding: '12px 14px', fontWeight: 600, color: '#32325d', whiteSpace: 'nowrap' }}>{s.title}</td>
+                            <td style={{ padding: '12px 14px' }}>
+                              {s.topic_name
+                                ? <span style={{ fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10, whiteSpace: 'nowrap' }}>📌 {s.topic_name}</span>
+                                : <span className="text-muted small">—</span>}
+                            </td>
                             <td style={{ padding: '12px 14px', color: '#525f7f' }}>{s.subject_name}</td>
                             <td style={{ padding: '12px 14px', color: '#525f7f' }}>{s.course_name}</td>
                             <td style={{ padding: '12px 14px', color: '#525f7f', whiteSpace: 'nowrap' }}>

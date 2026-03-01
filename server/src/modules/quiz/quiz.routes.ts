@@ -15,10 +15,12 @@ const optionSchema = z.object({
 
 const questionSchema = z.object({
   question_text: z.string().min(1),
+  image_url:     z.string().url().optional().or(z.literal('')),
   explanation:   z.string().optional(),
   difficulty:    z.enum(['easy', 'medium', 'hard']),
   marks:         z.number().int().min(1).max(100),
   order_index:   z.number().int().min(0),
+  topic_id:      z.string().uuid().optional().or(z.literal('')),
   options:       z.array(optionSchema).min(2).max(6).refine(
     (opts) => opts.filter(o => o.is_correct).length === 1,
     { message: 'Exactly one option must be marked correct' }

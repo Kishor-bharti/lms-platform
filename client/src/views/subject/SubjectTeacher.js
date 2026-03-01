@@ -444,6 +444,9 @@ export default function SubjectTeacher() {
                                   <strong>{s.title}</strong>{statusBadge(s.status)}
                                 </div>
                                 <div className="small text-muted">{new Date(s.scheduled_at).toLocaleString()}</div>
+                                {s.topic_name && (
+                                  <span style={{ display: 'inline-block', marginTop: 4, fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10 }}>📌 {s.topic_name}</span>
+                                )}
                               </div>
                               <button
                                 disabled={startingSession === s.id}
@@ -465,6 +468,9 @@ export default function SubjectTeacher() {
                           <div key={s.id} className="p-3 mb-2 bg-white border rounded" style={{ opacity: 0.7 }}>
                             <strong>{s.title}</strong>
                             <span className="small text-muted ml-2">{new Date(s.scheduled_at).toLocaleDateString()}</span>
+                            {s.topic_name && (
+                              <span style={{ display: 'inline-block', marginLeft: 8, fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10 }}>📌 {s.topic_name}</span>
+                            )}
                           </div>
                         ))}
                       </>}
@@ -503,7 +509,7 @@ export default function SubjectTeacher() {
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead>
                         <tr style={{ background: '#f8f9fa' }}>
-                          {['Title', 'Type', 'Questions', 'Duration', 'Passing', 'Status', 'Actions'].map((h) => (
+                          {['Title', 'Topic', 'Questions', 'Duration', 'Status', 'Actions'].map((h) => (
                             <th key={h} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase' }}>{h}</th>
                           ))}
                         </tr>
@@ -512,10 +518,13 @@ export default function SubjectTeacher() {
                         {quizzes.map((q) => (
                           <tr key={q.id} style={{ borderBottom: '1px solid #f0f4f8' }}>
                             <td style={{ padding: '12px 14px', fontWeight: 600, color: '#32325d' }}>{q.title}</td>
-                            <td style={{ padding: '12px 14px' }}><Badge color="light" style={{ textTransform: 'capitalize' }}>{q.quiz_type}</Badge></td>
+                            <td style={{ padding: '12px 14px' }}>
+                              {q.topic_name
+                                ? <span style={{ fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10 }}>📌 {q.topic_name}</span>
+                                : <span className="text-muted small">—</span>}
+                            </td>
                             <td style={{ padding: '12px 14px', color: '#525f7f' }}>{q.question_count}</td>
-                            <td style={{ padding: '12px 14px', color: '#525f7f' }}>{q.duration_minutes}m</td>
-                            <td style={{ padding: '12px 14px', color: '#525f7f' }}>{q.passing_score ? `${q.passing_score}%` : 'N/A'}</td>
+                            <td style={{ padding: '12px 14px', color: '#525f7f' }}>{q.duration_minutes ? `${q.duration_minutes}m` : '∞'}</td>
                             <td style={{ padding: '12px 14px' }}>
                               <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
                                 background: q.is_published ? '#d4edda' : '#fff3cd',
@@ -574,6 +583,9 @@ export default function SubjectTeacher() {
                           <div className="d-flex justify-content-between align-items-start flex-wrap" style={{ gap: 8 }}>
                             <div>
                               <strong style={{ color: '#32325d' }}>{a.title}</strong>
+                              {a.topic_name && (
+                                <span style={{ display: 'inline-block', marginLeft: 8, fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10 }}>📌 {a.topic_name}</span>
+                              )}
                               {a.description && <p className="small text-muted mb-1 mt-1">{a.description}</p>}
                               <div className="small text-muted">
                                 <span className="mr-3">Max marks: {a.max_marks}</span>
@@ -702,7 +714,12 @@ export default function SubjectTeacher() {
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <a href={m.file_url} target="_blank" rel="noreferrer" style={{ fontWeight: 700, color: '#32325d', display: 'block' }}>{m.title}</a>
                             {m.description && <p className="small text-muted mb-0 mt-1">{m.description}</p>}
-                            <span style={{ fontSize: 10, color: typeColor, fontWeight: 700, textTransform: 'uppercase', background: typeColor + '20', padding: '2px 8px', borderRadius: 10 }}>{m.material_type}</span>
+                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4, alignItems: 'center' }}>
+                              <span style={{ fontSize: 10, color: typeColor, fontWeight: 700, textTransform: 'uppercase', background: typeColor + '20', padding: '2px 8px', borderRadius: 10 }}>{m.material_type}</span>
+                              {m.topic_name && (
+                                <span style={{ fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10 }}>📌 {m.topic_name}</span>
+                              )}
+                            </div>
                           </div>
                           <Button size="sm" color="danger" outline style={{ borderRadius: 20, fontSize: 11, flexShrink: 0 }}
                             onClick={() => handleDeleteMaterial(m.id)}>Remove</Button>

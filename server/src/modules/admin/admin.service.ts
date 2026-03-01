@@ -355,6 +355,7 @@ export async function getAllSessionsAdmin() {
       s.session_date::text AS session_date,
       s.start_time::text   AS start_time,
       s.meeting_link,
+      t.name   AS topic_name,
       sub.name AS subject_name,
       c.name   AS course_name,
       u.first_name || ' ' || u.last_name AS teacher_name,
@@ -363,6 +364,7 @@ export async function getAllSessionsAdmin() {
     JOIN subjects sub ON sub.id = s.subject_id
     JOIN courses  c   ON c.id   = sub.course_id
     JOIN users    u   ON u.id   = s.teacher_id
+    LEFT JOIN topics t ON t.id  = s.topic_id
     ORDER BY s.session_date DESC, s.start_time DESC
     LIMIT 200
   `);
@@ -373,6 +375,7 @@ export async function getAllSessionsAdmin() {
     status:       r.status,
     scheduled_at: `${r.session_date}T${r.start_time.replace(/[+-]\d{2}:\d{2}$/, '')}`,
     zoom_link:    r.meeting_link,
+    topic_name:   r.topic_name ?? null,
     subject_name: r.subject_name,
     course_name:  r.course_name,
     teacher_name: r.teacher_name,

@@ -56,15 +56,17 @@ export interface AttemptResult {
 export async function getQuizzesBySubject(subjectId: string, role: string = 'student'): Promise<QuizSummary[]> {
   const rows = await query<any>(`
     SELECT
-      q.id, q.subject_id, q.topic_id, q.title, q.quiz_type, q.description,
+      q.id, q.subject_id, q.topic_id, t.name AS topic_name,
+      q.title, q.quiz_type, q.description,
       q.duration_minutes, q.passing_score, q.is_published, q.max_attempts,
       q.created_at,
       COUNT(qs.id) AS question_count
     FROM quizzes q
     LEFT JOIN questions qs ON qs.quiz_id = q.id AND qs.is_active = true
+    LEFT JOIN topics t ON t.id = q.topic_id
     WHERE q.subject_id = $1
     ${role === 'student' ? 'AND q.is_published = true' : ''}
-    GROUP BY q.id
+    GROUP BY q.id, t.name
     ORDER BY q.created_at DESC
   `, [subjectId]);
 
@@ -648,6 +650,7 @@ export async function getQuizzesByCourse(courseId: string, studentId: string, ro
       q.id, q.course_id, q.title, q.quiz_type, q.description,
       q.duration_minutes, q.is_published, q.max_attempts,
       q.created_at,
+      t.name AS topic_name,
       COUNT(qs.id) AS question_count,
       qa.id      AS attempt_id,
       qa.status  AS attempt_status,
@@ -655,9 +658,10 @@ export async function getQuizzesByCourse(courseId: string, studentId: string, ro
     FROM quizzes q
     LEFT JOIN questions qs ON qs.quiz_id = q.id AND qs.is_active = true
     LEFT JOIN quiz_attempts qa ON qa.quiz_id = q.id AND qa.student_id = $2 AND qa.status = 'submitted'
+    LEFT JOIN topics t ON t.id = q.topic_id
     WHERE q.course_id = $1
       ${role === 'student' ? 'AND q.is_published = true' : ''}
-    GROUP BY q.id, qa.id, qa.status, qa.score_pct
+    GROUP BY q.id, qa.id, qa.status, qa.score_pct, t.name
     ORDER BY q.created_at ASC
   `, [courseId, studentId]);
 

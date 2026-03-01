@@ -4,6 +4,7 @@ export interface AssignmentSummary {
   id: string;
   subject_id: string;
   topic_id: string | null;
+  topic_name?: string | null;
   title: string;
   description: string | null;
   due_date: string | null;
@@ -38,13 +39,15 @@ export async function getAssignmentsBySubject(
 ): Promise<AssignmentSummary[]> {
   const rows = await query<any>(`
     SELECT
-      a.id, a.subject_id, a.topic_id, a.title, a.description,
+      a.id, a.subject_id, a.topic_id, t.name AS topic_name,
+      a.title, a.description,
       a.due_date, a.max_marks, a.is_published, a.attachment_url, a.created_at,
       COUNT(sub.id) FILTER (WHERE sub.status != 'pending') AS submission_count
     FROM assignments a
     LEFT JOIN assignment_submissions sub ON sub.assignment_id = a.id
+    LEFT JOIN topics t ON t.id = a.topic_id
     WHERE a.subject_id = $1
-    GROUP BY a.id
+    GROUP BY a.id, t.name
     ORDER BY a.created_at DESC
   `, [subjectId]);
 
@@ -63,7 +66,8 @@ export async function getStudentAssignments(
 ): Promise<AssignmentSummary[]> {
   const rows = await query<any>(`
     SELECT
-      a.id, a.subject_id, a.topic_id, a.title, a.description,
+      a.id, a.subject_id, a.topic_id, t.name AS topic_name,
+      a.title, a.description,
       a.due_date, a.max_marks, a.is_published, a.attachment_url, a.created_at,
       sub.id           AS sub_id,
       sub.submission_url, sub.notes, sub.submitted_at,
@@ -71,6 +75,7 @@ export async function getStudentAssignments(
     FROM assignments a
     LEFT JOIN assignment_submissions sub
       ON sub.assignment_id = a.id AND sub.student_id = $2
+    LEFT JOIN topics t ON t.id = a.topic_id
     WHERE a.subject_id = $1 AND a.is_published = true
     ORDER BY a.due_date ASC NULLS LAST
   `, [subjectId, studentId]);
@@ -79,6 +84,7 @@ export async function getStudentAssignments(
     id: r.id,
     subject_id: r.subject_id,
     topic_id: r.topic_id ?? null,
+    topic_name: r.topic_name ?? null,
     title: r.title,
     description: r.description,
     due_date: r.due_date,

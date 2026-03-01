@@ -175,6 +175,7 @@ export async function getSessionsByTeacher(
        s.id,
        s.subject_id,
        s.topic_id,
+       t.name         AS topic_name,
        sub.name       AS class_title,
        s.title,
        s.meeting_link,
@@ -186,6 +187,7 @@ export async function getSessionsByTeacher(
      FROM   sessions         s
      JOIN   subjects         sub ON sub.id = s.subject_id
      JOIN   subject_teachers st  ON st.subject_id = sub.id
+     LEFT JOIN topics        t   ON t.id = s.topic_id
      WHERE  st.teacher_id = $1
      ORDER  BY s.session_date DESC, s.start_time DESC
      LIMIT  100`,
@@ -197,6 +199,7 @@ export async function getSessionsByTeacher(
     id:             r.id,
     subject_id:     r.subject_id,
     topic_id:       r.topic_id ?? undefined,
+    topic_name:     r.topic_name ?? undefined,
     class_title:    r.class_title,
     title:          r.title,
     zoom_link:      r.meeting_link,
@@ -217,6 +220,7 @@ export async function getSessionsByStudent(
        s.id,
        s.subject_id,
        s.topic_id,
+       t.name         AS topic_name,
        sub.name       AS class_title,
        s.title,
        s.meeting_link,
@@ -226,6 +230,7 @@ export async function getSessionsByStudent(
      FROM   sessions             s
      JOIN   subjects             sub ON sub.id = s.subject_id
      JOIN   subject_enrollments  se  ON se.subject_id = sub.id
+     LEFT JOIN topics            t   ON t.id = s.topic_id
      WHERE  se.student_id        = $1
        AND  se.enrollment_status = 'active'
      ORDER  BY s.session_date DESC, s.start_time DESC
@@ -238,6 +243,7 @@ export async function getSessionsByStudent(
     id:          r.id,
     subject_id:  r.subject_id,
     topic_id:    r.topic_id ?? undefined,
+    topic_name:  r.topic_name ?? undefined,
     class_title: r.class_title,
     title:       r.title,
     zoom_link:   r.meeting_link,
@@ -254,6 +260,7 @@ export async function getAllSessions(): Promise<SessionWithDetails[]> {
        s.id,
        s.subject_id,
        s.topic_id,
+       t.name         AS topic_name,
        sub.name       AS class_title,
        s.title,
        s.meeting_link,
@@ -264,6 +271,7 @@ export async function getAllSessions(): Promise<SessionWithDetails[]> {
        s.status
      FROM   sessions s
      JOIN   subjects sub ON sub.id = s.subject_id
+     LEFT JOIN topics t  ON t.id  = s.topic_id
      ORDER  BY s.session_date DESC, s.start_time DESC
      LIMIT  100`
   );
@@ -273,6 +281,7 @@ export async function getAllSessions(): Promise<SessionWithDetails[]> {
     id:             r.id,
     subject_id:     r.subject_id,
     topic_id:       r.topic_id ?? undefined,
+    topic_name:     r.topic_name ?? undefined,
     class_title:    r.class_title,
     title:          r.title,
     zoom_link:      r.meeting_link,

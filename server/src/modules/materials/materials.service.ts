@@ -4,6 +4,7 @@ export interface Material {
   id: string;
   subject_id: string;
   topic_id: string | null;
+  topic_name?: string | null;
   uploaded_by: string;
   uploader_name: string;
   title: string;
@@ -19,12 +20,14 @@ export interface Material {
 export async function getMaterials(subjectId: string): Promise<Material[]> {
   const rows = await query<any>(`
     SELECT
-      sm.id, sm.subject_id, sm.topic_id, sm.uploaded_by,
+      sm.id, sm.subject_id, sm.topic_id, t.name AS topic_name,
+      sm.uploaded_by,
       u.first_name || ' ' || u.last_name AS uploader_name,
       sm.title, sm.description, sm.material_type,
       sm.file_url, sm.file_size_kb, sm.order_index, sm.is_active, sm.created_at
     FROM subject_materials sm
     JOIN users u ON u.id = sm.uploaded_by
+    LEFT JOIN topics t ON t.id = sm.topic_id
     WHERE sm.subject_id = $1 AND sm.is_active = true
     ORDER BY sm.order_index, sm.created_at
   `, [subjectId]);

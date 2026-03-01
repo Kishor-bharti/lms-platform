@@ -19,9 +19,24 @@ import { pool }         from './config/db';
 const app = express();
 
 app.set('trust proxy', 1);
+// Build the Supabase storage origin for CSP (e.g. "https://abc.supabase.co")
+const supabaseOrigin = env.SUPABASE_URL_PUBLIC
+  ? new URL(env.SUPABASE_URL_PUBLIC).origin
+  : 'https://*.supabase.co';
+
 app.use(helmet({
   crossOriginEmbedderPolicy: false, // needed for Zoom iframes
-  ...(env.NODE_ENV !== 'production' && { contentSecurityPolicy: false }),
+  contentSecurityPolicy: env.NODE_ENV !== 'production'
+    ? false  // disabled in dev — no restrictions
+    : {
+        directives: {
+          ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+          // Allow images from self, Supabase storage, and inline data URIs (base64 previews)
+          'img-src': ["'self'", 'data:', supabaseOrigin],
+          // Allow Zoom iframes in production too
+          'frame-src': ["'self'", 'https://zoom.us', 'https://*.zoom.us'],
+        },
+      },
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
 }));
 app.use(express.json());
