@@ -136,7 +136,13 @@ export default function QuizBuilder() {
     setError('');
     if (!meta.title) { setError('Quiz title is required'); return; }
     if (!subjectId && !editQuizId && !isCourseQuiz) { setError('No subject selected — go back and try again'); return; }
-    if (!isCourseQuiz && subjectId && topics.length > 0 && !meta.topicId) {
+    if (topics.length === 0) {
+      setError(isCourseQuiz
+        ? 'No topics available — add topics to the subjects in this course before creating test sets'
+        : 'No topics yet — add topics to this subject before creating practice sets');
+      return;
+    }
+    if (!isCourseQuiz && subjectId && !meta.topicId) {
       setError('Topic is required — select which topic this practice set covers'); return;
     }
 
@@ -145,8 +151,8 @@ export default function QuizBuilder() {
       if (!q.question_text.trim()) { setError(`Question ${i + 1} is missing text`); return; }
       const hasCorrect = q.options.some((o) => o.is_correct);
       if (!hasCorrect) { setError(`Question ${i + 1} has no correct answer selected`); return; }
-      if (isCourseQuiz && topics.length > 0 && !q.topic_id) {
-        setError(`Question ${i + 1}: topic is required for test sets`); return;
+      if (!q.topic_id) {
+        setError(`Question ${i + 1}: topic is required`); return;
       }
     }
 
@@ -281,20 +287,26 @@ export default function QuizBuilder() {
                       <Input type="number" min={1} value={meta.max_attempts} onChange={(e) => setMeta({ ...meta, max_attempts: e.target.value })} />
                     </FormGroup>
                   </Col>
-                  <Col md={subjectId && !isCourseQuiz && topics.length > 0 ? '4' : '8'}>
+                  <Col md={subjectId && !isCourseQuiz ? '4' : '8'}>
                     <FormGroup>
                       <Label>Description</Label>
                       <Input type="textarea" rows={1} value={meta.description} onChange={(e) => setMeta({ ...meta, description: e.target.value })} placeholder="Optional..." />
                     </FormGroup>
                   </Col>
-                  {subjectId && !isCourseQuiz && topics.length > 0 && (
+                  {subjectId && !isCourseQuiz && (
                     <Col md="4">
                       <FormGroup>
                         <Label>Topic <span className="text-danger">*</span></Label>
-                        <Input type="select" value={meta.topicId} onChange={(e) => setMeta({ ...meta, topicId: e.target.value })}>
-                          <option value="">— Select topic —</option>
-                          {topics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                        </Input>
+                        {topics.length === 0 ? (
+                          <div className="alert alert-warning py-2 mb-0" style={{ fontSize: 12, borderRadius: 6 }}>
+                            ⚠️ No topics yet — add topics to this subject first
+                          </div>
+                        ) : (
+                          <Input type="select" value={meta.topicId} onChange={(e) => setMeta({ ...meta, topicId: e.target.value })}>
+                            <option value="">— Select topic —</option>
+                            {topics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                          </Input>
+                        )}
                       </FormGroup>
                     </Col>
                   )}
@@ -380,23 +392,27 @@ export default function QuizBuilder() {
                   </div>
 
                   {/* Topic selector */}
-                  {topics.length > 0 && (
-                    <FormGroup style={{ marginBottom: 12 }}>
-                      <Label style={{ fontSize: 12, color: '#8898aa' }}>
-                        Topic {isCourseQuiz && <span className="text-danger">*</span>}
-                      </Label>
+                  <FormGroup style={{ marginBottom: 12 }}>
+                    <Label style={{ fontSize: 12, color: '#8898aa' }}>
+                      Topic <span className="text-danger">*</span>
+                    </Label>
+                    {topics.length === 0 ? (
+                      <div style={{ fontSize: 12, color: '#fb6340', padding: '4px 0' }}>
+                        ⚠️ No topics available — {isCourseQuiz ? 'add topics to the subjects in this course' : 'add topics to this subject'} first
+                      </div>
+                    ) : (
                       <Input type="select" bsSize="sm" value={q.topic_id}
                         onChange={(e) => updateQuestion(qi, 'topic_id', e.target.value)}
                         style={{ maxWidth: 320 }}>
-                        <option value="">{isCourseQuiz ? '-- Select topic (required) --' : '-- No topic --'}</option>
+                        <option value="">— Select topic —</option>
                         {topics.map(t => (
                           <option key={t.id} value={t.id}>
                             {isCourseQuiz && t.subject_name ? `${t.subject_name} — ${t.name}` : t.name}
                           </option>
                         ))}
                       </Input>
-                    </FormGroup>
-                  )}
+                    )}
+                  </FormGroup>
 
                   {/* Options */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
