@@ -641,8 +641,8 @@ export default function QuizTaker() {
                       </Badge>
                     </div>
                     {a.image_url && (
-                      <div style={{ background: '#f8f9fa', padding: 10, borderRadius: 8, margin: '8px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', maxHeight: 250 }}>
-                        <img src={a.image_url} alt="" style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 6, objectFit: 'contain' }} />
+                      <div style={{ background: '#f8f9fa', padding: 10, borderRadius: 8, margin: '8px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', maxHeight: 200, overflow: 'hidden' }}>
+                        <img src={a.image_url} alt="" style={{ maxWidth: '100%', maxHeight: 180, borderRadius: 6, objectFit: 'contain' }} />
                       </div>
                     )}
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -732,8 +732,8 @@ export default function QuizTaker() {
                       </Badge>
                     </div>
                     {a.image_url && (
-                      <div style={{ background: '#f8f9fa', padding: 10, borderRadius: 8, margin: '8px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', maxHeight: 250 }}>
-                        <img src={a.image_url} alt="" style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 6, objectFit: 'contain' }} />
+                      <div style={{ background: '#f8f9fa', padding: 10, borderRadius: 8, margin: '8px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', maxHeight: 200, overflow: 'hidden' }}>
+                        <img src={a.image_url} alt="" style={{ maxWidth: '100%', maxHeight: 180, borderRadius: 6, objectFit: 'contain' }} />
                       </div>
                     )}
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>

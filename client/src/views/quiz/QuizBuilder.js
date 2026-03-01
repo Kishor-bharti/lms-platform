@@ -98,6 +98,14 @@ export default function QuizBuilder() {
 
   const handleImageUpload = async (qi, file) => {
     if (!file) return;
+    
+    // Validate file size (2MB = 2097152 bytes)
+    const MAX_SIZE = 2 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      setError(`Image too large for Q${qi + 1}: ${(file.size / 1024 / 1024).toFixed(2)}MB. Maximum size is 2MB`);
+      return;
+    }
+    
     setUploading(qi);
     try {
       const formData = new FormData();
@@ -379,6 +387,7 @@ export default function QuizBuilder() {
                         onClick={() => fileInputRefs.current[qi]?.click()}>
                         {uploading === qi ? <><Spinner size="sm" /> Uploading...</> : '📷 Add Image'}
                       </Button>
+                      <small style={{ color: '#8898aa' }}>Max 2MB</small>
                       {q.image_url && (
                         <Button size="sm" color="danger" outline style={{ borderRadius: 6 }}
                           onClick={() => updateQuestion(qi, 'image_url', '')}>
@@ -387,7 +396,7 @@ export default function QuizBuilder() {
                       )}
                     </div>
                     {q.image_url && (
-                      <img src={q.image_url} alt="Question" style={{ maxWidth: '100%', maxHeight: 250, borderRadius: 8, marginTop: 8, border: '1px solid #e9ecef', objectFit: 'contain', display: 'block' }} />
+                      <img src={q.image_url} alt="Question" style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 8, marginTop: 8, border: '1px solid #e9ecef', objectFit: 'contain', display: 'block' }} />
                     )}
                   </div>
 
