@@ -107,17 +107,54 @@ export default function QuizBuilder() {
     }
     
     setUploading(qi);
-    try {
-      const formData = new FormData();
-      formData.append('image', file);
-      const res = await http.post('/api/upload/quiz-image', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      updateQuestion(qi, 'image_url', res.data.url);
-    } catch (err) {
-      setError(`Image upload failed for Q${qi + 1}`);
-    } finally {
-      setUploading(null);
+    setError(''); // Clear previous errors
+    
+    const formData = new FormData();
+    formData.append('image', file);
+    
+    // Retry logic for network issues
+    const maxRetries = 2;
+    let lastError = null;
+    
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const res = await http.post('/api/upload/quiz-image', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          timeout: 30000, // 30 seconds for upload (longer timeout for slow networks)
+        });
+        updateQuestion(qi, 'image_url', res.data.url);
+        setUploading(null);
+        return; // Success - exit
+      } catch (err) {
+        lastError = err;
+        console.warn(`[Upload] Attempt ${attempt + 1} failed:`, err.message);
+        
+        // Don't retry on certain errors
+        if (err.response?.status === 400 || err.response?.status === 401 || err.response?.status === 413) {
+          break; // Bad request, auth error, or file too large - don't retry
+        }
+        
+        // Wait before retry (except on last attempt)
+        if (attempt < maxRetries) {
+          await new Promise(r => setTimeout(r, 1000 * (attempt + 1))); // 1s, 2s delay
+        }
+      }
+    }
+    
+    // All retries failed
+    setUploading(null);
+    const errMsg = lastError?.response?.data?.error 
+      || lastError?.message 
+      || 'Unknown error';
+    const isTimeout = lastError?.code === 'ECONNABORTED' || errMsg.includes('timeout');
+    const isNetwork = lastError?.code === 'ERR_NETWORK' || !lastError?.response;
+    
+    if (isTimeout) {
+      setError(`Upload timed out for Q${qi + 1}. Your network may be slow or blocking the upload. Try switching networks or using mobile data.`);
+    } else if (isNetwork) {
+      setError(`Network error uploading Q${qi + 1}. Check your internet connection or try a different network (some ISPs block cloud storage).`);
+    } else {
+      setError(`Upload failed for Q${qi + 1}: ${errMsg}`);
     }
   };
 

@@ -8,6 +8,54 @@ import { useNavigate, useParams } from 'react-router-dom';
 import http from 'utils/http';
 import { API_BASE } from 'utils/api';
 
+// Image component with error handling and retry capability
+function QuizImage({ src, alt, style, containerStyle }) {
+  const [status, setStatus] = useState('loading'); // loading | loaded | error
+  const [retryCount, setRetryCount] = useState(0);
+  
+  const handleError = () => {
+    if (retryCount < 2) {
+      // Retry by appending a cache-busting query param
+      setRetryCount(r => r + 1);
+      setStatus('loading');
+    } else {
+      setStatus('error');
+    }
+  };
+  
+  const imgSrc = retryCount > 0 ? `${src}${src.includes('?') ? '&' : '?'}_retry=${retryCount}` : src;
+  
+  return (
+    <div style={containerStyle}>
+      {status === 'error' ? (
+        <div style={{ textAlign: 'center', padding: 20, color: '#8898aa' }}>
+          <div style={{ fontSize: 24, marginBottom: 8 }}>🖼️</div>
+          <div style={{ fontSize: 12 }}>Image failed to load</div>
+          <button 
+            onClick={() => { setRetryCount(0); setStatus('loading'); }}
+            style={{ marginTop: 8, fontSize: 11, padding: '4px 10px', border: '1px solid #ccc', borderRadius: 4, background: '#fff', cursor: 'pointer' }}
+          >
+            Retry
+          </button>
+        </div>
+      ) : (
+        <img 
+          src={imgSrc} 
+          alt={alt} 
+          style={{ ...style, display: status === 'loaded' ? 'block' : 'none' }}
+          onLoad={() => setStatus('loaded')}
+          onError={handleError}
+        />
+      )}
+      {status === 'loading' && (
+        <div style={{ textAlign: 'center', padding: 20, color: '#8898aa' }}>
+          <div style={{ fontSize: 12 }}>Loading image...</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function QuizTaker() {
   const { quizId } = useParams();
   const navigate   = useNavigate();
@@ -420,12 +468,12 @@ export default function QuizTaker() {
                     <LatexRenderer text={q?.question_text || ''} />
                   </div>
                   {q?.image_url && (
-                    <div style={{ background: '#f8f9fa', padding: 12, borderRadius: 10, marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 150, maxHeight: 350 }}>
-                      <img src={q.image_url} alt="Question" style={{
-                        maxWidth: '100%', maxHeight: '100%', borderRadius: 8,
-                        objectFit: 'contain'
-                      }} />
-                    </div>
+                    <QuizImage 
+                      src={q.image_url} 
+                      alt="Question"
+                      containerStyle={{ background: '#f8f9fa', padding: 12, borderRadius: 10, marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 100, maxHeight: 350 }}
+                      style={{ maxWidth: '100%', maxHeight: 320, borderRadius: 8, objectFit: 'contain' }}
+                    />
                   )}
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -641,9 +689,12 @@ export default function QuizTaker() {
                       </Badge>
                     </div>
                     {a.image_url && (
-                      <div style={{ background: '#f8f9fa', padding: 10, borderRadius: 8, margin: '8px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', maxHeight: 200, overflow: 'hidden' }}>
-                        <img src={a.image_url} alt="" style={{ maxWidth: '100%', maxHeight: 180, borderRadius: 6, objectFit: 'contain' }} />
-                      </div>
+                      <QuizImage 
+                        src={a.image_url} 
+                        alt=""
+                        containerStyle={{ background: '#f8f9fa', padding: 10, borderRadius: 8, margin: '8px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', maxHeight: 200, overflow: 'hidden' }}
+                        style={{ maxWidth: '100%', maxHeight: 180, borderRadius: 6, objectFit: 'contain' }}
+                      />
                     )}
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                       <div style={{ background: a.is_correct ? '#eafaf1' : '#fde8ec', border: `1px solid ${a.is_correct ? '#2dce89' : '#f5365c'}`, borderRadius: 8, padding: '6px 14px', fontSize: 13 }}>
@@ -732,9 +783,12 @@ export default function QuizTaker() {
                       </Badge>
                     </div>
                     {a.image_url && (
-                      <div style={{ background: '#f8f9fa', padding: 10, borderRadius: 8, margin: '8px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', maxHeight: 200, overflow: 'hidden' }}>
-                        <img src={a.image_url} alt="" style={{ maxWidth: '100%', maxHeight: 180, borderRadius: 6, objectFit: 'contain' }} />
-                      </div>
+                      <QuizImage 
+                        src={a.image_url} 
+                        alt=""
+                        containerStyle={{ background: '#f8f9fa', padding: 10, borderRadius: 8, margin: '8px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', maxHeight: 200, overflow: 'hidden' }}
+                        style={{ maxWidth: '100%', maxHeight: 180, borderRadius: 6, objectFit: 'contain' }}
+                      />
                     )}
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                       <div style={{ background: a.is_correct ? '#eafaf1' : '#fde8ec', border: `1px solid ${a.is_correct ? '#2dce89' : '#f5365c'}`, borderRadius: 8, padding: '6px 14px', fontSize: 13 }}>
