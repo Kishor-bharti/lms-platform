@@ -135,6 +135,7 @@ export default function SubjectTeacher() {
     if (!scheduleForm.title || !scheduleForm.date || !scheduleForm.time) {
       setScheduleError('All fields are required'); return;
     }
+    if (!scheduleForm.topicId) { setScheduleError('Topic is required'); return; }
     setScheduling(true);
     try {
       await http.post('/api/classes/sessions/create', {
@@ -151,6 +152,7 @@ export default function SubjectTeacher() {
   const handleAddMaterial = async (e) => {
     e.preventDefault(); setMatError('');
     if (!matForm.title || !matForm.file_url) { setMatError('Title and URL are required'); return; }
+    if (!matForm.topicId) { setMatError('Topic is required'); return; }
     setMatSaving(true);
     try {
       await http.post('/api/materials', { subjectId, ...matForm, topicId: matForm.topicId || undefined });
@@ -177,6 +179,7 @@ export default function SubjectTeacher() {
   const handleCreateAssignment = async (e) => {
     e.preventDefault(); setAssignError('');
     if (!assignForm.title) { setAssignError('Title is required'); return; }
+    if (!assignForm.topicId) { setAssignError('Topic is required'); return; }
     setAssignSaving(true);
     try {
       await http.post('/api/assignments', { subjectId, ...assignForm, max_marks: Number(assignForm.max_marks), topicId: assignForm.topicId || undefined });
@@ -722,9 +725,9 @@ export default function SubjectTeacher() {
               <FormGroup><Label>Date</Label><Input type="date" value={scheduleForm.date} min={new Date().toISOString().split('T')[0]} onChange={(e) => setScheduleForm({ ...scheduleForm, date: e.target.value })} /></FormGroup>
               <FormGroup><Label>Start Time</Label><Input type="time" value={scheduleForm.time} onChange={(e) => setScheduleForm({ ...scheduleForm, time: e.target.value })} /></FormGroup>
               <FormGroup>
-                <Label>Topic <span className="text-muted small">(optional)</span></Label>
+                <Label>Topic <span className="text-danger">*</span></Label>
                 <Input type="select" value={scheduleForm.topicId} onChange={(e) => setScheduleForm({ ...scheduleForm, topicId: e.target.value })}>
-                  <option value="">— No specific topic —</option>
+                  <option value="">— Select topic —</option>
                   {topics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </Input>
               </FormGroup>
@@ -750,9 +753,9 @@ export default function SubjectTeacher() {
               </Row>
               <FormGroup><Label>Attachment URL</Label><Input value={assignForm.attachment_url} onChange={(e) => setAssignForm({ ...assignForm, attachment_url: e.target.value })} placeholder="https://..." /></FormGroup>
               <FormGroup>
-                <Label>Topic <span className="text-muted small">(optional)</span></Label>
+                <Label>Topic <span className="text-danger">*</span></Label>
                 <Input type="select" value={assignForm.topicId} onChange={(e) => setAssignForm({ ...assignForm, topicId: e.target.value })}>
-                  <option value="">— No specific topic —</option>
+                  <option value="">— Select topic —</option>
                   {topics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </Input>
               </FormGroup>
@@ -831,9 +834,9 @@ export default function SubjectTeacher() {
               <FormGroup><Label>URL *</Label><Input value={matForm.file_url} onChange={(e) => setMatForm({ ...matForm, file_url: e.target.value })} placeholder="https://..." /></FormGroup>
               <FormGroup><Label>Description</Label><Input type="textarea" rows={2} value={matForm.description} onChange={(e) => setMatForm({ ...matForm, description: e.target.value })} placeholder="Optional..." /></FormGroup>
               <FormGroup>
-                <Label>Topic <span className="text-muted small">(optional)</span></Label>
+                <Label>Topic <span className="text-danger">*</span></Label>
                 <Input type="select" value={matForm.topicId} onChange={(e) => setMatForm({ ...matForm, topicId: e.target.value })}>
-                  <option value="">— No specific topic —</option>
+                  <option value="">— Select topic —</option>
                   {topics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </Input>
               </FormGroup>
