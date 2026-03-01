@@ -43,7 +43,23 @@ export async function uploadQuizImage(req: Request, res: Response) {
     const elapsed = Date.now() - startTime;
     console.error(`[upload:quiz-image] Failed after ${elapsed}ms:`, err?.message || err);
     
-    // Provide more specific error messages
+    const originalCause = err?.originalError?.cause;
+    const causeCode = originalCause?.code;
+    const causeMsg = originalCause?.message || '';
+    
+    // Provide more specific error messages for ISP blocking issues
+    if (causeCode === 'UND_ERR_CONNECT_TIMEOUT' || err?.message?.includes('timeout')) {
+      return res.status(504).json({ 
+        error: 'Connection timeout - your ISP may be blocking cloud storage. Try using mobile data or a VPN.',
+        code: 'ISP_BLOCKED'
+      });
+    }
+    if (causeCode === 'ECONNRESET' || causeMsg.includes('ECONNRESET')) {
+      return res.status(502).json({ 
+        error: 'Connection blocked by network - your ISP (like Excitel) may be blocking Supabase. Use mobile data or VPN.',
+        code: 'ISP_BLOCKED'
+      });
+    }
     if (err?.name === 'AbortError' || err?.message?.includes('abort')) {
       return res.status(504).json({ error: 'Upload timed out - server could not reach storage service' });
     }

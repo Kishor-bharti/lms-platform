@@ -143,13 +143,16 @@ export default function QuizBuilder() {
     
     // All retries failed
     setUploading(null);
-    const errMsg = lastError?.response?.data?.error 
-      || lastError?.message 
-      || 'Unknown error';
+    const errData = lastError?.response?.data;
+    const errMsg = errData?.error || lastError?.message || 'Unknown error';
+    const errCode = errData?.code;
     const isTimeout = lastError?.code === 'ECONNABORTED' || errMsg.includes('timeout');
     const isNetwork = lastError?.code === 'ERR_NETWORK' || !lastError?.response;
+    const isISPBlocked = errCode === 'ISP_BLOCKED' || errMsg.includes('ISP') || errMsg.includes('blocked');
     
-    if (isTimeout) {
+    if (isISPBlocked) {
+      setError(`⚠️ Your ISP is blocking image uploads. Please switch to mobile data (Airtel/Jio) or use a VPN like Cloudflare WARP.`);
+    } else if (isTimeout) {
       setError(`Upload timed out for Q${qi + 1}. Your network may be slow or blocking the upload. Try switching networks or using mobile data.`);
     } else if (isNetwork) {
       setError(`Network error uploading Q${qi + 1}. Check your internet connection or try a different network (some ISPs block cloud storage).`);
