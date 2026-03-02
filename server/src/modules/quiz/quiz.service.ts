@@ -59,14 +59,16 @@ export async function getQuizzesBySubject(subjectId: string, role: string = 'stu
       q.id, q.subject_id, q.topic_id, t.name AS topic_name,
       q.title, q.quiz_type, q.description,
       q.duration_minutes, q.passing_score, q.is_published, q.max_attempts,
-      q.created_at,
+      q.created_at, q.created_by,
+      u.first_name || ' ' || u.last_name AS creator_name,
       COUNT(qs.id) AS question_count
     FROM quizzes q
     LEFT JOIN questions qs ON qs.quiz_id = q.id AND qs.is_active = true
     LEFT JOIN topics t ON t.id = q.topic_id
-    WHERE q.subject_id = $1
+    LEFT JOIN users u ON u.id = q.created_by
+    WHERE q.subject_id = $1 AND q.is_active = true
     ${role === 'student' ? 'AND q.is_published = true' : ''}
-    GROUP BY q.id, t.name
+    GROUP BY q.id, t.name, u.first_name, u.last_name
     ORDER BY q.created_at DESC
   `, [subjectId]);
 
@@ -92,7 +94,7 @@ export async function getQuizWithQuestions(quizId: string, role: string): Promis
   const quiz = quizRows[0];
 
   const questionRows = await query<any>(`
-    SELECT id, question_text, image_url, explanation, difficulty, marks, order_index, topic_id
+    SELECT id, question_text, image_url, explanation, explanation_image_url, difficulty, marks, order_index, topic_id
     FROM questions
     WHERE quiz_id = $1 AND is_active = true
     ORDER BY order_index, created_at
@@ -152,6 +154,7 @@ export async function createQuiz(data: {
     question_text: string;
     image_url?: string;
     explanation?: string;
+    explanation_image_url?: string;
     difficulty: string;
     marks: number;
     order_index: number;
@@ -178,11 +181,11 @@ export async function createQuiz(data: {
     for (const q of data.questions) {
       const qRows = await queryWithClient<any>(client, `
         INSERT INTO questions
-          (quiz_id, question_text, image_url, explanation, difficulty, marks, order_index, topic_id, created_by)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+          (quiz_id, question_text, image_url, explanation, explanation_image_url, difficulty, marks, order_index, topic_id, created_by)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
         RETURNING id
       `, [quiz.id, q.question_text, q.image_url ?? null, q.explanation ?? null,
-          q.difficulty, q.marks, q.order_index, q.topic_id ?? null, data.createdBy]);
+          q.explanation_image_url ?? null, q.difficulty, q.marks, q.order_index, q.topic_id ?? null, data.createdBy]);
 
       const questionId = qRows[0].id;
 
@@ -544,6 +547,7 @@ export async function updateQuiz(data: {
     question_text: string;
     image_url?: string;
     explanation?: string;
+    explanation_image_url?: string;
     difficulty: string;
     marks: number;
     order_index: number;
@@ -575,11 +579,11 @@ export async function updateQuiz(data: {
     for (const q of data.questions) {
       const qRows = await queryWithClient<any>(client, `
         INSERT INTO questions
-          (quiz_id, question_text, image_url, explanation, difficulty, marks, order_index, topic_id, created_by)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+          (quiz_id, question_text, image_url, explanation, explanation_image_url, difficulty, marks, order_index, topic_id, created_by)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
         RETURNING id
       `, [data.quizId, q.question_text, q.image_url ?? null, q.explanation ?? null,
-          q.difficulty, q.marks, q.order_index, q.topic_id ?? null, data.updatedBy]);
+          q.explanation_image_url ?? null, q.difficulty, q.marks, q.order_index, q.topic_id ?? null, data.updatedBy]);
 
       const questionId = qRows[0].id;
 
@@ -593,6 +597,15 @@ export async function updateQuiz(data: {
 
     return { ...quiz, question_count: data.questions.length };
   });
+}
+
+// ---- Admin: delete quiz (soft delete by marking inactive) ----
+
+export async function deleteQuiz(quizId: string): Promise<void> {
+  // First mark questions as inactive
+  await query(`UPDATE questions SET is_active = false WHERE quiz_id = $1`, [quizId]);
+  // Then mark quiz as inactive and unpublished
+  await query(`UPDATE quizzes SET is_published = false, is_active = false WHERE id = $1`, [quizId]);
 }
 
 // ---- Student: get attempt status for all quizzes in a subject ----
@@ -649,7 +662,8 @@ export async function getQuizzesByCourse(courseId: string, studentId: string, ro
     SELECT
       q.id, q.course_id, q.title, q.quiz_type, q.description,
       q.duration_minutes, q.is_published, q.max_attempts,
-      q.created_at,
+      q.created_at, q.created_by,
+      u.first_name || ' ' || u.last_name AS creator_name,
       t.name AS topic_name,
       COUNT(qs.id) AS question_count,
       qa.id      AS attempt_id,
@@ -659,10 +673,11 @@ export async function getQuizzesByCourse(courseId: string, studentId: string, ro
     LEFT JOIN questions qs ON qs.quiz_id = q.id AND qs.is_active = true
     LEFT JOIN quiz_attempts qa ON qa.quiz_id = q.id AND qa.student_id = $2 AND qa.status = 'submitted'
     LEFT JOIN topics t ON t.id = q.topic_id
-    WHERE q.course_id = $1
+    LEFT JOIN users u ON u.id = q.created_by
+    WHERE q.course_id = $1 AND q.is_active = true
       ${role === 'student' ? 'AND q.is_published = true' : ''}
-    GROUP BY q.id, qa.id, qa.status, qa.score_pct, t.name
-    ORDER BY q.created_at ASC
+    GROUP BY q.id, qa.id, qa.status, qa.score_pct, t.name, u.first_name, u.last_name
+    ORDER BY q.created_at DESC
   `, [courseId, studentId]);
 
   return rows.map((r: any) => ({

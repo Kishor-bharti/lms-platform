@@ -22,6 +22,10 @@ export default function SubjectTeacher() {
   const { subjectId } = useParams();
   const navigate = useNavigate();
 
+  const userRole = (window.localStorage.getItem('role') || '').toLowerCase();
+  const userId = window.localStorage.getItem('userId');
+  const isAdmin = userRole === 'admin';
+
   const [tab,             setTab]             = useState('topics');
   const [subject,         setSubject]         = useState(null);
   const [sessions,        setSessions]        = useState([]);
@@ -30,6 +34,7 @@ export default function SubjectTeacher() {
   const [loading,         setLoading]         = useState(true);
   const [startingSession, setStartingSession] = useState(null);
   const [actionError,     setActionError]     = useState('');
+  const [deleteQuizModal, setDeleteQuizModal] = useState({ open: false, quiz: null });
 
   // Schedule session modal
   const [scheduleOpen,  setScheduleOpen]  = useState(false);
@@ -167,6 +172,21 @@ export default function SubjectTeacher() {
   const handleDeleteMaterial = async (matId) => {
     try { await http.delete(`/api/materials/${matId}`); fetchData(); }
     catch (err) { console.error(err); }
+  };
+
+  const canEditQuiz = (quiz) => {
+    return isAdmin || quiz.created_by === userId;
+  };
+
+  const handleDeleteQuiz = async () => {
+    if (!deleteQuizModal.quiz) return;
+    try {
+      await http.delete(`/api/quizzes/${deleteQuizModal.quiz.id}`);
+      setDeleteQuizModal({ open: false, quiz: null });
+      fetchData();
+    } catch (err) {
+      alert(err?.response?.data?.error || 'Failed to delete quiz');
+    }
   };
 
   const toggleQuizPublish = async (quizId, current) => {
@@ -345,17 +365,19 @@ export default function SubjectTeacher() {
                       <CardTitle className="mb-0" style={{ color: '#32325d' }}>📚 Topics</CardTitle>
                       <small className="text-muted">Topics appear as the entry screen for students when they click this subject.</small>
                     </div>
-                    <Button color="primary" size="sm" style={{ borderRadius: 8, fontWeight: 700 }} onClick={openCreateTopic}>
-                      + Add Topic
-                    </Button>
+                    {isAdmin && (
+                      <Button color="primary" size="sm" style={{ borderRadius: 8, fontWeight: 700 }} onClick={openCreateTopic}>
+                        + Add Topic
+                      </Button>
+                    )}
                   </div>
                 </CardHeader>
                 <CardBody style={{ padding: 0 }}>
                   {topics.length === 0 ? (
                     <div className="text-center py-5">
                       <div style={{ fontSize: 40, marginBottom: 12 }}>📚</div>
-                      <p className="text-muted mb-3">No topics yet. Add topics so students can navigate this subject.</p>
-                      <Button color="primary" size="sm" style={{ borderRadius: 8 }} onClick={openCreateTopic}>Add First Topic</Button>
+                      <p className="text-muted mb-3">No topics yet. {isAdmin ? 'Add topics so students can navigate this subject.' : 'Contact admin to add topics.'}</p>
+                      {isAdmin && <Button color="primary" size="sm" style={{ borderRadius: 8 }} onClick={openCreateTopic}>Add First Topic</Button>}
                     </div>
                   ) : (
                     <div>
@@ -383,18 +405,20 @@ export default function SubjectTeacher() {
                               </div>
                             )}
                           </div>
-                          {/* Actions */}
-                          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                            <Button size="sm" color="info" outline style={{ borderRadius: 20, fontSize: 11, padding: '3px 12px' }}
-                              onClick={() => openEditTopic(topic)}>
-                              ✏️ Edit
-                            </Button>
-                            <Button size="sm" color="danger" outline style={{ borderRadius: 20, fontSize: 11, padding: '3px 12px' }}
-                              disabled={topicDeleting === topic.id}
-                              onClick={() => handleDeleteTopic(topic.id)}>
-                              {topicDeleting === topic.id ? '...' : '🗑 Delete'}
-                            </Button>
-                          </div>
+                          {/* Actions - Admin only */}
+                          {isAdmin && (
+                            <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                              <Button size="sm" color="info" outline style={{ borderRadius: 20, fontSize: 11, padding: '3px 12px' }}
+                                onClick={() => openEditTopic(topic)}>
+                                ✏️ Edit
+                              </Button>
+                              <Button size="sm" color="danger" outline style={{ borderRadius: 20, fontSize: 11, padding: '3px 12px' }}
+                                disabled={topicDeleting === topic.id}
+                                onClick={() => handleDeleteTopic(topic.id)}>
+                                {topicDeleting === topic.id ? '...' : '🗑 Delete'}
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -509,7 +533,7 @@ export default function SubjectTeacher() {
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead>
                         <tr style={{ background: '#f8f9fa' }}>
-                          {['Title', 'Topic', 'Questions', 'Duration', 'Status', 'Actions'].map((h) => (
+                          {['Title', 'Topic', 'Creator', 'Questions', 'Duration', 'Status', 'Actions'].map((h) => (
                             <th key={h} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase' }}>{h}</th>
                           ))}
                         </tr>
@@ -523,6 +547,7 @@ export default function SubjectTeacher() {
                                 ? <span style={{ fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10 }}>📌 {q.topic_name}</span>
                                 : <span className="text-muted small">—</span>}
                             </td>
+                            <td style={{ padding: '12px 14px', color: '#525f7f', fontSize: 12 }}>{q.creator_name || '—'}</td>
                             <td style={{ padding: '12px 14px', color: '#525f7f' }}>{q.question_count}</td>
                             <td style={{ padding: '12px 14px', color: '#525f7f' }}>{q.duration_minutes ? `${q.duration_minutes}m` : '∞'}</td>
                             <td style={{ padding: '12px 14px' }}>
@@ -533,17 +558,27 @@ export default function SubjectTeacher() {
                               </span>
                             </td>
                             <td style={{ padding: '12px 14px' }}>
-                              <div style={{ display: 'flex', gap: 6 }}>
-                                <Button size="sm" color="info" outline style={{ borderRadius: 20, fontSize: 11 }}
-                                  onClick={() => navigate('/admin/quiz-builder', {
-                                    state: { subjectId, subjectName: subject?.title, editQuizId: q.id }
-                                  })}>
-                                  Edit
-                                </Button>
-                                <Button size="sm" color={q.is_published ? 'warning' : 'success'} outline style={{ borderRadius: 20, fontSize: 11 }}
-                                  onClick={() => toggleQuizPublish(q.id, q.is_published)}>
-                                  {q.is_published ? 'Unpublish' : 'Publish'}
-                                </Button>
+                              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                {canEditQuiz(q) && (
+                                  <Button size="sm" color="info" outline style={{ borderRadius: 20, fontSize: 11 }}
+                                    onClick={() => navigate('/admin/quiz-builder', {
+                                      state: { subjectId, subjectName: subject?.title, editQuizId: q.id }
+                                    })}>
+                                    Edit
+                                  </Button>
+                                )}
+                                {isAdmin && (
+                                  <Button size="sm" color={q.is_published ? 'warning' : 'success'} outline style={{ borderRadius: 20, fontSize: 11 }}
+                                    onClick={() => toggleQuizPublish(q.id, q.is_published)}>
+                                    {q.is_published ? 'Unpublish' : 'Publish'}
+                                  </Button>
+                                )}
+                                {isAdmin && (
+                                  <Button size="sm" color="danger" outline style={{ borderRadius: 20, fontSize: 11 }}
+                                    onClick={() => setDeleteQuizModal({ open: true, quiz: q })}>
+                                    Delete
+                                  </Button>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -863,6 +898,22 @@ export default function SubjectTeacher() {
           <ModalFooter>
             <Button color="secondary" disabled={matSaving} onClick={handleAddMaterial}>{matSaving ? 'Adding...' : 'Add Material'}</Button>
             <Button color="link" onClick={() => setMatModalOpen(false)}>Cancel</Button>
+          </ModalFooter>
+        </Modal>
+
+        {/* Delete Quiz Confirmation Modal */}
+        <Modal isOpen={deleteQuizModal.open} toggle={() => setDeleteQuizModal({ open: false, quiz: null })} centered size="sm">
+          <ModalHeader toggle={() => setDeleteQuizModal({ open: false, quiz: null })}>
+            Confirm Delete
+          </ModalHeader>
+          <ModalBody className="text-center">
+            <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
+            <p>Are you sure you want to delete <strong>{deleteQuizModal.quiz?.title}</strong>?</p>
+            <p className="text-muted small">This action cannot be undone.</p>
+          </ModalBody>
+          <ModalFooter className="justify-content-center">
+            <Button color="danger" onClick={handleDeleteQuiz}>Yes, Delete</Button>
+            <Button color="secondary" outline onClick={() => setDeleteQuizModal({ open: false, quiz: null })}>Cancel</Button>
           </ModalFooter>
         </Modal>
 

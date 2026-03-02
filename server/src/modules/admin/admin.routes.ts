@@ -25,8 +25,11 @@ router.post('/courses', adminController.createCourse);
 // Subjects
 router.get('/subjects', adminController.getSubjects);
 router.post('/subjects', adminController.createSubject);
+router.put('/subjects/:subjectId', adminController.updateSubject);
+router.delete('/subjects/:subjectId', adminController.deleteSubject);
 router.post('/subjects/:subjectId/teachers', adminController.assignTeacher);
 router.delete('/subjects/:subjectId/teachers/:teacherId', adminController.removeTeacher);
+router.get('/subjects/:subjectId/enrollments', adminController.getEnrolledStudents);
 router.post('/subjects/:subjectId/enrollments', adminController.enrollStudent);
 router.delete('/subjects/:subjectId/enrollments/:studentId', adminController.unenrollStudent);
 

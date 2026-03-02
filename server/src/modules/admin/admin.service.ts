@@ -35,6 +35,7 @@ export interface AdminSubject {
   course_name: string;
   teacher_ids: string[];
   teacher_names: string[];
+  enrolled_ids: string[];
   enrolled_count: number;
 }
 
@@ -258,6 +259,10 @@ export async function getSubjects(courseId?: string): Promise<AdminSubject[]> {
           FILTER (WHERE u.first_name IS NOT NULL),
         '{}'
       ) AS teacher_names,
+      COALESCE(
+        array_agg(DISTINCT se.student_id) FILTER (WHERE se.enrollment_status = 'active'),
+        '{}'
+      ) AS enrolled_ids,
       COUNT(DISTINCT se.student_id)
         FILTER (WHERE se.enrollment_status = 'active') AS enrolled_count
     FROM subjects sub
@@ -281,6 +286,7 @@ export async function getSubjects(courseId?: string): Promise<AdminSubject[]> {
     course_name:   r.course_name,
     teacher_ids:   r.teacher_ids ?? [],
     teacher_names: r.teacher_names ?? [],
+    enrolled_ids:  r.enrolled_ids ?? [],
     enrolled_count: Number(r.enrolled_count),
   }));
 }
@@ -307,6 +313,7 @@ export async function createSubject(data: {
     course_name:    courseRows[0]?.name ?? '',
     teacher_ids:    [],
     teacher_names:  [],
+    enrolled_ids:   [],
     enrolled_count: 0,
   };
 }
@@ -344,6 +351,88 @@ export async function unenrollStudent(subjectId: string, studentId: string): Pro
     SET enrollment_status = 'suspended'
     WHERE subject_id = $1 AND student_id = $2
   `, [subjectId, studentId]);
+}
+
+// ---- Get enrolled students for a subject ----
+
+export interface EnrolledStudent {
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  status: string;
+  enrolled_at: string;
+}
+
+export async function getEnrolledStudents(subjectId: string): Promise<EnrolledStudent[]> {
+  const rows = await query<any>(`
+    SELECT
+      u.id,
+      u.email,
+      u.first_name,
+      u.last_name,
+      se.enrollment_status AS status,
+      se.enrolled_at
+    FROM subject_enrollments se
+    JOIN users u ON u.id = se.student_id
+    WHERE se.subject_id = $1 AND se.enrollment_status = 'active'
+    ORDER BY se.enrolled_at DESC
+  `, [subjectId]);
+
+  return rows.map((r) => ({
+    id:          r.id,
+    email:       r.email,
+    first_name:  r.first_name,
+    last_name:   r.last_name,
+    status:      r.status,
+    enrolled_at: r.enrolled_at,
+  }));
+}
+
+// ---- Update subject ----
+
+export async function updateSubject(
+  subjectId: string,
+  data: { course_id?: string; name?: string; code?: string; description?: string }
+): Promise<void> {
+  const sets: string[] = [];
+  const params: any[] = [];
+  let idx = 1;
+
+  if (data.course_id) {
+    sets.push(`course_id = $${idx++}`);
+    params.push(data.course_id);
+  }
+  if (data.name) {
+    sets.push(`name = $${idx++}`);
+    params.push(data.name);
+  }
+  if (data.code) {
+    sets.push(`code = $${idx++}`);
+    params.push(data.code.toUpperCase());
+  }
+  if (data.description !== undefined) {
+    sets.push(`description = $${idx++}`);
+    params.push(data.description || null);
+  }
+
+  if (sets.length === 0) return;
+
+  params.push(subjectId);
+  await query(`
+    UPDATE subjects SET ${sets.join(', ')}, updated_at = NOW()
+    WHERE id = $${idx}
+  `, params);
+}
+
+// ---- Delete subject ----
+
+export async function deleteSubject(subjectId: string): Promise<void> {
+  // Delete related records first
+  await query(`DELETE FROM subject_teachers WHERE subject_id = $1`, [subjectId]);
+  await query(`DELETE FROM subject_enrollments WHERE subject_id = $1`, [subjectId]);
+  // Now delete the subject
+  await query(`DELETE FROM subjects WHERE id = $1`, [subjectId]);
 }
 
 // ---- All sessions (admin view) ----

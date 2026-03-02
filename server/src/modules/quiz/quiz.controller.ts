@@ -59,21 +59,11 @@ export async function publishQuiz(req: Request, res: Response) {
     if (!quizId) {
       return res.status(400).json({ error: 'quizId is required' });
     }
-    const userId = req.user!.id;
     const role = req.user!.role;
-    if (role !== 'teacher' && role !== 'admin') {
-      return res.status(403).json({ error: 'Only teachers can publish quizzes' });
-    }
-
-    // Ownership check (skip for admin)
-    if (role === 'teacher') {
-      const owned = await query<any>(
-        `SELECT id FROM quizzes WHERE id = $1 AND created_by = $2`,
-        [quizId, userId]
-      );
-      if (!owned[0]) {
-        return res.status(403).json({ error: 'You do not own this quiz' });
-      }
+    
+    // Only admin can publish/unpublish quizzes
+    if (role !== 'admin') {
+      return res.status(403).json({ error: 'Only admins can publish quizzes' });
     }
 
     await quizService.setQuizPublished(quizId, Boolean(is_published));
@@ -195,6 +185,24 @@ export async function updateQuiz(req: Request, res: Response) {
     if (err.message === 'Quiz not found') return res.status(404).json({ error: 'Quiz not found' });
     console.error('[quiz] updateQuiz:', err);
     return res.status(500).json({ error: err.message || 'Failed to update quiz' });
+  }
+}
+
+export async function deleteQuiz(req: Request, res: Response) {
+  try {
+    const { quizId } = req.params;
+    const role = req.user!.role;
+    
+    // Only admin can delete quizzes
+    if (role !== 'admin') {
+      return res.status(403).json({ error: 'Only admins can delete quizzes' });
+    }
+
+    await quizService.deleteQuiz(quizId!);
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('[quiz] deleteQuiz:', err);
+    return res.status(500).json({ error: 'Failed to delete quiz' });
   }
 }
 

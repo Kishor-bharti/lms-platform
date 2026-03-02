@@ -209,6 +209,50 @@ export async function unenrollStudent(req: Request, res: Response) {
   }
 }
 
+export async function getEnrolledStudents(req: Request, res: Response) {
+  try {
+    const { subjectId } = req.params;
+    if (!subjectId) {
+      return res.status(400).json({ error: 'subjectId is required' });
+    }
+    const students = await adminService.getEnrolledStudents(subjectId);
+    return res.json(students);
+  } catch (err) {
+    console.error('[admin] getEnrolledStudents:', err);
+    return res.status(500).json({ error: 'Failed to fetch enrolled students' });
+  }
+}
+
+export async function updateSubject(req: Request, res: Response) {
+  try {
+    const { subjectId } = req.params;
+    const { course_id, name, code, description } = req.body;
+    if (!subjectId) {
+      return res.status(400).json({ error: 'subjectId is required' });
+    }
+    await adminService.updateSubject(subjectId, { course_id, name, code, description });
+    return res.json({ success: true });
+  } catch (err: any) {
+    console.error('[admin] updateSubject:', err);
+    if (err.code === '23505') return res.status(409).json({ error: 'Subject code already exists' });
+    return res.status(500).json({ error: 'Failed to update subject' });
+  }
+}
+
+export async function deleteSubject(req: Request, res: Response) {
+  try {
+    const { subjectId } = req.params;
+    if (!subjectId) {
+      return res.status(400).json({ error: 'subjectId is required' });
+    }
+    await adminService.deleteSubject(subjectId);
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('[admin] deleteSubject:', err);
+    return res.status(500).json({ error: 'Failed to delete subject' });
+  }
+}
+
 export async function getAllSessions(req: Request, res: Response) {
   try {
     const sessions = await adminService.getAllSessionsAdmin();

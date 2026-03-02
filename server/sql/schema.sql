@@ -112,12 +112,25 @@ CREATE TABLE quizzes (
   duration_minutes SMALLINT      NOT NULL,
   passing_score    NUMERIC(5,2),
   is_published     BOOLEAN       NOT NULL DEFAULT FALSE,
+  is_active        BOOLEAN       NOT NULL DEFAULT TRUE,
   available_from   TIMESTAMPTZ,
   available_until  TIMESTAMPTZ,
   max_attempts     SMALLINT,
   created_at       TIMESTAMPTZ   NOT NULL DEFAULT now(),
   updated_at       TIMESTAMPTZ   NOT NULL DEFAULT now()
 );
+
+ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS course_id UUID REFERENCES courses(id) ON DELETE CASCADE;
+ALTER TABLE quizzes ALTER COLUMN subject_id DROP NOT NULL;
+-- Note: existing quizzes keep subject_id, new course-level quizzes set course_id only
+
+-- added at the end of major-update-1/phase-4
+ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
+
+-- Create index for faster filtering (added at the end of major-update-1/phase-4)
+CREATE INDEX IF NOT EXISTS idx_quizzes_is_active ON quizzes(is_active);
+
+
 
 CREATE TABLE quiz_sets (
   id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -145,6 +158,9 @@ CREATE TABLE questions (
   updated_at    TIMESTAMPTZ   NOT NULL DEFAULT now(),
   CHECK (difficulty IN ('easy','medium','hard'))
 );
+
+-- added at the end of major-update-1/phase-4
+ALTER TABLE questions ADD COLUMN IF NOT EXISTS explanation_image_url TEXT;
 
 CREATE TABLE options (
   id           UUID    PRIMARY KEY DEFAULT gen_random_uuid(),

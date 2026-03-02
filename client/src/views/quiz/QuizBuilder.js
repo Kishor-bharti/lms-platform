@@ -12,6 +12,7 @@ const BLANK_OPTION = (label) => ({ label, text: '', is_correct: false });
 const BLANK_QUESTION = (idx) => ({
   question_text: '',
   explanation: '',
+  explanation_image_url: '',
   difficulty: 'medium',
   marks: 1,
   order_index: idx,
@@ -43,8 +44,10 @@ export default function QuizBuilder() {
   const [loadingQuiz, setLoadingQuiz] = useState(false);
   const [error,     setError]     = useState('');
   const [topics,    setTopics]    = useState([]);
-  const [uploading, setUploading] = useState(null); // qi of uploading question
+  const [uploading, setUploading] = useState(null); // qi of uploading question (question image)
+  const [uploadingExpl, setUploadingExpl] = useState(null); // qi of uploading explanation image
   const fileInputRefs = useRef({});
+  const explImageRefs = useRef({});
 
   useEffect(() => {
     if (!subjectId) return;
@@ -79,6 +82,7 @@ export default function QuizBuilder() {
           (q.questions || []).map((qItem, idx) => ({
             question_text: qItem.question_text,
             explanation:   qItem.explanation || '',
+            explanation_image_url: qItem.explanation_image_url || '',
             difficulty:    qItem.difficulty || 'medium',
             marks:         qItem.marks || 1,
             order_index:   qItem.order_index ?? idx,
@@ -118,6 +122,30 @@ export default function QuizBuilder() {
       setError(`Image upload failed for Q${qi + 1}`);
     } finally {
       setUploading(null);
+    }
+  };
+
+  const handleExplanationImageUpload = async (qi, file) => {
+    if (!file) return;
+    
+    const MAX_SIZE = 2 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      setError(`Explanation image too large for Q${qi + 1}: ${(file.size / 1024 / 1024).toFixed(2)}MB. Maximum size is 2MB`);
+      return;
+    }
+    
+    setUploadingExpl(qi);
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const res = await http.post('/api/upload/quiz-image', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      updateQuestion(qi, 'explanation_image_url', res.data.url);
+    } catch (err) {
+      setError(`Explanation image upload failed for Q${qi + 1}`);
+    } finally {
+      setUploadingExpl(null);
     }
   };
 
@@ -452,7 +480,9 @@ export default function QuizBuilder() {
                     ))}
                   </div>
 
+                  {/* Explanation section */}
                   <FormGroup className="mb-0">
+                    <Label style={{ fontSize: 12, color: '#8898aa' }}>Explanation (shown after attempt)</Label>
                     <textarea
                       className="form-control form-control-sm"
                       placeholder="Explanation (shown after attempt — supports $LaTeX$)..."
@@ -465,6 +495,34 @@ export default function QuizBuilder() {
                       rows={1}
                       style={{ resize: 'none', overflow: 'hidden', minHeight: 34 }}
                     />
+                    
+                    {/* Explanation image upload */}
+                    <div style={{ marginTop: 8 }}>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        ref={el => explImageRefs.current[qi] = el}
+                        onChange={(e) => { handleExplanationImageUpload(qi, e.target.files?.[0]); e.target.value = ''; }}
+                      />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Button size="sm" color="secondary" outline style={{ borderRadius: 6, fontSize: 11 }}
+                          disabled={uploadingExpl === qi}
+                          onClick={() => explImageRefs.current[qi]?.click()}>
+                          {uploadingExpl === qi ? <><Spinner size="sm" /> Uploading...</> : '📷 Add Explanation Image'}
+                        </Button>
+                        <small style={{ color: '#8898aa' }}>Max 2MB</small>
+                        {q.explanation_image_url && (
+                          <Button size="sm" color="danger" outline style={{ borderRadius: 6, fontSize: 11 }}
+                            onClick={() => updateQuestion(qi, 'explanation_image_url', '')}>
+                            Remove
+                          </Button>
+                        )}
+                      </div>
+                      {q.explanation_image_url && (
+                        <img src={q.explanation_image_url} alt="Explanation" style={{ maxWidth: '100%', maxHeight: 150, borderRadius: 8, marginTop: 8, border: '1px solid #e9ecef', objectFit: 'contain', display: 'block' }} />
+                      )}
+                    </div>
                   </FormGroup>
                 </CardBody>
               </Card>

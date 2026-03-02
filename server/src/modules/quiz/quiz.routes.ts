@@ -17,6 +17,7 @@ const questionSchema = z.object({
   question_text: z.string().min(1),
   image_url:     z.string().url().optional().or(z.literal('')),
   explanation:   z.string().optional(),
+  explanation_image_url: z.string().url().optional().or(z.literal('')),
   difficulty:    z.enum(['easy', 'medium', 'hard']),
   marks:         z.number().int().min(1).max(100),
   order_index:   z.number().int().min(0),
@@ -60,6 +61,7 @@ router.get('/subject/:subjectId/status', quizController.getStudentQuizStatuses);
 router.get('/:quizId', quizController.getQuizDetail);
 router.patch('/:quizId/publish', quizController.publishQuiz);
 router.put('/:quizId', validateBody(updateQuizSchema), quizController.updateQuiz);
+router.delete('/:quizId', quizController.deleteQuiz);
 
 // Attempts (student)
 router.post('/:quizId/attempts', quizController.startAttempt);
