@@ -406,9 +406,14 @@ export default function QuizTaker() {
                     <span style={{ fontWeight: 700, color: '#32325d' }}>
                       Question {current + 1} <span style={{ color: '#8898aa', fontWeight: 400 }}>of {total}</span>
                     </span>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                       {isLocked && <Badge color="secondary" style={{ fontWeight: 600 }}>🔒 Saved</Badge>}
-                      <Badge color="light" style={{ fontWeight: 600 }}>
+                      {q?.topic_name && (
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10 }}>📌 {q.topic_name}</span>
+                      )}
+                      <Badge
+                        color={q?.difficulty === 'easy' ? 'success' : q?.difficulty === 'hard' ? 'danger' : 'warning'}
+                        style={{ fontWeight: 600, textTransform: 'capitalize' }}>
                         {q?.difficulty}
                       </Badge>
                       <Badge color="info">{q?.marks} {q?.marks === 1 ? 'mark' : 'marks'}</Badge>
@@ -660,6 +665,11 @@ export default function QuizTaker() {
                     {a.explanation && (
                       <div style={{ marginTop: 10, padding: '8px 12px', background: '#fff8e6', borderRadius: 8, fontSize: 13, color: '#525f7f' }}>
                         <span style={{ fontWeight: 700 }}>Explanation: </span><LatexRenderer text={a.explanation} />
+                        {a.explanation_image_url && (
+                          <div style={{ marginTop: 8, background: '#f8f9fa', padding: 8, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <img src={a.explanation_image_url} alt="Explanation" style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 6, objectFit: 'contain', display: 'block' }} />
+                          </div>
+                        )}
                       </div>
                     )}
                   </CardBody>
@@ -736,6 +746,18 @@ export default function QuizTaker() {
                         <img src={a.image_url} alt="" style={{ maxWidth: '100%', maxHeight: 180, borderRadius: 6, objectFit: 'contain' }} />
                       </div>
                     )}
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+                      {a.topic_name && (
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10 }}>📌 {a.topic_name}</span>
+                      )}
+                      {a.difficulty && (
+                        <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 10, textTransform: 'capitalize',
+                          background: a.difficulty === 'easy' ? '#d4edda' : a.difficulty === 'hard' ? '#f8d7da' : '#fff3cd',
+                          color: a.difficulty === 'easy' ? '#155724' : a.difficulty === 'hard' ? '#721c24' : '#856404' }}>
+                          {a.difficulty}
+                        </span>
+                      )}
+                    </div>
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                       <div style={{ background: a.is_correct ? '#eafaf1' : '#fde8ec', border: `1px solid ${a.is_correct ? '#2dce89' : '#f5365c'}`, borderRadius: 8, padding: '6px 14px', fontSize: 13 }}>
                         <span style={{ fontWeight: 700 }}>Your answer: </span>
@@ -751,6 +773,11 @@ export default function QuizTaker() {
                     {a.explanation && (
                       <div style={{ marginTop: 10, padding: '8px 12px', background: '#fff8e6', borderRadius: 8, fontSize: 13, color: '#525f7f' }}>
                         <span style={{ fontWeight: 700 }}>Explanation: </span><LatexRenderer text={a.explanation} />
+                        {a.explanation_image_url && (
+                          <div style={{ marginTop: 8, background: '#f8f9fa', padding: 8, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <img src={a.explanation_image_url} alt="Explanation" style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 6, objectFit: 'contain', display: 'block' }} />
+                          </div>
+                        )}
                       </div>
                     )}
                   </CardBody>

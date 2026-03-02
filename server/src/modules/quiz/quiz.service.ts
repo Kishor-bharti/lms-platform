@@ -94,10 +94,12 @@ export async function getQuizWithQuestions(quizId: string, role: string): Promis
   const quiz = quizRows[0];
 
   const questionRows = await query<any>(`
-    SELECT id, question_text, image_url, explanation, explanation_image_url, difficulty, marks, order_index, topic_id
-    FROM questions
-    WHERE quiz_id = $1 AND is_active = true
-    ORDER BY order_index, created_at
+    SELECT q.id, q.question_text, q.image_url, q.explanation, q.explanation_image_url,
+           q.difficulty, q.marks, q.order_index, q.topic_id, t.name AS topic_name
+    FROM questions q
+    LEFT JOIN topics t ON t.id = q.topic_id
+    WHERE q.quiz_id = $1 AND q.is_active = true
+    ORDER BY q.order_index, q.created_at
   `, [quizId]);
 
   const optionRows = await query<any>(`
@@ -129,10 +131,12 @@ export async function getQuizWithQuestions(quizId: string, role: string): Promis
       question_text: q.question_text,
       image_url: q.image_url,
       explanation: q.explanation,
+      explanation_image_url: q.explanation_image_url ?? null,
       difficulty: q.difficulty,
       marks: Number(q.marks),
       order_index: q.order_index,
       topic_id: q.topic_id ?? null,
+      topic_name: q.topic_name ?? null,
       options: optsByQuestion.get(q.id) ?? [],
     })),
   };
@@ -313,9 +317,11 @@ export async function partialSubmitPractice(data: {
 
     // Get correct answers + question metadata
     const correctRows = await queryWithClient<any>(client, `
-      SELECT q.id AS question_id, q.question_text, q.image_url, q.explanation, q.marks,
+      SELECT q.id AS question_id, q.question_text, q.image_url, q.explanation,
+             q.explanation_image_url, q.difficulty, q.marks, t.name AS topic_name,
              o.id AS correct_option_id, o.option_label AS correct_label, o.option_text AS correct_text
       FROM questions q
+      LEFT JOIN topics t ON t.id = q.topic_id
       JOIN options o ON o.question_id = q.id AND o.is_correct = true
       WHERE q.quiz_id = $1 AND q.is_active = true
     `, [quizId]);
@@ -371,6 +377,9 @@ export async function partialSubmitPractice(data: {
         question_text: correct.question_text,
         image_url: correct.image_url,
         explanation: correct.explanation,
+        explanation_image_url: correct.explanation_image_url ?? null,
+        difficulty: correct.difficulty,
+        topic_name: correct.topic_name ?? null,
         selected_option_id: ans.selected_option_id,
         selected_label: sel?.option_label ?? null,
         selected_text: sel?.option_text ?? null,
@@ -515,11 +524,13 @@ export async function getAttemptResult(attemptId: string, studentId: string) {
   const answerRows = await query<any>(`
     SELECT
       aa.question_id, aa.selected_option_id, aa.is_correct, aa.marks_awarded,
-      q.question_text, q.image_url, q.explanation, q.marks AS total_marks,
+      q.question_text, q.image_url, q.explanation, q.explanation_image_url,
+      q.difficulty, q.marks AS total_marks, t.name AS topic_name,
       sel.option_label AS selected_label, sel.option_text AS selected_text,
       cor.id AS correct_option_id, cor.option_label AS correct_label, cor.option_text AS correct_text
     FROM attempt_answers aa
     JOIN questions q ON q.id = aa.question_id
+    LEFT JOIN topics t ON t.id = q.topic_id
     LEFT JOIN options sel ON sel.id = aa.selected_option_id
     LEFT JOIN options cor ON cor.question_id = q.id AND cor.is_correct = true
     WHERE aa.attempt_id = $1

@@ -24,4 +24,7 @@ router.post('/sessions/:sessionId/start',    classesController.startSessionById)
 // Mark session completed — teacher/admin only
 router.post('/sessions/:sessionId/complete', classesController.completeSessionById);
 
+// Cancel/delete session — creator or admin only
+router.delete('/sessions/:sessionId', classesController.deleteSessionById);
+
 export default router;

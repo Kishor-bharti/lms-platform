@@ -31,6 +31,9 @@ export default function QuizBuilder() {
   const courseName  = location.state?.courseName;
   const isCourseQuiz = location.state?.isCourseQuiz;
 
+  const userRole = (window.localStorage.getItem('role') || '').toLowerCase();
+  const isAdmin  = userRole === 'admin';
+
   const [meta, setMeta] = useState({
     title: '',
     quiz_type: isCourseQuiz ? 'test' : 'practice',
@@ -272,9 +275,11 @@ export default function QuizBuilder() {
                   <Button color="primary"  style={{ borderRadius: 8 }} disabled={saving} onClick={() => handleSave(false)}>
                     {saving ? 'Saving...' : 'Save Draft'}
                   </Button>
-                  <Button color="success" style={{ borderRadius: 8 }} disabled={saving} onClick={() => handleSave(true)}>
-                    {saving ? 'Publishing...' : 'Save & Publish'}
-                  </Button>
+                  {isAdmin && (
+                    <Button color="success" style={{ borderRadius: 8 }} disabled={saving} onClick={() => handleSave(true)}>
+                      {saving ? 'Publishing...' : 'Save & Publish'}
+                    </Button>
+                  )}
                 </div>
               </CardBody>
             </Card>

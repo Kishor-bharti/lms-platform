@@ -126,3 +126,20 @@ export async function gradeSubmission(req: Request, res: Response) {
     return res.status(500).json({ error: 'Failed to grade submission' });
   }
 }
+
+export async function deleteAssignment(req: Request, res: Response) {
+  try {
+    const { assignmentId } = req.params;
+    const requesterId = req.user!.id;
+    const role = req.user!.role;
+    if (role !== 'teacher' && role !== 'admin') {
+      return res.status(403).json({ error: 'Only teachers and admins can delete assignments' });
+    }
+    await assignmentService.deleteAssignment(assignmentId, requesterId);
+    return res.json({ success: true });
+  } catch (err: any) {
+    if (err.message === 'FORBIDDEN') return res.status(403).json({ error: 'You can only delete your own assignments' });
+    console.error('[assignment] delete:', err);
+    return res.status(500).json({ error: 'Failed to delete assignment' });
+  }
+}

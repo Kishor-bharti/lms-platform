@@ -65,13 +65,13 @@ export async function getTeacherSubjects(teacherId: string): Promise<ClassWithTe
        sub.description,
        c.name  AS course_name,
        c.code  AS course_code,
-       u.first_name || ' ' || u.last_name AS teacher_name
+       (SELECT STRING_AGG(u2.first_name || ' ' || u2.last_name, ', ' ORDER BY u2.first_name)
+        FROM subject_teachers st2 JOIN users u2 ON u2.id = st2.teacher_id
+        WHERE st2.subject_id = sub.id) AS teacher_name
      FROM   subjects sub
      JOIN   courses          c  ON c.id  = sub.course_id
-     JOIN   subject_teachers st ON st.subject_id = sub.id
-     JOIN   users            u  ON u.id  = st.teacher_id
-     WHERE  st.teacher_id = $1
-       AND  sub.is_active  = true
+     JOIN   subject_teachers st ON st.subject_id = sub.id AND st.teacher_id = $1
+     WHERE  sub.is_active  = true
      ORDER  BY c.name, sub.name`,
     [teacherId]
   );
@@ -83,7 +83,7 @@ export async function getTeacherSubjects(teacherId: string): Promise<ClassWithTe
     description: r.description,
     course_name: r.course_name,
     course_code: r.course_code,
-    teacher_name: r.teacher_name,
+    teacher_name: r.teacher_name ?? 'Unassigned',
   }));
 }
 
@@ -98,14 +98,13 @@ export async function getEnrolledSubjects(studentId: string): Promise<ClassWithT
        sub.description,
        c.name  AS course_name,
        c.code  AS course_code,
-       u.first_name || ' ' || u.last_name AS teacher_name
+       (SELECT STRING_AGG(u2.first_name || ' ' || u2.last_name, ', ' ORDER BY u2.first_name)
+        FROM subject_teachers st2 JOIN users u2 ON u2.id = st2.teacher_id
+        WHERE st2.subject_id = sub.id) AS teacher_name
      FROM   subjects sub
      JOIN   courses             c  ON c.id  = sub.course_id
-     JOIN   subject_enrollments se ON se.subject_id = sub.id
-     JOIN   subject_teachers    st ON st.subject_id = sub.id
-     JOIN   users               u  ON u.id  = st.teacher_id
-     WHERE  se.student_id       = $1
-       AND  se.enrollment_status = 'active'
+     JOIN   subject_enrollments se ON se.subject_id = sub.id AND se.student_id = $1
+     WHERE  se.enrollment_status = 'active'
        AND  sub.is_active        = true
      ORDER  BY c.name, sub.name`,
     [studentId]
@@ -118,7 +117,7 @@ export async function getEnrolledSubjects(studentId: string): Promise<ClassWithT
     description: r.description,
     course_name: r.course_name,
     course_code: r.course_code,
-    teacher_name: r.teacher_name,
+    teacher_name: r.teacher_name ?? 'Unassigned',
   }));
 }
 
@@ -133,11 +132,14 @@ export async function getAllSubjects(): Promise<ClassWithTeacher[]> {
        sub.description,
        c.name  AS course_name,
        c.code  AS course_code,
-       COALESCE(u.first_name || ' ' || u.last_name, 'Unassigned') AS teacher_name
+       COALESCE(
+         (SELECT STRING_AGG(u2.first_name || ' ' || u2.last_name, ', ' ORDER BY u2.first_name)
+          FROM subject_teachers st2 JOIN users u2 ON u2.id = st2.teacher_id
+          WHERE st2.subject_id = sub.id),
+         'Unassigned'
+       ) AS teacher_name
      FROM   subjects sub
-     JOIN   courses          c   ON c.id  = sub.course_id
-     LEFT   JOIN subject_teachers st  ON st.subject_id = sub.id
-     LEFT   JOIN users            u   ON u.id  = st.teacher_id
+     JOIN   courses c   ON c.id  = sub.course_id
      WHERE  sub.is_active = true
      ORDER  BY c.name, sub.name`
   );
@@ -175,6 +177,7 @@ export async function getSessionsByTeacher(
        s.id,
        s.subject_id,
        s.topic_id,
+       s.teacher_id,
        t.name         AS topic_name,
        sub.name       AS class_title,
        s.title,
@@ -202,6 +205,7 @@ export async function getSessionsByTeacher(
     topic_name:     r.topic_name ?? undefined,
     class_title:    r.class_title,
     title:          r.title,
+    teacher_id:     r.teacher_id,
     zoom_link:      r.meeting_link,
     start_url:      r.zoom_start_url ?? undefined,
     zoom_meeting_id: r.zoom_meeting_id,
@@ -260,6 +264,7 @@ export async function getAllSessions(): Promise<SessionWithDetails[]> {
        s.id,
        s.subject_id,
        s.topic_id,
+       s.teacher_id,
        t.name         AS topic_name,
        sub.name       AS class_title,
        s.title,
@@ -284,6 +289,7 @@ export async function getAllSessions(): Promise<SessionWithDetails[]> {
     topic_name:     r.topic_name ?? undefined,
     class_title:    r.class_title,
     title:          r.title,
+    teacher_id:     r.teacher_id,
     zoom_link:      r.meeting_link,
     start_url:      r.zoom_start_url ?? undefined,
     zoom_meeting_id: r.zoom_meeting_id,
@@ -504,4 +510,20 @@ function computeEndTime(startTime: string, addMinutes: number): string {
   const newMM = totalMinutes % 60;
 
   return `${String(newHH).padStart(2, '0')}:${String(newMM).padStart(2, '0')}:${String(ss ?? 0).padStart(2, '0')}${tz}`;
+}
+
+// ─── DELETE session (teacher who owns it or admin) ─────────────
+
+export async function deleteSession(sessionId: string, requesterId: string): Promise<void> {
+  const result = await query<any>(`
+    UPDATE sessions SET status = 'cancelled', updated_at = now()
+    WHERE id = $1
+      AND (teacher_id = $2 OR EXISTS (
+        SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id
+        WHERE ur.user_id = $2 AND r.name = 'admin'
+      ))
+    RETURNING id
+  `, [sessionId, requesterId]);
+
+  if (!result[0]) throw new Error('FORBIDDEN');
 }

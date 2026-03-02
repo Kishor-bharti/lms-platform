@@ -40,14 +40,16 @@ export async function getAssignmentsBySubject(
   const rows = await query<any>(`
     SELECT
       a.id, a.subject_id, a.topic_id, t.name AS topic_name,
-      a.title, a.description,
+      a.title, a.description, a.created_by,
+      u.first_name || ' ' || u.last_name AS creator_name,
       a.due_date, a.max_marks, a.is_published, a.attachment_url, a.created_at,
       COUNT(sub.id) FILTER (WHERE sub.status != 'pending') AS submission_count
     FROM assignments a
     LEFT JOIN assignment_submissions sub ON sub.assignment_id = a.id
     LEFT JOIN topics t ON t.id = a.topic_id
+    LEFT JOIN users u ON u.id = a.created_by
     WHERE a.subject_id = $1
-    GROUP BY a.id, t.name
+    GROUP BY a.id, t.name, u.first_name, u.last_name
     ORDER BY a.created_at DESC
   `, [subjectId]);
 
@@ -139,6 +141,22 @@ export async function createAssignment(data: {
 
 export async function setAssignmentPublished(assignmentId: string, published: boolean): Promise<void> {
   await query(`UPDATE assignments SET is_published=$1, updated_at=now() WHERE id=$2`, [published, assignmentId]);
+}
+
+// ---- Teacher/Admin: delete assignment (creator or admin only) ----
+
+export async function deleteAssignment(assignmentId: string, requesterId: string): Promise<void> {
+  const result = await query<any>(`
+    DELETE FROM assignments
+    WHERE id = $1
+      AND (created_by = $2 OR EXISTS (
+        SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id
+        WHERE ur.user_id = $2 AND r.name = 'admin'
+      ))
+    RETURNING id
+  `, [assignmentId, requesterId]);
+
+  if (!result[0]) throw new Error('FORBIDDEN');
 }
 
 // ---- Teacher: get all submissions for an assignment ----

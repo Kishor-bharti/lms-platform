@@ -23,7 +23,7 @@ export default function SubjectTeacher() {
   const navigate = useNavigate();
 
   const userRole = (window.localStorage.getItem('role') || '').toLowerCase();
-  const userId = window.localStorage.getItem('userId');
+  const userId = (() => { try { return JSON.parse(window.localStorage.getItem('user') || '{}').id || null; } catch { return null; } })();
   const isAdmin = userRole === 'admin';
 
   const [tab,             setTab]             = useState('topics');
@@ -34,7 +34,10 @@ export default function SubjectTeacher() {
   const [loading,         setLoading]         = useState(true);
   const [startingSession, setStartingSession] = useState(null);
   const [actionError,     setActionError]     = useState('');
-  const [deleteQuizModal, setDeleteQuizModal] = useState({ open: false, quiz: null });
+  const [deleteQuizModal,     setDeleteQuizModal]     = useState({ open: false, quiz: null });
+  const [deleteSessionModal,  setDeleteSessionModal]  = useState({ open: false, session: null });
+  const [deleteAssignModal,   setDeleteAssignModal]   = useState({ open: false, assign: null });
+  const [deleteMatModal,      setDeleteMatModal]      = useState({ open: false, mat: null });
 
   // Schedule session modal
   const [scheduleOpen,  setScheduleOpen]  = useState(false);
@@ -169,10 +172,31 @@ export default function SubjectTeacher() {
     } finally { setMatSaving(false); }
   };
 
-  const handleDeleteMaterial = async (matId) => {
-    try { await http.delete(`/api/materials/${matId}`); fetchData(); }
-    catch (err) { console.error(err); }
+  const handleDeleteMaterial = async () => {
+    if (!deleteMatModal.mat) return;
+    try { await http.delete(`/api/materials/${deleteMatModal.mat.id}`); setDeleteMatModal({ open: false, mat: null }); fetchData(); }
+    catch (err) { alert(err?.response?.data?.error || 'Failed to delete material'); }
   };
+
+  const handleDeleteSession = async () => {
+    if (!deleteSessionModal.session) return;
+    try {
+      await http.delete(`/api/classes/sessions/${deleteSessionModal.session.id}`);
+      setDeleteSessionModal({ open: false, session: null }); fetchData();
+    } catch (err) { alert(err?.response?.data?.error || 'Failed to delete session'); }
+  };
+
+  const handleDeleteAssignment = async () => {
+    if (!deleteAssignModal.assign) return;
+    try {
+      await http.delete(`/api/assignments/${deleteAssignModal.assign.id}`);
+      setDeleteAssignModal({ open: false, assign: null }); fetchData();
+    } catch (err) { alert(err?.response?.data?.error || 'Failed to delete assignment'); }
+  };
+
+  const canEditItem = (item) => isAdmin || item.created_by === userId;
+  const canEditMaterial = (m) => isAdmin || m.uploaded_by === userId;
+  const canEditSession = (s) => isAdmin || s.teacher_id === userId;
 
   const canEditQuiz = (quiz) => {
     return isAdmin || quiz.created_by === userId;
@@ -472,16 +496,24 @@ export default function SubjectTeacher() {
                                   <span style={{ display: 'inline-block', marginTop: 4, fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10 }}>📌 {s.topic_name}</span>
                                 )}
                               </div>
-                              <button
-                                disabled={startingSession === s.id}
-                                onClick={() => s.status === 'LIVE' ? handleEnd(s.id) : handleStart(s.id)}
-                                style={{
-                                  border: 'none', borderRadius: 6, padding: '7px 16px',
-                                  fontWeight: 600, fontSize: 13, cursor: 'pointer',
-                                  background: s.status === 'LIVE' ? '#f5365c' : '#2dce89', color: '#fff',
-                                }}>
-                                {startingSession === s.id ? '...' : s.status === 'LIVE' ? 'End Session' : 'Start Live Session'}
-                              </button>
+                              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                                {canEditSession(s) && s.status !== 'LIVE' && (
+                                  <Button size="sm" color="danger" outline style={{ borderRadius: 8, fontSize: 11 }}
+                                    onClick={() => setDeleteSessionModal({ open: true, session: s })}>
+                                    Delete
+                                  </Button>
+                                )}
+                                <button
+                                  disabled={startingSession === s.id}
+                                  onClick={() => s.status === 'LIVE' ? handleEnd(s.id) : handleStart(s.id)}
+                                  style={{
+                                    border: 'none', borderRadius: 6, padding: '7px 16px',
+                                    fontWeight: 600, fontSize: 13, cursor: 'pointer',
+                                    background: s.status === 'LIVE' ? '#f5365c' : '#2dce89', color: '#fff',
+                                  }}>
+                                  {startingSession === s.id ? '...' : s.status === 'LIVE' ? 'End Session' : 'Start Live Session'}
+                                </button>
+                              </div>
                             </div>
                           </div>
                         ))}
@@ -490,11 +522,21 @@ export default function SubjectTeacher() {
                         <p className="text-xs font-weight-bold text-uppercase text-muted mt-3 mb-2">Past</p>
                         {past.map((s) => (
                           <div key={s.id} className="p-3 mb-2 bg-white border rounded" style={{ opacity: 0.7 }}>
-                            <strong>{s.title}</strong>
-                            <span className="small text-muted ml-2">{new Date(s.scheduled_at).toLocaleDateString()}</span>
-                            {s.topic_name && (
-                              <span style={{ display: 'inline-block', marginLeft: 8, fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10 }}>📌 {s.topic_name}</span>
-                            )}
+                            <div className="d-flex justify-content-between align-items-center">
+                              <div>
+                                <strong>{s.title}</strong>
+                                <span className="small text-muted ml-2">{new Date(s.scheduled_at).toLocaleDateString()}</span>
+                                {s.topic_name && (
+                                  <span style={{ display: 'inline-block', marginLeft: 8, fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10 }}>📌 {s.topic_name}</span>
+                                )}
+                              </div>
+                              {canEditSession(s) && (
+                                <Button size="sm" color="danger" outline style={{ borderRadius: 8, fontSize: 11 }}
+                                  onClick={() => setDeleteSessionModal({ open: true, session: s })}>
+                                  Delete
+                                </Button>
+                              )}
+                            </div>
                           </div>
                         ))}
                       </>}
@@ -637,6 +679,12 @@ export default function SubjectTeacher() {
                                 onClick={() => toggleAssignPublish(a.id, a.is_published)}>
                                 {a.is_published ? 'Unpublish' : 'Publish'}
                               </Button>
+                              {canEditItem(a) && (
+                                <Button size="sm" color="danger" outline style={{ borderRadius: 20, fontSize: 11 }}
+                                  onClick={() => setDeleteAssignModal({ open: true, assign: a })}>
+                                  Delete
+                                </Button>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -756,8 +804,10 @@ export default function SubjectTeacher() {
                               )}
                             </div>
                           </div>
-                          <Button size="sm" color="danger" outline style={{ borderRadius: 20, fontSize: 11, flexShrink: 0 }}
-                            onClick={() => handleDeleteMaterial(m.id)}>Remove</Button>
+                          {canEditMaterial(m) && (
+                            <Button size="sm" color="danger" outline style={{ borderRadius: 20, fontSize: 11, flexShrink: 0 }}
+                              onClick={() => setDeleteMatModal({ open: true, mat: m })}>Remove</Button>
+                          )}
                         </div>
                       );
                     })
@@ -914,6 +964,48 @@ export default function SubjectTeacher() {
           <ModalFooter className="justify-content-center">
             <Button color="danger" onClick={handleDeleteQuiz}>Yes, Delete</Button>
             <Button color="secondary" outline onClick={() => setDeleteQuizModal({ open: false, quiz: null })}>Cancel</Button>
+          </ModalFooter>
+        </Modal>
+
+        {/* Delete Session Confirmation Modal */}
+        <Modal isOpen={deleteSessionModal.open} toggle={() => setDeleteSessionModal({ open: false, session: null })} centered size="sm">
+          <ModalHeader toggle={() => setDeleteSessionModal({ open: false, session: null })}>Confirm Delete Session</ModalHeader>
+          <ModalBody className="text-center">
+            <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
+            <p>Delete session <strong>{deleteSessionModal.session?.title}</strong>?</p>
+            <p className="text-muted small">This will mark the session as cancelled.</p>
+          </ModalBody>
+          <ModalFooter className="justify-content-center">
+            <Button color="danger" onClick={handleDeleteSession}>Yes, Delete</Button>
+            <Button color="secondary" outline onClick={() => setDeleteSessionModal({ open: false, session: null })}>Cancel</Button>
+          </ModalFooter>
+        </Modal>
+
+        {/* Delete Assignment Confirmation Modal */}
+        <Modal isOpen={deleteAssignModal.open} toggle={() => setDeleteAssignModal({ open: false, assign: null })} centered size="sm">
+          <ModalHeader toggle={() => setDeleteAssignModal({ open: false, assign: null })}>Confirm Delete Assignment</ModalHeader>
+          <ModalBody className="text-center">
+            <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
+            <p>Delete assignment <strong>{deleteAssignModal.assign?.title}</strong>?</p>
+            <p className="text-muted small">This action cannot be undone.</p>
+          </ModalBody>
+          <ModalFooter className="justify-content-center">
+            <Button color="danger" onClick={handleDeleteAssignment}>Yes, Delete</Button>
+            <Button color="secondary" outline onClick={() => setDeleteAssignModal({ open: false, assign: null })}>Cancel</Button>
+          </ModalFooter>
+        </Modal>
+
+        {/* Delete Material Confirmation Modal */}
+        <Modal isOpen={deleteMatModal.open} toggle={() => setDeleteMatModal({ open: false, mat: null })} centered size="sm">
+          <ModalHeader toggle={() => setDeleteMatModal({ open: false, mat: null })}>Confirm Remove Material</ModalHeader>
+          <ModalBody className="text-center">
+            <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
+            <p>Remove <strong>{deleteMatModal.mat?.title}</strong>?</p>
+            <p className="text-muted small">This action cannot be undone.</p>
+          </ModalBody>
+          <ModalFooter className="justify-content-center">
+            <Button color="danger" onClick={handleDeleteMaterial}>Yes, Remove</Button>
+            <Button color="secondary" outline onClick={() => setDeleteMatModal({ open: false, mat: null })}>Cancel</Button>
           </ModalFooter>
         </Modal>
 

@@ -120,3 +120,20 @@ export async function completeSessionById(req: Request, res: Response) {
     return res.status(500).json({ error: 'Failed to complete session' });
   }
 }
+
+// ─── DELETE /api/classes/sessions/:sessionId ───────────────────────────────
+export async function deleteSessionById(req: Request, res: Response) {
+  try {
+    const { sessionId } = req.params;
+    const role = req.user?.role;
+    if (role !== 'teacher' && role !== 'admin') {
+      return res.status(403).json({ error: 'Only teachers and admins can delete sessions' });
+    }
+    await classesService.deleteSession(sessionId, req.user!.id);
+    return res.json({ success: true });
+  } catch (err: any) {
+    console.error('[classes] deleteSession error:', err);
+    if (err.message === 'FORBIDDEN') return res.status(403).json({ error: 'You can only delete your own sessions' });
+    return res.status(500).json({ error: 'Failed to delete session' });
+  }
+}
