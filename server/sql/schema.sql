@@ -5,6 +5,15 @@
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- CREATE EXTENSION IF NOT EXISTS "pg_cron";   -- for scheduled jobs
 
+-- Helper Functions (must be defined before triggers that use them)
+CREATE OR REPLACE FUNCTION fn_set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 --  Domain 1 — Identity
 CREATE TABLE roles (
   id         SMALLINT     PRIMARY KEY,
@@ -360,7 +369,7 @@ CREATE INDEX idx_quizzes_type        ON quizzes(quiz_type);
 CREATE INDEX idx_quizzes_published   ON quizzes(is_published, available_from, available_until);
 CREATE INDEX idx_questions_quiz      ON questions(quiz_id);
 CREATE INDEX idx_questions_set       ON questions(set_id);
-CREATE INDEX idx_questions_topic     ON questions(topic_id);
+-- idx_questions_topic already created in "addition after phase 2" section
 CREATE INDEX idx_options_question    ON options(question_id);
 
 -- Activity Indexes
@@ -386,14 +395,7 @@ CREATE INDEX idx_materials_subject   ON subject_materials(subject_id, order_inde
 -- Triggers
 
 -- Auto-Update updated_at
-
-CREATE OR REPLACE FUNCTION fn_set_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = now();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+-- (Function fn_set_updated_at() defined at top of file)
 
 CREATE TRIGGER trg_updated_at_users
   BEFORE UPDATE ON users
@@ -618,10 +620,3 @@ GROUP BY st.teacher_id, t.first_name, t.last_name, sub.id, sub.name, c.name;
 --       computed_at           = EXCLUDED.computed_at;
 --   $$
 -- );
-
-
-
-
-
-
-

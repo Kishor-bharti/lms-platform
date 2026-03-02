@@ -124,12 +124,13 @@ export async function completeSessionById(req: Request, res: Response) {
 // ─── DELETE /api/classes/sessions/:sessionId ───────────────────────────────
 export async function deleteSessionById(req: Request, res: Response) {
   try {
-    const { sessionId } = req.params;
-    const role = req.user?.role;
+    const sessionId = req.params.sessionId as string;
+    const userId = req.user!.id as string;
+    const role = req.user!.role;
     if (role !== 'teacher' && role !== 'admin') {
       return res.status(403).json({ error: 'Only teachers and admins can delete sessions' });
     }
-    await classesService.deleteSession(sessionId, req.user!.id);
+    await classesService.deleteSession(sessionId, userId);
     return res.json({ success: true });
   } catch (err: any) {
     console.error('[classes] deleteSession error:', err);

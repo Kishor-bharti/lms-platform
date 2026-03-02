@@ -129,8 +129,8 @@ export async function gradeSubmission(req: Request, res: Response) {
 
 export async function deleteAssignment(req: Request, res: Response) {
   try {
-    const { assignmentId } = req.params;
-    const requesterId = req.user!.id;
+    const assignmentId = req.params.assignmentId as string;
+    const requesterId = req.user!.id as string;
     const role = req.user!.role;
     if (role !== 'teacher' && role !== 'admin') {
       return res.status(403).json({ error: 'Only teachers and admins can delete assignments' });
