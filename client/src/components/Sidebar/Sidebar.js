@@ -9,7 +9,6 @@ import http from "utils/http";
 
 // Course icon map — falls back to a default
 const COURSE_ICONS = {
-  SAT: { icon: "ni ni-hat-3",       color: "#5e72e4" },
   ACT: { icon: "ni ni-book-bookmark", color: "#11cdef" },
   AP:  { icon: "ni ni-trophy",       color: "#fb6340" },
 };
@@ -286,6 +285,7 @@ const Sidebar = (props) => {
               </Nav>
             </>
           )}
+
 
           {/* ── Resources section ── */}
           <hr className="my-3" />

@@ -23,6 +23,7 @@ const AdminNavbar = (props) => {
     try {
       const raw = window.localStorage.getItem("user") || "";
       const u = raw ? JSON.parse(raw) : {};
+      if (u.first_name || u.last_name) return `${u.first_name || ""} ${u.last_name || ""}`.trim();
       return typeof u.name === "string" ? u.name : "";
     } catch {
       return "";

@@ -4,7 +4,6 @@ import Profile from 'views/examples/Profile.js';
 import Resources from 'views/examples/Resources.js';
 import Login from 'views/examples/Login.js';
 import AdminLogin from 'views/examples/AdminLogin.js';
-import SAT from 'views/examples/SAT.js';
 import Sessions from 'views/examples/Sessions.js';
 import Classes from 'views/examples/Classes.js';
 import SubjectPage from 'views/subject/SubjectPage.js';
@@ -54,6 +53,7 @@ var routes = [
     icon: 'ni ni-folder-17 text-blue',
     component: <Resources />,
     layout: '/admin',
+    hidden: true,
   },
   {
     path: '/report',
@@ -67,13 +67,6 @@ var routes = [
     name: 'Profile',
     icon: 'ni ni-single-02 text-info',
     component: <Profile />,
-    layout: '/admin',
-  },
-  {
-    path: '/sat',
-    name: 'SAT',
-    icon: 'ni ni-bullet-list-67 text-red',
-    component: <SAT />,
     layout: '/admin',
   },
   {
