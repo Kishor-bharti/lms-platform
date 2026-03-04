@@ -1,11 +1,15 @@
+-- ============================================================
+-- LMS Platform — Canonical Schema
+-- Source of truth for a fresh database setup.
+-- Last synced: 2026-03-04 (matches local + production state)
+-- ============================================================
+
 -- CREATE DATABASE IF NOT EXISTS "100xlearning";
--- USE "100xlearning";
 
---  Extensions & Setup
+-- Extensions & Setup
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
--- CREATE EXTENSION IF NOT EXISTS "pg_cron";   -- for scheduled jobs
 
--- Helper Functions (must be defined before triggers that use them)
+-- Helper Function (must be defined before triggers that use it)
 CREATE OR REPLACE FUNCTION fn_set_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -14,7 +18,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
---  Domain 1 — Identity
+
+-- ============================================================
+-- Domain 1 — Identity
+-- ============================================================
+
 CREATE TABLE roles (
   id         SMALLINT     PRIMARY KEY,
   name       VARCHAR(20)  NOT NULL UNIQUE,
@@ -45,7 +53,10 @@ CREATE TABLE user_roles (
   PRIMARY KEY (user_id, role_id)
 );
 
+
+-- ============================================================
 -- Domain 2 — Courses
+-- ============================================================
 
 CREATE TABLE courses (
   id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -107,7 +118,10 @@ CREATE TABLE subject_enrollments (
   CHECK (enrollment_status IN ('active','suspended','completed'))
 );
 
+
+-- ============================================================
 -- Domain 3 — Content
+-- ============================================================
 
 CREATE TABLE quizzes (
   id               UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -129,18 +143,6 @@ CREATE TABLE quizzes (
   updated_at       TIMESTAMPTZ   NOT NULL DEFAULT now()
 );
 
-ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS course_id UUID REFERENCES courses(id) ON DELETE CASCADE;
-ALTER TABLE quizzes ALTER COLUMN subject_id DROP NOT NULL;
--- Note: existing quizzes keep subject_id, new course-level quizzes set course_id only
-
--- added at the end of major-update-1/phase-4
-ALTER TABLE quizzes ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
-
--- Create index for faster filtering (added at the end of major-update-1/phase-4)
-CREATE INDEX IF NOT EXISTS idx_quizzes_is_active ON quizzes(is_active);
-
-
-
 CREATE TABLE quiz_sets (
   id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
   quiz_id     UUID         NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
@@ -151,25 +153,23 @@ CREATE TABLE quiz_sets (
 );
 
 CREATE TABLE questions (
-  id            UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
-  quiz_id       UUID          NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
-  set_id        UUID          REFERENCES quiz_sets(id) ON DELETE CASCADE,
-  topic_id      UUID          REFERENCES topics(id) ON DELETE SET NULL,
-  question_text TEXT          NOT NULL,
-  image_url     TEXT,
-  explanation   TEXT,
-  difficulty    VARCHAR(10)   NOT NULL DEFAULT 'medium',
-  order_index   SMALLINT      NOT NULL DEFAULT 0,
-  marks         NUMERIC(4,2)  NOT NULL DEFAULT 1.00,
-  is_active     BOOLEAN       NOT NULL DEFAULT TRUE,
-  created_by    UUID          NOT NULL REFERENCES users(id),
-  created_at    TIMESTAMPTZ   NOT NULL DEFAULT now(),
-  updated_at    TIMESTAMPTZ   NOT NULL DEFAULT now(),
+  id                    UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+  quiz_id               UUID          NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
+  set_id                UUID          REFERENCES quiz_sets(id) ON DELETE CASCADE,
+  topic_id              UUID          REFERENCES topics(id) ON DELETE SET NULL,
+  question_text         TEXT          NOT NULL,
+  image_url             TEXT,
+  explanation           TEXT,
+  explanation_image_url TEXT,
+  difficulty            VARCHAR(10)   NOT NULL DEFAULT 'medium',
+  order_index           SMALLINT      NOT NULL DEFAULT 0,
+  marks                 NUMERIC(4,2)  NOT NULL DEFAULT 1.00,
+  is_active             BOOLEAN       NOT NULL DEFAULT TRUE,
+  created_by            UUID          NOT NULL REFERENCES users(id),
+  created_at            TIMESTAMPTZ   NOT NULL DEFAULT now(),
+  updated_at            TIMESTAMPTZ   NOT NULL DEFAULT now(),
   CHECK (difficulty IN ('easy','medium','hard'))
 );
-
--- added at the end of major-update-1/phase-4
-ALTER TABLE questions ADD COLUMN IF NOT EXISTS explanation_image_url TEXT;
 
 CREATE TABLE options (
   id           UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -180,7 +180,10 @@ CREATE TABLE options (
   UNIQUE (question_id, option_label)
 );
 
+
+-- ============================================================
 -- Domain 4 — Activity
+-- ============================================================
 
 CREATE TABLE quiz_attempts (
   id                  UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -197,8 +200,9 @@ CREATE TABLE quiz_attempts (
   score_pct           NUMERIC(5,2),
   is_passed           BOOLEAN,
   ip_address          INET,
+  last_question_index INTEGER      NOT NULL DEFAULT 0,
   UNIQUE (quiz_id, student_id, attempt_number),
-  CHECK (status IN ('in_progress','submitted','timed_out','abandoned'))
+  CHECK (status IN ('in_progress','partial','submitted','timed_out','abandoned'))
 );
 
 CREATE TABLE attempt_answers (
@@ -263,12 +267,15 @@ CREATE TABLE student_progress (
   UNIQUE (student_id, subject_id)
 );
 
+
+-- ============================================================
 -- Domain 5 — Delivery
+-- ============================================================
 
 CREATE TABLE session_recurrence (
-  id               UUID       PRIMARY KEY DEFAULT gen_random_uuid(),
+  id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   pattern          VARCHAR(20) NOT NULL CHECK (pattern IN ('daily','weekly','monthly')),
-  interval_value   SMALLINT   NOT NULL DEFAULT 1,
+  interval_value   SMALLINT    NOT NULL DEFAULT 1,
   days_of_week     SMALLINT[],
   recur_until      DATE,
   max_occurrences  SMALLINT,
@@ -319,141 +326,113 @@ CREATE TABLE subject_materials (
   CHECK (material_type IN ('pdf','video','link','doc','image'))
 );
 
--- addition after phase 2
 
-CREATE TABLE IF NOT EXISTS topics (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  subject_id UUID NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
-  name VARCHAR(150) NOT NULL,
-  description TEXT,
-  order_index SMALLINT NOT NULL DEFAULT 0,
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  created_by UUID NOT NULL REFERENCES users(id),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (subject_id, name)
-);
-CREATE INDEX IF NOT EXISTS idx_topics_subject ON topics(subject_id);
-ALTER TABLE questions ADD COLUMN IF NOT EXISTS topic_id UUID REFERENCES topics(id) ON DELETE SET NULL;
-CREATE INDEX IF NOT EXISTS idx_questions_topic ON questions(topic_id);
-
--- addtion before phase 3
-ALTER TABLE quiz_attempts ADD COLUMN IF NOT EXISTS last_question_index INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE quiz_attempts DROP CONSTRAINT IF EXISTS quiz_attempts_status_check;
-ALTER TABLE quiz_attempts ADD CONSTRAINT quiz_attempts_status_check
-  CHECK (status IN ('in_progress','partial','submitted','timed_out','abandoned'));
-
-
+-- ============================================================
 -- Indexes
-
--- Critical Partial Unique Index
+-- ============================================================
 
 -- Exactly one correct answer per question — enforced at DB level
 CREATE UNIQUE INDEX idx_one_correct_per_question
   ON options(question_id) WHERE is_correct = TRUE;
 
--- Identity Indexes
+-- Identity
 CREATE INDEX idx_users_email     ON users(email);
 CREATE INDEX idx_users_is_active ON users(is_active);
 
--- Course & Enrollment Indexes
+-- Course & Enrollment
 CREATE INDEX idx_subject_teachers_teacher  ON subject_teachers(teacher_id);
 CREATE INDEX idx_subject_teachers_subject  ON subject_teachers(subject_id);
 CREATE INDEX idx_enrollments_student       ON subject_enrollments(student_id);
 CREATE INDEX idx_enrollments_subject       ON subject_enrollments(subject_id);
 CREATE INDEX idx_enrollments_status        ON subject_enrollments(enrollment_status);
 
---  Content Indexes
+-- Content
 CREATE INDEX idx_quizzes_subject     ON quizzes(subject_id);
 CREATE INDEX idx_quizzes_type        ON quizzes(quiz_type);
 CREATE INDEX idx_quizzes_published   ON quizzes(is_published, available_from, available_until);
+CREATE INDEX idx_quizzes_is_active   ON quizzes(is_active);
 CREATE INDEX idx_questions_quiz      ON questions(quiz_id);
 CREATE INDEX idx_questions_set       ON questions(set_id);
--- idx_questions_topic already created in "addition after phase 2" section
+CREATE INDEX idx_questions_topic     ON questions(topic_id);
 CREATE INDEX idx_options_question    ON options(question_id);
 
--- Activity Indexes
-CREATE INDEX idx_attempts_student    ON quiz_attempts(student_id);
-CREATE INDEX idx_attempts_quiz       ON quiz_attempts(quiz_id);
-CREATE INDEX idx_attempts_status     ON quiz_attempts(status);
-CREATE INDEX idx_attempts_started    ON quiz_attempts(started_at);  -- for partitioning later
-CREATE INDEX idx_answers_attempt     ON attempt_answers(attempt_id);
-CREATE INDEX idx_assignments_subject ON assignments(subject_id);
+-- Activity
+CREATE INDEX idx_attempts_student       ON quiz_attempts(student_id);
+CREATE INDEX idx_attempts_quiz          ON quiz_attempts(quiz_id);
+CREATE INDEX idx_attempts_status        ON quiz_attempts(status);
+CREATE INDEX idx_attempts_started       ON quiz_attempts(started_at);
+CREATE INDEX idx_answers_attempt        ON attempt_answers(attempt_id);
+CREATE INDEX idx_assignments_subject    ON assignments(subject_id);
 CREATE INDEX idx_submissions_assignment ON assignment_submissions(assignment_id);
 CREATE INDEX idx_submissions_student    ON assignment_submissions(student_id);
-CREATE INDEX idx_progress_student    ON student_progress(student_id);
-CREATE INDEX idx_progress_subject    ON student_progress(subject_id);
+CREATE INDEX idx_progress_student       ON student_progress(student_id);
+CREATE INDEX idx_progress_subject       ON student_progress(subject_id);
 
--- Session Indexes
-CREATE INDEX idx_sessions_subject    ON sessions(subject_id);
-CREATE INDEX idx_sessions_date       ON sessions(session_date);
-CREATE INDEX idx_sessions_teacher    ON sessions(teacher_id, session_date, status);
-CREATE INDEX idx_sessions_status     ON sessions(status);
-CREATE INDEX idx_sessions_zoom_id    ON sessions(zoom_meeting_id);  -- for webhook matching
-CREATE INDEX idx_materials_subject   ON subject_materials(subject_id, order_index);
+-- Sessions & Materials
+CREATE INDEX idx_sessions_subject  ON sessions(subject_id);
+CREATE INDEX idx_sessions_date     ON sessions(session_date);
+CREATE INDEX idx_sessions_teacher  ON sessions(teacher_id, session_date, status);
+CREATE INDEX idx_sessions_status   ON sessions(status);
+CREATE INDEX idx_sessions_zoom_id  ON sessions(zoom_meeting_id);
+CREATE INDEX idx_materials_subject ON subject_materials(subject_id, order_index);
 
--- Triggers
 
--- Auto-Update updated_at
--- (Function fn_set_updated_at() defined at top of file)
+-- ============================================================
+-- Triggers — updated_at
+-- ============================================================
 
 CREATE TRIGGER trg_updated_at_users
   BEFORE UPDATE ON users
   FOR EACH ROW EXECUTE FUNCTION fn_set_updated_at();
 
--- Apply the same trigger to: courses, subjects, quizzes, questions, sessions, assignments, subject_materials
-
-
--- courses
 CREATE TRIGGER trg_updated_at_courses
   BEFORE UPDATE ON courses
   FOR EACH ROW EXECUTE FUNCTION fn_set_updated_at();
 
--- subjects
 CREATE TRIGGER trg_updated_at_subjects
   BEFORE UPDATE ON subjects
   FOR EACH ROW EXECUTE FUNCTION fn_set_updated_at();
 
--- quizzes
 CREATE TRIGGER trg_updated_at_quizzes
   BEFORE UPDATE ON quizzes
   FOR EACH ROW EXECUTE FUNCTION fn_set_updated_at();
 
--- questions
 CREATE TRIGGER trg_updated_at_questions
   BEFORE UPDATE ON questions
   FOR EACH ROW EXECUTE FUNCTION fn_set_updated_at();
 
--- sessions
 CREATE TRIGGER trg_updated_at_sessions
   BEFORE UPDATE ON sessions
   FOR EACH ROW EXECUTE FUNCTION fn_set_updated_at();
 
--- assignments
 CREATE TRIGGER trg_updated_at_assignments
   BEFORE UPDATE ON assignments
   FOR EACH ROW EXECUTE FUNCTION fn_set_updated_at();
 
--- subject_materials
 CREATE TRIGGER trg_updated_at_subject_materials
   BEFORE UPDATE ON subject_materials
   FOR EACH ROW EXECUTE FUNCTION fn_set_updated_at();
 
 
--- Quiz Teacher Authorization
+-- ============================================================
+-- Triggers — Authorization
+-- ============================================================
+
+-- Quiz: only assigned teachers (or admins) can create quizzes for a subject.
+-- Course-level quizzes (subject_id IS NULL) skip the subject assignment check.
 CREATE OR REPLACE FUNCTION fn_quiz_teacher_check()
 RETURNS TRIGGER AS $$
 BEGIN
-  -- Skip check if creator is admin (role_id = 1)
+  -- Admins bypass all checks
   IF EXISTS (SELECT 1 FROM user_roles
              WHERE user_id = NEW.created_by AND role_id = 1) THEN
     RETURN NEW;
   END IF;
-  -- Skip subject check for course-level quizzes
+  -- Course-level quizzes don't belong to a subject — skip subject check
   IF NEW.course_id IS NOT NULL AND NEW.subject_id IS NULL THEN
     RETURN NEW;
   END IF;
-  -- Teacher must be assigned to the subject
+  -- Subject-level: teacher must be assigned to the subject
   IF NOT EXISTS (SELECT 1 FROM subject_teachers
                  WHERE subject_id = NEW.subject_id
                  AND teacher_id = NEW.created_by) THEN
@@ -467,7 +446,7 @@ CREATE TRIGGER trg_quiz_teacher_check
   BEFORE INSERT ON quizzes
   FOR EACH ROW EXECUTE FUNCTION fn_quiz_teacher_check();
 
--- Session Teacher Authorization
+-- Session: only assigned teachers (or admins) can create sessions for a subject.
 CREATE OR REPLACE FUNCTION fn_session_teacher_check()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -488,9 +467,10 @@ CREATE TRIGGER trg_session_teacher_check
   BEFORE INSERT ON sessions
   FOR EACH ROW EXECUTE FUNCTION fn_session_teacher_check();
 
--- Views
 
--- v_session_dashboard
+-- ============================================================
+-- Views
+-- ============================================================
 
 CREATE VIEW v_session_dashboard AS
 SELECT
@@ -519,7 +499,6 @@ JOIN courses  c              ON c.id   = sub.course_id
 JOIN users    t              ON t.id   = s.teacher_id
 LEFT JOIN session_recurrence sr ON sr.id = s.recurrence_id;
 
--- v_student_report
 CREATE VIEW v_student_report AS
 SELECT
   sp.*,
@@ -534,7 +513,6 @@ JOIN users    u   ON u.id   = sp.student_id
 JOIN subjects sub ON sub.id = sp.subject_id
 JOIN courses  c   ON c.id   = sub.course_id;
 
--- v_subject_resources
 CREATE VIEW v_subject_resources AS
 SELECT
   sub.id AS subject_id,
@@ -551,7 +529,6 @@ LEFT JOIN assignments       a  ON a.subject_id  = sub.id AND a.is_published = TR
 LEFT JOIN subject_materials sm ON sm.subject_id = sub.id AND sm.is_active    = TRUE
 GROUP BY sub.id, sub.name, c.name;
 
--- v_teacher_dashboard
 CREATE VIEW v_teacher_dashboard AS
 SELECT
   st.teacher_id,
@@ -571,9 +548,10 @@ LEFT JOIN quizzes             q  ON q.subject_id  = sub.id
 LEFT JOIN assignments          a  ON a.subject_id  = sub.id
 GROUP BY st.teacher_id, t.first_name, t.last_name, sub.id, sub.name, c.name;
 
---  Scheduled Jobs (pg_cron) (for later ✅)
 
--- Auto-Complete Sessions
+-- ============================================================
+-- Scheduled Jobs (pg_cron) — for later
+-- ============================================================
 
 -- SELECT cron.schedule(
 --   'auto-complete-sessions',
@@ -587,7 +565,6 @@ GROUP BY st.teacher_id, t.first_name, t.last_name, sub.id, sub.name, c.name;
 --   $$
 -- );
 
--- Refresh student_progress
 -- SELECT cron.schedule(
 --   'refresh-student-progress',
 --   '*/15 * * * *',
@@ -601,10 +578,10 @@ GROUP BY st.teacher_id, t.first_name, t.last_name, sub.id, sub.name, c.name;
 --     SELECT
 --       qa.student_id,
 --       q.subject_id,
---       COUNT(*)                            AS quizzes_attempted,
+--       COUNT(*)                             AS quizzes_attempted,
 --       COUNT(*) FILTER (WHERE qa.is_passed) AS quizzes_passed,
---       AVG(qa.score_pct)                   AS avg_score_pct,
---       MAX(qa.score_pct)                   AS best_score_pct,
+--       AVG(qa.score_pct)                    AS avg_score_pct,
+--       MAX(qa.score_pct)                    AS best_score_pct,
 --       COALESCE(SUM(qa.time_taken_seconds)/60,0) AS total_time_spent_mins,
 --       now()
 --     FROM quiz_attempts qa
