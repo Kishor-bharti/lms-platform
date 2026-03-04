@@ -1,12 +1,13 @@
 import { Request, Response } from 'express';
 import * as adminService from './admin.service';
+import logger from '../../config/logger';
 
 export async function getStats(req: Request, res: Response) {
   try {
     const stats = await adminService.getStats();
     return res.json(stats);
   } catch (err) {
-    console.error('[admin] getStats:', err);
+    logger.error('[admin] getStats:', err);
     return res.status(500).json({ error: 'Failed to fetch stats' });
   }
 }
@@ -19,7 +20,7 @@ export async function getUsers(req: Request, res: Response) {
     const result = await adminService.getUsers(role, page, limit);
     return res.json(result);
   } catch (err) {
-    console.error('[admin] getUsers:', err);
+    logger.error('[admin] getUsers:', err);
     return res.status(500).json({ error: 'Failed to fetch users' });
   }
 }
@@ -36,7 +37,7 @@ export async function createUser(req: Request, res: Response) {
     });
     return res.status(201).json(user);
   } catch (err: any) {
-    console.error('[admin] createUser:', err);
+    logger.error('[admin] createUser:', err);
     if (err.message?.includes('duplicate') || err.code === '23505') {
       return res.status(409).json({ error: 'Email already exists' });
     }
@@ -57,7 +58,7 @@ export async function toggleUserActive(req: Request, res: Response) {
     await adminService.toggleUserActive(userId, is_active);
     return res.json({ success: true });
   } catch (err) {
-    console.error('[admin] toggleActive:', err);
+    logger.error('[admin] toggleActive:', err);
     return res.status(500).json({ error: 'Failed to update user' });
   }
 }
@@ -72,7 +73,7 @@ export async function assignRole(req: Request, res: Response) {
     await adminService.assignRole(userId, role, adminId);
     return res.json({ success: true });
   } catch (err: any) {
-    console.error('[admin] assignRole:', err);
+    logger.error('[admin] assignRole:', err);
     return res.status(500).json({ error: err.message || 'Failed to assign role' });
   }
 }
@@ -89,7 +90,7 @@ export async function removeRole(req: Request, res: Response) {
     await adminService.removeRole(userId, roleName);
     return res.json({ success: true });
   } catch (err) {
-    console.error('[admin] removeRole:', err);
+    logger.error('[admin] removeRole:', err);
     return res.status(500).json({ error: 'Failed to remove role' });
   }
 }
@@ -99,7 +100,7 @@ export async function getCourses(req: Request, res: Response) {
     const courses = await adminService.getCourses();
     return res.json(courses);
   } catch (err) {
-    console.error('[admin] getCourses:', err);
+    logger.error('[admin] getCourses:', err);
     return res.status(500).json({ error: 'Failed to fetch courses' });
   }
 }
@@ -112,7 +113,7 @@ export async function createCourse(req: Request, res: Response) {
     const course = await adminService.createCourse({ name, code, description, adminId });
     return res.status(201).json(course);
   } catch (err: any) {
-    console.error('[admin] createCourse:', err);
+    logger.error('[admin] createCourse:', err);
     if (err.code === '23505') return res.status(409).json({ error: 'Course name/code already exists' });
     return res.status(500).json({ error: 'Failed to create course' });
   }
@@ -124,7 +125,7 @@ export async function getSubjects(req: Request, res: Response) {
     const subjects = await adminService.getSubjects(courseId);
     return res.json(subjects);
   } catch (err) {
-    console.error('[admin] getSubjects:', err);
+    logger.error('[admin] getSubjects:', err);
     return res.status(500).json({ error: 'Failed to fetch subjects' });
   }
 }
@@ -139,7 +140,7 @@ export async function createSubject(req: Request, res: Response) {
     const subject = await adminService.createSubject({ course_id, name, code, description, adminId });
     return res.status(201).json(subject);
   } catch (err: any) {
-    console.error('[admin] createSubject:', err);
+    logger.error('[admin] createSubject:', err);
     if (err.code === '23505') return res.status(409).json({ error: 'Subject code already exists in this course' });
     return res.status(500).json({ error: 'Failed to create subject' });
   }
@@ -155,7 +156,7 @@ export async function assignTeacher(req: Request, res: Response) {
     await adminService.assignTeacher(subjectId, teacherId, adminId);
     return res.json({ success: true });
   } catch (err) {
-    console.error('[admin] assignTeacher:', err);
+    logger.error('[admin] assignTeacher:', err);
     return res.status(500).json({ error: 'Failed to assign teacher' });
   }
 }
@@ -172,7 +173,7 @@ export async function removeTeacher(req: Request, res: Response) {
     await adminService.removeTeacher(subjectId, teacherId);
     return res.json({ success: true });
   } catch (err) {
-    console.error('[admin] removeTeacher:', err);
+    logger.error('[admin] removeTeacher:', err);
     return res.status(500).json({ error: 'Failed to remove teacher' });
   }
 }
@@ -187,7 +188,7 @@ export async function enrollStudent(req: Request, res: Response) {
     await adminService.enrollStudent(subjectId, studentId, adminId);
     return res.json({ success: true });
   } catch (err) {
-    console.error('[admin] enrollStudent:', err);
+    logger.error('[admin] enrollStudent:', err);
     return res.status(500).json({ error: 'Failed to enroll student' });
   }
 }
@@ -204,7 +205,7 @@ export async function unenrollStudent(req: Request, res: Response) {
     await adminService.unenrollStudent(subjectId, studentId);
     return res.json({ success: true });
   } catch (err) {
-    console.error('[admin] unenrollStudent:', err);
+    logger.error('[admin] unenrollStudent:', err);
     return res.status(500).json({ error: 'Failed to unenroll student' });
   }
 }
@@ -218,7 +219,7 @@ export async function getEnrolledStudents(req: Request, res: Response) {
     const students = await adminService.getEnrolledStudents(subjectId);
     return res.json(students);
   } catch (err) {
-    console.error('[admin] getEnrolledStudents:', err);
+    logger.error('[admin] getEnrolledStudents:', err);
     return res.status(500).json({ error: 'Failed to fetch enrolled students' });
   }
 }
@@ -233,7 +234,7 @@ export async function updateSubject(req: Request, res: Response) {
     await adminService.updateSubject(subjectId, { course_id, name, code, description });
     return res.json({ success: true });
   } catch (err: any) {
-    console.error('[admin] updateSubject:', err);
+    logger.error('[admin] updateSubject:', err);
     if (err.code === '23505') return res.status(409).json({ error: 'Subject code already exists' });
     return res.status(500).json({ error: 'Failed to update subject' });
   }
@@ -248,7 +249,7 @@ export async function deleteSubject(req: Request, res: Response) {
     await adminService.deleteSubject(subjectId);
     return res.json({ success: true });
   } catch (err) {
-    console.error('[admin] deleteSubject:', err);
+    logger.error('[admin] deleteSubject:', err);
     return res.status(500).json({ error: 'Failed to delete subject' });
   }
 }
@@ -258,7 +259,7 @@ export async function getAllSessions(req: Request, res: Response) {
     const sessions = await adminService.getAllSessionsAdmin();
     return res.json(sessions);
   } catch (err) {
-    console.error('[admin] getAllSessions:', err);
+    logger.error('[admin] getAllSessions:', err);
     return res.status(500).json({ error: 'Failed to fetch sessions' });
   }
 }

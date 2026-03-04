@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { login as loginService, refreshTokens as refreshTokensService } from './auth.service';
 import { LoginRequest } from './auth.types';
+import logger from '../../config/logger';
 
 export async function login(req: Request, res: Response) {
   const { email, password, loginAs } = req.body as LoginRequest;
@@ -27,7 +28,7 @@ export async function login(req: Request, res: Response) {
     }
 
     // Genuine server error — log it but never reveal internals
-    console.error('[auth] Login error:', err);
+    logger.error('[auth] Login error', { error: err });
     return res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -49,7 +50,7 @@ export async function refresh(req: Request, res: Response) {
       return res.status(401).json({ error: 'Session expired, please login again' });
     }
 
-    console.error('[auth] Refresh error:', err);
+    logger.error('[auth] Refresh error', { error: err });
     return res.status(500).json({ error: 'Internal server error' });
   }
 }

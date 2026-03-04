@@ -4,6 +4,7 @@
 import { Request, Response } from 'express';
 import * as classesService from './classes.service';
 import { createSession } from './classes.service';
+import logger from '../../config/logger';
 
 // ─── GET /api/classes/my-classes-v2 ───────────────────────────
 export async function getMyClasses(req: Request, res: Response) {
@@ -14,7 +15,7 @@ export async function getMyClasses(req: Request, res: Response) {
     const classes = await classesService.getMyClasses(userId, userRole);
     return res.json(classes);
   } catch (err) {
-    console.error('[classes] getMyClasses error:', err);
+    logger.error('[classes] getMyClasses error:', err);
     return res.status(500).json({ error: 'Failed to fetch classes' });
   }
 }
@@ -28,7 +29,7 @@ export async function getMySessionsV2(req: Request, res: Response) {
     const sessions = await classesService.getMySessionsV2(userId, userRole);
     return res.json(sessions);
   } catch (err) {
-    console.error('[classes] getMySessionsV2 error:', err);
+    logger.error('[classes] getMySessionsV2 error:', err);
     return res.status(500).json({ error: 'Failed to fetch sessions' });
   }
 }
@@ -71,7 +72,7 @@ export async function createSessionHandler(req: Request, res: Response) {
 
     return res.status(201).json(session);
   } catch (err: any) {
-    console.error('[classes] createSession error:', err);
+    logger.error('[classes] createSession error:', err);
     return res.status(500).json({ error: err.message || 'Failed to create session' });
   }
 }
@@ -91,7 +92,7 @@ export async function startSessionById(req: Request, res: Response) {
     const session = await classesService.startSessionById(sessionId, req.user!.id);
     return res.json(session);
   } catch (err: any) {
-    console.error('[classes] startSession error:', err);
+    logger.error('[classes] startSession error:', err);
     if (err.message === 'FORBIDDEN')           return res.status(403).json({ error: 'Not your session' });
     if (err.message === 'Session not found')     return res.status(404).json({ error: 'Session not found' });
     if (err.message === 'Session is already LIVE') return res.status(409).json({ error: 'Session is already live' });
@@ -114,7 +115,7 @@ export async function completeSessionById(req: Request, res: Response) {
     const session = await classesService.completeSessionById(sessionId, req.user!.id);
     return res.json(session);
   } catch (err: any) {
-    console.error('[classes] completeSession error:', err);
+    logger.error('[classes] completeSession error:', err);
     if (err.message === 'FORBIDDEN')         return res.status(403).json({ error: 'Not your session' });
     if (err.message === 'Session not found') return res.status(404).json({ error: 'Session not found' });
     return res.status(500).json({ error: 'Failed to complete session' });
@@ -133,7 +134,7 @@ export async function deleteSessionById(req: Request, res: Response) {
     await classesService.deleteSession(sessionId, userId);
     return res.json({ success: true });
   } catch (err: any) {
-    console.error('[classes] deleteSession error:', err);
+    logger.error('[classes] deleteSession error:', err);
     if (err.message === 'FORBIDDEN') return res.status(403).json({ error: 'You can only delete your own sessions' });
     return res.status(500).json({ error: 'Failed to delete session' });
   }

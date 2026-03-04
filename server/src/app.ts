@@ -14,7 +14,9 @@ import profileRouter    from './modules/profile/profile.routes';
 import uploadRouter     from './modules/upload/upload.routes';
 import { env }          from './config/env';
 import { errorHandler } from './middlewares/error.middleware';
+import { httpLogger }   from './middlewares/httpLogger.middleware';
 import { pool }         from './config/db';
+import logger           from './config/logger';
 
 const app = express();
 
@@ -49,7 +51,7 @@ const allowedOrigins =
     ? env.FRONTEND_ORIGINS.map(normalizeOrigin).filter(Boolean) as string[]
     : ['http://localhost:3000'];
 
-console.info(`[cors] Allowed origins: ${allowedOrigins.join(', ') || '(none)'}`);
+logger.info(`[cors] Allowed origins: ${allowedOrigins.join(', ') || '(none)'}`);
 
 const corsOptions: cors.CorsOptions = {
   origin(origin, callback) {
@@ -66,6 +68,9 @@ const corsOptions: cors.CorsOptions = {
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 
+// HTTP access logging — must come before routes
+app.use(httpLogger);
+
 app.use('/api/auth',        authRouter);
 app.use('/api/classes',     classesRouter);
 app.use('/api/courses',     coursesRouter);
@@ -78,7 +83,7 @@ app.use('/api/materials',   materialsRouter);
 app.use('/api/profile',     profileRouter);
 app.use('/api/upload',      uploadRouter);
 
-app.get('/test-latency', async (req, res) => {
+app.get('/test-latency', async (_req, res) => {
   const start = Date.now();
   await pool.query('SELECT 1');
   res.json({ db_latency_ms: Date.now() - start });

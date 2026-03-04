@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import logger from '../../config/logger';
 import { query } from '../../config/db';
 import * as quizService from './quiz.service';
 
@@ -12,7 +13,7 @@ export async function getQuizzesBySubject(req: Request, res: Response) {
     const quizzes = await quizService.getQuizzesBySubject(subjectId, role);
     return res.json(quizzes);
   } catch (err) {
-    console.error('[quiz] getQuizzesBySubject:', err);
+    logger.error('[quiz] getQuizzesBySubject:', err);
     return res.status(500).json({ error: 'Failed to fetch quizzes' });
   }
 }
@@ -28,7 +29,7 @@ export async function getQuizDetail(req: Request, res: Response) {
     return res.json(quiz);
   } catch (err: any) {
     if (err.message === 'Quiz not found') return res.status(404).json({ error: 'Quiz not found' });
-    console.error('[quiz] getQuizDetail:', err);
+    logger.error('[quiz] getQuizDetail:', err);
     return res.status(500).json({ error: 'Failed to fetch quiz' });
   }
 }
@@ -47,7 +48,7 @@ export async function createQuiz(req: Request, res: Response) {
     });
     return res.status(201).json(quiz);
   } catch (err: any) {
-    console.error('[quiz] createQuiz:', err);
+    logger.error('[quiz] createQuiz:', err);
     return res.status(500).json({ error: err.message || 'Failed to create quiz' });
   }
 }
@@ -69,7 +70,7 @@ export async function publishQuiz(req: Request, res: Response) {
     await quizService.setQuizPublished(quizId, Boolean(is_published));
     return res.json({ success: true });
   } catch (err) {
-    console.error('[quiz] publishQuiz:', err);
+    logger.error('[quiz] publishQuiz:', err);
     return res.status(500).json({ error: 'Failed to update quiz' });
   }
 }
@@ -99,7 +100,7 @@ export async function startAttempt(req: Request, res: Response) {
     if (err.message === 'HAS_PARTIAL_ATTEMPT') {
       return res.status(409).json({ error: 'You have a saved practice session — resume it first' });
     }
-    console.error('[quiz] startAttempt:', err);
+    logger.error('[quiz] startAttempt:', err);
     return res.status(500).json({ error: 'Failed to start attempt' });
   }
 }
@@ -119,7 +120,7 @@ export async function submitAttempt(req: Request, res: Response) {
   } catch (err: any) {
     if (err.message === 'Attempt not found') return res.status(404).json({ error: 'Attempt not found' });
     if (err.message === 'Attempt already submitted') return res.status(409).json({ error: 'Already submitted' });
-    console.error('[quiz] submitAttempt:', err);
+    logger.error('[quiz] submitAttempt:', err);
     return res.status(500).json({ error: 'Failed to submit attempt' });
   }
 }
@@ -135,7 +136,7 @@ export async function getAttemptResult(req: Request, res: Response) {
     return res.json(result);
   } catch (err: any) {
     if (err.message === 'Attempt not found') return res.status(404).json({ error: 'Attempt not found' });
-    console.error('[quiz] getAttemptResult:', err);
+    logger.error('[quiz] getAttemptResult:', err);
     return res.status(500).json({ error: 'Failed to get result' });
   }
 }
@@ -150,7 +151,7 @@ export async function getMyAttempts(req: Request, res: Response) {
     const attempts = await quizService.getMyAttempts(quizId, studentId);
     return res.json(attempts);
   } catch (err) {
-    console.error('[quiz] getMyAttempts:', err);
+    logger.error('[quiz] getMyAttempts:', err);
     return res.status(500).json({ error: 'Failed to get attempts' });
   }
 }
@@ -183,7 +184,7 @@ export async function updateQuiz(req: Request, res: Response) {
     return res.json(quiz);
   } catch (err: any) {
     if (err.message === 'Quiz not found') return res.status(404).json({ error: 'Quiz not found' });
-    console.error('[quiz] updateQuiz:', err);
+    logger.error('[quiz] updateQuiz:', err);
     return res.status(500).json({ error: err.message || 'Failed to update quiz' });
   }
 }
@@ -201,7 +202,7 @@ export async function deleteQuiz(req: Request, res: Response) {
     await quizService.deleteQuiz(quizId!);
     return res.json({ success: true });
   } catch (err) {
-    console.error('[quiz] deleteQuiz:', err);
+    logger.error('[quiz] deleteQuiz:', err);
     return res.status(500).json({ error: 'Failed to delete quiz' });
   }
 }
@@ -213,7 +214,7 @@ export async function getQuizzesByCourse(req: Request, res: Response) {
     );
     return res.json(data);
   } catch (err) {
-    console.error('[quiz:course]', err);
+    logger.error('[quiz:course]', err);
     return res.status(500).json({ error: 'Failed to fetch course quizzes' });
   }
 }
@@ -228,7 +229,7 @@ export async function getStudentQuizStatuses(req: Request, res: Response) {
     const statuses = await quizService.getStudentQuizStatuses(subjectId, studentId);
     return res.json(statuses);
   } catch (err) {
-    console.error('[quiz] getStudentQuizStatuses:', err);
+    logger.error('[quiz] getStudentQuizStatuses:', err);
     return res.status(500).json({ error: 'Failed to fetch quiz statuses' });
   }
 }
@@ -247,7 +248,7 @@ export async function partialSubmitPractice(req: Request, res: Response) {
     if (err.message === 'ATTEMPT_NOT_FOUND') return res.status(404).json({ error: 'Attempt not found' });
     if (err.message === 'NOT_PRACTICE') return res.status(400).json({ error: 'Only practice quizzes support partial save' });
     if (err.message === 'ATTEMPT_NOT_RESUMABLE') return res.status(409).json({ error: 'Attempt cannot be saved' });
-    console.error('[quiz] partialSubmitPractice:', err);
+    logger.error('[quiz] partialSubmitPractice:', err);
     return res.status(500).json({ error: 'Failed to save progress' });
   }
 }
@@ -263,7 +264,7 @@ export async function resumePractice(req: Request, res: Response) {
     if (err.message === 'ATTEMPT_NOT_FOUND') return res.status(404).json({ error: 'Attempt not found' });
     if (err.message === 'NOT_PRACTICE') return res.status(400).json({ error: 'Only practice attempts can be resumed' });
     if (err.message === 'ATTEMPT_NOT_PARTIAL') return res.status(409).json({ error: 'Attempt is not in partial state' });
-    console.error('[quiz] resumePractice:', err);
+    logger.error('[quiz] resumePractice:', err);
     return res.status(500).json({ error: 'Failed to resume attempt' });
   }
 }

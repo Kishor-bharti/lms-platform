@@ -1,3 +1,5 @@
+import logger from '../config/logger';
+
 export interface ZoomMeetingResult {
   joinUrl: string | undefined;
   startUrl: string | undefined;
@@ -25,7 +27,7 @@ export async function getZoomAccessToken(): Promise<string> {
 
     if (!tokenRes.ok) {
       const txt = await tokenRes.text();
-      console.error('Zoom token fetch failed', { status: tokenRes.status, message: txt });
+      logger.error('Zoom token fetch failed', { status: tokenRes.status, message: txt });
       throw new Error('Failed to obtain Zoom access token');
     }
 
@@ -72,7 +74,7 @@ export async function createZoomMeeting(params: {
 
     if (!createRes.ok) {
       const txt = await createRes.text();
-      console.error('Zoom meeting creation failed', { status: createRes.status, message: txt });
+      logger.error('Zoom meeting creation failed', { status: createRes.status, message: txt });
       throw new Error('Failed to create Zoom meeting');
     }
 

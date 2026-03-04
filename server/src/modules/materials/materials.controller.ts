@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import logger from '../../config/logger';
 import * as materialsService from './materials.service';
 
 export async function getMaterials(req: Request, res: Response) {
@@ -8,7 +9,7 @@ export async function getMaterials(req: Request, res: Response) {
     const materials = await materialsService.getMaterials(subjectId);
     return res.json(materials);
   } catch (err) {
-    console.error('[materials] get:', err);
+    logger.error('[materials] get:', err);
     return res.status(500).json({ error: 'Failed to fetch materials' });
   }
 }
@@ -33,7 +34,7 @@ export async function addMaterial(req: Request, res: Response) {
     });
     return res.status(201).json(material);
   } catch (err) {
-    console.error('[materials] add:', err);
+    logger.error('[materials] add:', err);
     return res.status(500).json({ error: 'Failed to add material' });
   }
 }
@@ -46,7 +47,7 @@ export async function deleteMaterial(req: Request, res: Response) {
     await materialsService.deleteMaterial(materialId, userId);
     return res.json({ success: true });
   } catch (err) {
-    console.error('[materials] delete:', err);
+    logger.error('[materials] delete:', err);
     return res.status(500).json({ error: 'Failed to delete material' });
   }
 }
