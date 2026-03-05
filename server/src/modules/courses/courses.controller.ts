@@ -1,5 +1,6 @@
 // courses.controller.ts
 import { Request, Response } from 'express';
+import logger from '../../config/logger';
 import * as coursesService from './courses.service';
 import { getTopicsByCourse } from '../topics/topics.service';
 
@@ -16,7 +17,7 @@ export async function getMyCourses(req: Request, res: Response) {
     const courses = await coursesService.getMyCourses(userId, userRole);
     return res.json(courses);
   } catch (err) {
-    console.error('[courses] getMyCourses error:', err);
+    logger.error('[courses] getMyCourses error:', err);
     return res.status(500).json({ error: 'Failed to fetch courses' });
   }
 }
@@ -28,7 +29,7 @@ export async function getCourseTopics(req: Request, res: Response) {
     const topics = await getTopicsByCourse(courseId);
     return res.json(topics);
   } catch (err) {
-    console.error('[courses] getCourseTopics error:', err);
+    logger.error('[courses] getCourseTopics error:', err);
     return res.status(500).json({ error: 'Failed to fetch course topics' });
   }
 }

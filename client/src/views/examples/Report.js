@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Container, Row, Col, Card, CardHeader, CardBody, CardTitle, Badge, Button,
+  Container, Row, Col, Card, CardHeader, CardBody, CardTitle, Badge, Button, Input,
 } from 'reactstrap';
 import Header from 'components/Headers/Header.js';
 import http from 'utils/http';
@@ -30,6 +30,32 @@ function fmtSecs(secs) {
 }
 
 const DAY_LABELS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function getWeekRange(offset = 0) {
+  const now = new Date();
+  const dayOfWeek = now.getDay();
+  const start = new Date(now);
+  start.setDate(now.getDate() - dayOfWeek - (offset * 7));
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  return {
+    start: start.toISOString().slice(0, 10),
+    end: end.toISOString().slice(0, 10),
+    label: `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
+  };
+}
+
+function getMonthRange(offset = 0) {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+  const end = new Date(now.getFullYear(), now.getMonth() - offset + 1, 0);
+  return {
+    start: start.toISOString().slice(0, 10),
+    end: end.toISOString().slice(0, 10),
+    label: `${MONTH_LABELS[start.getMonth()]} ${start.getFullYear()}`,
+  };
+}
 
 // ─── Score Bar ────────────────────────────────────────────────────────────────
 
@@ -60,76 +86,138 @@ function StatChip({ icon, label, value, color = '#5e72e4' }) {
   );
 }
 
-// ─── Weekly Activity Chart ─────────────────────────────────────────────────
+// ─── Activity Chart with Week/Month Toggle ─────────────────────────────────
 
-function WeeklyChart({ data }) {
+function ActivityChart({ data: initialData, studentId, isTeacherView }) {
+  const [mode, setMode] = useState('week'); // 'week' or 'month'
+  const [offset, setOffset] = useState(0);
+  const [data, setData] = useState(initialData || []);
+  const [loading, setLoading] = useState(false);
+
+  const fetchData = useCallback(async (m, o) => {
+    setLoading(true);
+    try {
+      const range = m === 'week' ? getWeekRange(o) : getMonthRange(o);
+      const base = isTeacherView ? `/api/progress/student/${studentId}/activity` : '/api/progress/activity';
+      const res = await http.get(`${base}?start=${range.start}&end=${range.end}`);
+      setData(res.data || []);
+    } catch { setData([]); }
+    setLoading(false);
+  }, [studentId, isTeacherView]);
+
+  useEffect(() => {
+    if (offset === 0 && mode === 'week' && initialData && initialData.length > 0) {
+      setData(initialData);
+    } else {
+      fetchData(mode, offset);
+    }
+  }, [mode, offset, fetchData, initialData]);
+
+  const handleModeChange = (m) => { setMode(m); setOffset(0); };
+
   if (!data || data.length === 0) return null;
-  const maxQ = Math.max(...data.map(d => d.quizzes), 1);
+
+  const maxVal = Math.max(...data.map(d => d.quizzes + (d.practices || 0)), 1);
   const totalQ   = data.reduce((s, d) => s + d.quizzes, 0);
+  const totalP   = data.reduce((s, d) => s + (d.practices || 0), 0);
   const totalC   = data.reduce((s, d) => s + d.correct, 0);
   const totalI   = data.reduce((s, d) => s + d.incorrect, 0);
   const totalMin = data.reduce((s, d) => s + d.time_mins, 0);
 
+  const rangeInfo = mode === 'week' ? getWeekRange(offset) : getMonthRange(offset);
+
   return (
     <Card className="shadow mb-4" style={{ borderRadius: 12 }}>
       <CardHeader style={{ background: '#f8f9fa', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
-        <div className="d-flex justify-content-between align-items-center">
-          <CardTitle className="mb-0" style={{ color: '#32325d', fontSize: 15 }}>📅 This Week's Activity</CardTitle>
-          <span style={{ fontSize: 12, color: '#8898aa' }}>Last 7 days</span>
+        <div className="d-flex justify-content-between align-items-center flex-wrap" style={{ gap: 8 }}>
+          <CardTitle className="mb-0" style={{ color: '#32325d', fontSize: 15 }}>📅 Activity</CardTitle>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', border: '1px solid #dee2e6' }}>
+              <button
+                onClick={() => handleModeChange('week')}
+                style={{ padding: '4px 12px', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer',
+                  background: mode === 'week' ? '#5e72e4' : '#fff', color: mode === 'week' ? '#fff' : '#525f7f' }}
+              >Week</button>
+              <button
+                onClick={() => handleModeChange('month')}
+                style={{ padding: '4px 12px', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer',
+                  background: mode === 'month' ? '#5e72e4' : '#fff', color: mode === 'month' ? '#fff' : '#525f7f' }}
+              >Month</button>
+            </div>
+            <button onClick={() => setOffset(o => o + 1)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 16, color: '#5e72e4' }}>◀</button>
+            <span style={{ fontSize: 12, color: '#8898aa', minWidth: 120, textAlign: 'center' }}>{rangeInfo.label}</span>
+            <button onClick={() => setOffset(o => Math.max(0, o - 1))} disabled={offset === 0}
+              style={{ border: 'none', background: 'none', cursor: offset === 0 ? 'default' : 'pointer', fontSize: 16, color: offset === 0 ? '#ccc' : '#5e72e4' }}>▶</button>
+          </div>
         </div>
       </CardHeader>
       <CardBody>
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 110, paddingBottom: 4 }}>
-          {data.map((day, i) => {
-            const heightPct = maxQ > 0 ? (day.quizzes / maxQ) * 80 : 0;
-            const isToday   = i === data.length - 1;
-            const dayLabel  = DAY_LABELS[new Date(day.date + 'T12:00:00').getDay()];
-            const tooltip   = `${dayLabel}: ${day.quizzes} quiz(es), ${day.correct}✓ ${day.incorrect}✗, ${fmtTime(day.time_mins)}`;
-            return (
-              <div key={day.date} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                <div style={{ fontSize: 10, color: '#8898aa', fontWeight: 700, minHeight: 14 }}>
-                  {day.quizzes > 0 ? day.quizzes : ''}
-                </div>
-                <div
-                  title={tooltip}
-                  style={{
-                    width: '100%',
-                    height: day.quizzes > 0 ? `${Math.max(heightPct, 8)}%` : '5%',
-                    background: isToday ? '#5e72e4' : day.quizzes > 0 ? '#a8b8f8' : '#e9ecef',
-                    borderRadius: '4px 4px 2px 2px',
-                    transition: 'height 0.4s ease',
-                  }}
-                />
-                <div style={{ fontSize: 10, color: isToday ? '#5e72e4' : '#8898aa', fontWeight: isToday ? 700 : 400 }}>
-                  {dayLabel}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        <div style={{ display: 'flex', gap: 20, marginTop: 16, flexWrap: 'wrap' }}>
-          {[
-            { label: 'Quizzes',   value: totalQ,          color: '#5e72e4' },
-            { label: 'Correct',   value: totalC,          color: '#2dce89' },
-            { label: 'Incorrect', value: totalI,          color: '#f5365c' },
-            { label: 'Time',      value: fmtTime(totalMin), color: '#fb6340' },
-          ].map(item => (
-            <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: item.color }} />
-              <span style={{ fontSize: 12, color: '#525f7f' }}>
-                {item.label}: <strong style={{ color: item.color }}>{item.value}</strong>
-              </span>
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: 20, color: '#8898aa' }}>Loading...</div>
+        ) : (
+          <>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: mode === 'month' ? 2 : 8, height: 130, paddingBottom: 4, overflowX: 'auto' }}>
+              {data.map((day, i) => {
+                const qVal = day.quizzes;
+                const pVal = day.practices || 0;
+                const total = qVal + pVal;
+                const qH = maxVal > 0 ? (qVal / maxVal) * 80 : 0;
+                const pH = maxVal > 0 ? (pVal / maxVal) * 80 : 0;
+                const isToday = offset === 0 && i === data.length - 1;
+                const dayLabel = mode === 'week'
+                  ? DAY_LABELS[new Date(day.date + 'T12:00:00').getDay()]
+                  : (i + 1).toString();
+                const tooltip = `${day.date}: ${qVal} quiz, ${pVal} practice, ${day.correct}✓ ${day.incorrect}✗`;
+                return (
+                  <div key={day.date} title={tooltip} style={{ flex: mode === 'month' ? '1 0 auto' : 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, minWidth: mode === 'month' ? 12 : 'auto' }}>
+                    <div style={{ fontSize: 9, color: '#8898aa', fontWeight: 700, minHeight: 12 }}>
+                      {total > 0 ? total : ''}
+                    </div>
+                    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      {pVal > 0 && (
+                        <div style={{ width: '80%', height: `${Math.max(pH, 4)}px`, background: '#2dce89', borderRadius: '3px 3px 0 0', transition: 'height 0.4s ease' }} />
+                      )}
+                      <div style={{
+                        width: '80%',
+                        height: total > 0 ? `${Math.max(qH, 4)}px` : '3px',
+                        background: isToday ? '#5e72e4' : qVal > 0 ? '#a8b8f8' : '#e9ecef',
+                        borderRadius: pVal > 0 ? '0 0 3px 3px' : '3px',
+                        transition: 'height 0.4s ease',
+                      }} />
+                    </div>
+                    <div style={{ fontSize: mode === 'month' ? 8 : 10, color: isToday ? '#5e72e4' : '#8898aa', fontWeight: isToday ? 700 : 400 }}>
+                      {mode === 'month' ? (i % 5 === 0 ? dayLabel : '') : dayLabel}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          ))}
-        </div>
+            <div style={{ display: 'flex', gap: 16, marginTop: 16, flexWrap: 'wrap' }}>
+              {[
+                { label: 'Quizzes',   value: totalQ,          color: '#5e72e4' },
+                { label: 'Practice',  value: totalP,          color: '#2dce89' },
+                { label: 'Correct',   value: totalC,          color: '#11cdef' },
+                { label: 'Incorrect', value: totalI,          color: '#f5365c' },
+                { label: 'Time',      value: fmtTime(totalMin), color: '#fb6340' },
+              ].map(item => (
+                <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: item.color }} />
+                  <span style={{ fontSize: 12, color: '#525f7f' }}>
+                    {item.label}: <strong style={{ color: item.color }}>{item.value}</strong>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </CardBody>
     </Card>
   );
 }
 
-// ─── Quiz History Table ───────────────────────────────────────────────────────
+// ─── History Table (shared for Quiz & Practice) ──────────────────────────────
 
-function QuizHistory({ data }) {
+function HistoryTable({ data, title, icon, nameCol, contextCol, contextField }) {
   const [showAll, setShowAll] = useState(false);
   if (!data || data.length === 0) return null;
   const visible = showAll ? data : data.slice(0, 5);
@@ -138,7 +226,7 @@ function QuizHistory({ data }) {
     <Card className="shadow mb-4" style={{ borderRadius: 12 }}>
       <CardHeader style={{ background: '#f8f9fa', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
         <div className="d-flex justify-content-between align-items-center">
-          <CardTitle className="mb-0" style={{ color: '#32325d', fontSize: 15 }}>📋 Recent Quiz History</CardTitle>
+          <CardTitle className="mb-0" style={{ color: '#32325d', fontSize: 15 }}>{icon} {title}</CardTitle>
           <span style={{ fontSize: 12, color: '#8898aa' }}>{data.length} attempts</span>
         </div>
       </CardHeader>
@@ -146,8 +234,8 @@ function QuizHistory({ data }) {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: '#f8f9fa' }}>
-              {['Quiz', 'Subject', 'Score', '✓', '✗', 'Time', 'Date', 'Level'].map(h => (
-                <th key={h} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
+              {[nameCol || 'Quiz', contextCol || 'Subject', 'Score', '✓', '✗', 'Time', 'Date', 'Level', ''].map((h, idx) => (
+                <th key={h + idx} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -159,7 +247,7 @@ function QuizHistory({ data }) {
                   <td style={{ padding: '12px 14px', fontWeight: 600, color: '#32325d', maxWidth: 180 }}>
                     <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.quiz_title}</div>
                   </td>
-                  <td style={{ padding: '12px 14px', color: '#525f7f', fontSize: 13, whiteSpace: 'nowrap' }}>{item.subject_name}</td>
+                  <td style={{ padding: '12px 14px', color: '#525f7f', fontSize: 13, whiteSpace: 'nowrap' }}>{item[contextField || 'subject_name'] || '—'}</td>
                   <td style={{ padding: '12px 14px' }}>
                     <span style={{ fontWeight: 800, fontSize: 15, color: perf.color }}>
                       {item.score_pct !== null ? `${item.score_pct}%` : '—'}
@@ -188,6 +276,12 @@ function QuizHistory({ data }) {
                       {perf.label}
                     </span>
                   </td>
+                  <td style={{ padding: '12px 14px' }}>
+                    <Button size="sm" color="info" outline style={{ fontSize: 11, padding: '2px 10px' }}
+                      onClick={() => window.location.href = `#/admin/quiz/${item.attempt_id}`}>
+                      Review
+                    </Button>
+                  </td>
                 </tr>
               );
             })}
@@ -205,29 +299,103 @@ function QuizHistory({ data }) {
   );
 }
 
-// ─── Student Report ───────────────────────────────────────────────────────────
+// ─── Topic Analysis Table ─────────────────────────────────────────────────
 
-function StudentReport({ data, weekly, history }) {
+function TopicAnalysisTable({ subjectId, subjectName, studentId, isTeacherView }) {
+  const [data, setData] = useState(null);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const loadData = async () => {
+    if (data !== null) { setOpen(!open); return; }
+    setLoading(true);
+    try {
+      const base = isTeacherView ? `/api/progress/student/${studentId}/topics/${subjectId}` : `/api/progress/topics/${subjectId}`;
+      const res = await http.get(base);
+      setData(res.data || []);
+      setOpen(true);
+    } catch { setData([]); setOpen(true); }
+    setLoading(false);
+  };
+
+  const statusColor = (s) => {
+    if (s === 'Strong') return { color: '#2dce89', bg: '#e3f9ee' };
+    if (s === 'Good') return { color: '#5e72e4', bg: '#eef0fd' };
+    if (s === 'Needs Work') return { color: '#fb6340', bg: '#fff0eb' };
+    if (s === 'At Risk') return { color: '#f5365c', bg: '#fde8ec' };
+    return { color: '#8898aa', bg: '#f0f4f8' };
+  };
+
+  return (
+    <div style={{ marginTop: 14 }}>
+      <Button size="sm" color="light" onClick={loadData} style={{ fontSize: 11, fontWeight: 700, color: '#5e72e4' }}>
+        {loading ? 'Loading...' : open ? '▲ Hide Topic Analysis' : '▼ Topic-wise Analysis'}
+      </Button>
+      {open && data && (
+        <div style={{ marginTop: 10, overflowX: 'auto' }}>
+          {data.length === 0 ? (
+            <p style={{ fontSize: 12, color: '#8898aa', margin: 8 }}>No topics available for this subject.</p>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: '#f8f9fa' }}>
+                  {['Topic', 'Questions', 'Correct', 'Incorrect', 'Accuracy', 'Status'].map(h => (
+                    <th key={h} style={{ padding: '8px 12px', fontSize: 10, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase', textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {data.map(t => {
+                  const sc = statusColor(t.status);
+                  return (
+                    <tr key={t.topic_id} style={{ borderBottom: '1px solid #f0f4f8' }}>
+                      <td style={{ padding: '8px 12px', fontWeight: 600, color: '#32325d' }}>{t.topic_name}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'center', color: '#525f7f' }}>{t.total_questions}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'center', color: '#2dce89', fontWeight: 700 }}>{t.correct_answers}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'center', color: '#f5365c', fontWeight: 700 }}>{t.incorrect_answers}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700, color: sc.color }}>
+                        {t.accuracy_pct !== null ? `${t.accuracy_pct}%` : 'N/A'}
+                      </td>
+                      <td style={{ padding: '8px 12px' }}>
+                        <span style={{ background: sc.bg, color: sc.color, borderRadius: 20, padding: '2px 10px', fontSize: 11, fontWeight: 700 }}>
+                          {t.status}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Student Report (used by student view AND teacher's student detail view) ─
+
+function StudentReport({ data, weekly, quizHistory, practiceHistory, studentId, isTeacherView }) {
   if (!data || data.length === 0) {
     return (
       <Card className="shadow" style={{ borderRadius: 12 }}>
         <CardBody className="text-center py-5">
           <div style={{ fontSize: 48, marginBottom: 12 }}>📊</div>
-          <p className="text-muted">No progress data yet. Complete quizzes and assignments to see your stats here.</p>
+          <p className="text-muted">No progress data yet. Complete quizzes and assignments to see stats here.</p>
         </CardBody>
       </Card>
     );
   }
 
-  const totalQuizzes  = data.reduce((s, d) => s + d.quizzes_attempted, 0);
-  const totalPassed   = data.reduce((s, d) => s + d.quizzes_passed, 0);
-  const totalAssign   = data.reduce((s, d) => s + d.assignments_submitted, 0);
-  const totalTimeMins = data.reduce((s, d) => s + d.total_time_spent_mins, 0);
-  const scoredSubjs   = data.filter(d => d.avg_score_pct !== null);
-  const avgScore      = scoredSubjs.length > 0
+  const totalQuizzes   = data.reduce((s, d) => s + d.quizzes_attempted, 0);
+  const totalPractices = data.reduce((s, d) => s + (d.practices_attempted || 0), 0);
+  const totalAssign    = data.reduce((s, d) => s + d.assignments_submitted, 0);
+  const totalTimeMins  = data.reduce((s, d) => s + d.total_time_spent_mins, 0);
+  const scoredSubjs    = data.filter(d => d.avg_score_pct !== null);
+  const avgScore       = scoredSubjs.length > 0
     ? (scoredSubjs.reduce((s, d) => s + d.avg_score_pct, 0) / scoredSubjs.length).toFixed(1)
     : null;
-  const overallPerf   = perfLabel(avgScore !== null ? parseFloat(avgScore) : null);
+  const overallPerf    = perfLabel(avgScore !== null ? parseFloat(avgScore) : null);
 
   const weekCorrect  = (weekly || []).reduce((s, d) => s + d.correct, 0);
   const weekTotal    = weekCorrect + (weekly || []).reduce((s, d) => s + d.incorrect, 0);
@@ -259,7 +427,7 @@ function StudentReport({ data, weekly, history }) {
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', maxWidth: 500 }}>
                   <StatChip icon="📚" label="Subjects"    value={data.length}              color="#fff" />
                   <StatChip icon="✅" label="Quizzes"     value={totalQuizzes}             color="#fff" />
-                  <StatChip icon="🏆" label="Passed"      value={totalPassed}              color="#fff" />
+                  <StatChip icon="🎯" label="Practice"    value={totalPractices}           color="#fff" />
                   <StatChip icon="📝" label="Assignments" value={totalAssign}              color="#fff" />
                   <StatChip icon="⏱️" label="Time Spent"  value={fmtTime(totalTimeMins)}   color="#fff" />
                   {weekAccuracy !== null && (
@@ -272,11 +440,14 @@ function StudentReport({ data, weekly, history }) {
         </Col>
       </Row>
 
-      {/* Weekly chart */}
-      <WeeklyChart data={weekly} />
+      {/* Activity chart with week/month toggle */}
+      <ActivityChart data={weekly} studentId={studentId} isTeacherView={isTeacherView} />
 
-      {/* Quiz history */}
-      <QuizHistory data={history} />
+      {/* Quiz History */}
+      <HistoryTable data={quizHistory} title="Recent Quiz History" icon="📋" nameCol="Quiz" contextCol="Course" contextField="course_name" />
+
+      {/* Practice History */}
+      <HistoryTable data={practiceHistory} title="Recent Practice History" icon="🎯" nameCol="Practice" contextCol="Subject" contextField="subject_name" />
 
       {/* Subject breakdown heading */}
       <Row className="mb-2">
@@ -289,9 +460,6 @@ function StudentReport({ data, weekly, history }) {
       <Row>
         {data.map((subj) => {
           const perf       = perfLabel(subj.avg_score_pct);
-          const passRate   = subj.quizzes_attempted > 0
-            ? Math.round((subj.quizzes_passed / subj.quizzes_attempted) * 100)
-            : null;
           const assignRate = subj.assignments_submitted > 0 && subj.avg_assignment_marks !== null && subj.max_assignment_marks
             ? Math.round((subj.avg_assignment_marks / subj.max_assignment_marks) * 100)
             : null;
@@ -322,9 +490,8 @@ function StudentReport({ data, weekly, history }) {
                     <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
                       {[
                         { l: 'Attempted', v: subj.quizzes_attempted,  c: '#5e72e4' },
-                        { l: 'Passed',    v: subj.quizzes_passed,     c: '#2dce89' },
-                        { l: 'Pass Rate', v: passRate !== null ? `${passRate}%` : 'N/A', c: passRate !== null && passRate >= 70 ? '#2dce89' : passRate !== null && passRate >= 40 ? '#fb6340' : '#f5365c' },
-                        { l: 'Best',      v: subj.best_score_pct !== null ? `${subj.best_score_pct}%` : 'N/A', c: '#825ee4' },
+                        { l: 'Avg Score', v: subj.avg_score_pct !== null ? `${subj.avg_score_pct}%` : 'N/A', c: '#fb6340' },
+                        { l: 'Best Score', v: subj.best_score_pct !== null ? `${subj.best_score_pct}%` : 'N/A', c: '#825ee4' },
                       ].map((item) => (
                         <div key={item.l} style={{ background: '#f0f4f8', borderRadius: 8, padding: '8px 10px', textAlign: 'center', flex: 1, minWidth: 60 }}>
                           <div style={{ fontSize: 15, fontWeight: 800, color: item.c }}>{item.v}</div>
@@ -334,6 +501,27 @@ function StudentReport({ data, weekly, history }) {
                     </div>
                     <ScoreBar value={subj.avg_score_pct  ?? 0} color="#5e72e4" label="Avg Score"  />
                     <ScoreBar value={subj.best_score_pct ?? 0} color="#2dce89" label="Best Score" />
+                  </div>
+
+                  {/* Practice stats */}
+                  <div style={{ marginBottom: 18 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>
+                      Practice
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+                      {[
+                        { l: 'Attempted', v: subj.practices_attempted || 0,  c: '#2dce89' },
+                        { l: 'Avg Score', v: subj.avg_practice_score_pct !== null ? `${subj.avg_practice_score_pct}%` : 'N/A', c: '#fb6340' },
+                        { l: 'Best Score', v: subj.best_practice_score_pct !== null ? `${subj.best_practice_score_pct}%` : 'N/A', c: '#825ee4' },
+                      ].map((item) => (
+                        <div key={item.l} style={{ background: '#f0f4f8', borderRadius: 8, padding: '8px 10px', textAlign: 'center', flex: 1, minWidth: 60 }}>
+                          <div style={{ fontSize: 15, fontWeight: 800, color: item.c }}>{item.v}</div>
+                          <div style={{ fontSize: 10, color: '#8898aa', fontWeight: 700 }}>{item.l}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <ScoreBar value={subj.avg_practice_score_pct  ?? 0} color="#2dce89" label="Avg Practice Score"  />
+                    <ScoreBar value={subj.best_practice_score_pct ?? 0} color="#11cdef" label="Best Practice Score" />
                   </div>
 
                   {/* Assignments */}
@@ -364,6 +552,14 @@ function StudentReport({ data, weekly, history }) {
                       <span>Last active: {new Date(subj.last_activity_at).toLocaleDateString()}</span>
                     )}
                   </div>
+
+                  {/* Topic Analysis */}
+                  <TopicAnalysisTable
+                    subjectId={subj.subject_id}
+                    subjectName={subj.subject_name}
+                    studentId={studentId}
+                    isTeacherView={isTeacherView}
+                  />
                 </CardBody>
               </Card>
             </Col>
@@ -374,10 +570,85 @@ function StudentReport({ data, weekly, history }) {
   );
 }
 
+// ─── Student Detail View (for teacher) ───────────────────────────────────────
+
+function StudentDetailView({ studentId, studentName, onBack }) {
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState([]);
+  const [weekly, setWeekly] = useState([]);
+  const [quizHistory, setQuizHistory] = useState([]);
+  const [practiceHistory, setPracticeHistory] = useState([]);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    setLoading(true);
+    Promise.all([
+      http.get(`/api/progress/student/${studentId}`),
+      http.get(`/api/progress/student/${studentId}/weekly`).catch(() => ({ data: [] })),
+      http.get(`/api/progress/student/${studentId}/quiz-history?type=test`).catch(() => ({ data: [] })),
+      http.get(`/api/progress/student/${studentId}/quiz-history?type=practice`).catch(() => ({ data: [] })),
+    ])
+      .then(([progressRes, weeklyRes, quizRes, practiceRes]) => {
+        setData(progressRes.data.data || []);
+        setWeekly(weeklyRes.data || []);
+        setQuizHistory(quizRes.data || []);
+        setPracticeHistory(practiceRes.data || []);
+      })
+      .catch(() => setError('Failed to load student report.'))
+      .finally(() => setLoading(false));
+  }, [studentId]);
+
+  return (
+    <>
+      <Row className="mb-3">
+        <Col>
+          <div className="d-flex align-items-center" style={{ gap: 12 }}>
+            <Button size="sm" color="secondary" onClick={onBack} style={{ fontWeight: 600 }}>
+              ← Back to Class Report
+            </Button>
+            <h4 style={{ margin: 0, color: '#32325d' }}>📊 {studentName}'s Report</h4>
+          </div>
+        </Col>
+      </Row>
+      {loading && (
+        <Card className="shadow" style={{ borderRadius: 12 }}>
+          <CardBody className="text-center py-5">
+            <div style={{ fontSize: 32, marginBottom: 8 }}>⏳</div>
+            <p className="text-muted">Loading student report...</p>
+          </CardBody>
+        </Card>
+      )}
+      {error && <div className="alert alert-danger" style={{ borderRadius: 10 }}>{error}</div>}
+      {!loading && !error && (
+        <StudentReport
+          data={data}
+          weekly={weekly}
+          quizHistory={quizHistory}
+          practiceHistory={practiceHistory}
+          studentId={studentId}
+          isTeacherView={true}
+        />
+      )}
+    </>
+  );
+}
+
 // ─── Teacher Report ───────────────────────────────────────────────────────────
 
 function TeacherReport({ data }) {
   const [expanded, setExpanded] = useState(null);
+  const [searchTerms, setSearchTerms] = useState({});
+  const [viewingStudent, setViewingStudent] = useState(null);
+
+  if (viewingStudent) {
+    return (
+      <StudentDetailView
+        studentId={viewingStudent.id}
+        studentName={viewingStudent.name}
+        onBack={() => setViewingStudent(null)}
+      />
+    );
+  }
 
   if (!data || data.length === 0) {
     return (
@@ -398,6 +669,10 @@ function TeacherReport({ data }) {
           : null;
         const isOpen     = expanded === subj.subject_id;
         const classPerf  = perfLabel(avgScore !== null ? parseFloat(avgScore) : null);
+        const search     = (searchTerms[subj.subject_id] || '').toLowerCase();
+        const filtered   = search
+          ? subj.students.filter(s => s.student_name.toLowerCase().includes(search) || s.student_email.toLowerCase().includes(search))
+          : subj.students;
 
         return (
           <Card key={subj.subject_id} className="shadow mb-4" style={{ borderRadius: 12 }}>
@@ -425,57 +700,83 @@ function TeacherReport({ data }) {
             </CardHeader>
 
             {isOpen && (
-              <CardBody style={{ overflowX: 'auto', padding: 0 }}>
+              <CardBody style={{ padding: 0 }}>
                 {subj.students.length === 0 ? (
                   <p className="text-muted text-center py-4">No enrolled students</p>
                 ) : (
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead>
-                      <tr style={{ background: '#f8f9fa' }}>
-                        {['Student', 'Quizzes', 'Passed', 'Avg Score', 'Best', 'Assignments', 'Graded', 'Avg Marks', 'Level', 'Last Active'].map(h => (
-                          <th key={h} style={{ padding: '10px 12px', fontSize: 11, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {subj.students.map((s) => {
-                        const sp = perfLabel(s.avg_score_pct);
-                        return (
-                          <tr key={s.student_id} style={{ borderBottom: '1px solid #f0f4f8' }}>
-                            <td style={{ padding: '12px', whiteSpace: 'nowrap' }}>
-                              <div style={{ fontWeight: 600, color: '#32325d' }}>{s.student_name}</div>
-                              <div style={{ fontSize: 11, color: '#8898aa' }}>{s.student_email}</div>
-                            </td>
-                            <td style={{ padding: '12px', textAlign: 'center', color: '#525f7f' }}>{s.quizzes_attempted}</td>
-                            <td style={{ padding: '12px', textAlign: 'center' }}>
-                              <span style={{ color: '#2dce89', fontWeight: 700 }}>{s.quizzes_passed}</span>
-                            </td>
-                            <td style={{ padding: '12px', textAlign: 'center' }}>
-                              {s.avg_score_pct !== null
-                                ? <span style={{ fontWeight: 700, color: sp.color }}>{s.avg_score_pct}%</span>
-                                : <span style={{ color: '#8898aa' }}>—</span>}
-                            </td>
-                            <td style={{ padding: '12px', textAlign: 'center', color: '#525f7f' }}>
-                              {s.best_score_pct !== null ? `${s.best_score_pct}%` : '—'}
-                            </td>
-                            <td style={{ padding: '12px', textAlign: 'center', color: '#525f7f' }}>{s.assignments_submitted}</td>
-                            <td style={{ padding: '12px', textAlign: 'center', color: '#525f7f' }}>{s.assignments_graded}</td>
-                            <td style={{ padding: '12px', textAlign: 'center', color: '#525f7f' }}>
-                              {s.avg_assignment_marks !== null ? s.avg_assignment_marks : '—'}
-                            </td>
-                            <td style={{ padding: '12px' }}>
-                              <span style={{ background: sp.bg, color: sp.color, borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 700 }}>
-                                {sp.label}
-                              </span>
-                            </td>
-                            <td style={{ padding: '12px', color: '#8898aa', fontSize: 12, whiteSpace: 'nowrap' }}>
-                              {s.last_activity_at ? new Date(s.last_activity_at).toLocaleDateString() : 'Never'}
-                            </td>
+                  <>
+                    {/* Search bar */}
+                    <div style={{ padding: '12px 16px', borderBottom: '1px solid #f0f4f8' }}>
+                      <Input
+                        type="text"
+                        placeholder="🔍 Search students by name or email..."
+                        value={searchTerms[subj.subject_id] || ''}
+                        onChange={(e) => setSearchTerms({ ...searchTerms, [subj.subject_id]: e.target.value })}
+                        style={{ borderRadius: 8, fontSize: 13, maxWidth: 400 }}
+                      />
+                    </div>
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr style={{ background: '#f8f9fa' }}>
+                            {['Student', 'Quizzes', 'Practice', 'Avg Score', 'Best', 'Assignments', 'Graded', 'Avg Marks', 'Level', 'Last Active', ''].map(h => (
+                              <th key={h} style={{ padding: '10px 12px', fontSize: 11, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
+                            ))}
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                        </thead>
+                        <tbody>
+                          {filtered.map((s) => {
+                            const sp = perfLabel(s.avg_score_pct);
+                            return (
+                              <tr key={s.student_id} style={{ borderBottom: '1px solid #f0f4f8' }}>
+                                <td style={{ padding: '12px', whiteSpace: 'nowrap' }}>
+                                  <div style={{ fontWeight: 600, color: '#32325d' }}>{s.student_name}</div>
+                                  <div style={{ fontSize: 11, color: '#8898aa' }}>{s.student_email}</div>
+                                </td>
+                                <td style={{ padding: '12px', textAlign: 'center', color: '#525f7f' }}>{s.quizzes_attempted}</td>
+                                <td style={{ padding: '12px', textAlign: 'center', color: '#2dce89', fontWeight: 700 }}>{s.practices_attempted || 0}</td>
+                                <td style={{ padding: '12px', textAlign: 'center' }}>
+                                  {s.avg_score_pct !== null
+                                    ? <span style={{ fontWeight: 700, color: sp.color }}>{s.avg_score_pct}%</span>
+                                    : <span style={{ color: '#8898aa' }}>—</span>}
+                                </td>
+                                <td style={{ padding: '12px', textAlign: 'center', color: '#525f7f' }}>
+                                  {s.best_score_pct !== null ? `${s.best_score_pct}%` : '—'}
+                                </td>
+                                <td style={{ padding: '12px', textAlign: 'center', color: '#525f7f' }}>{s.assignments_submitted}</td>
+                                <td style={{ padding: '12px', textAlign: 'center', color: '#525f7f' }}>{s.assignments_graded}</td>
+                                <td style={{ padding: '12px', textAlign: 'center', color: '#525f7f' }}>
+                                  {s.avg_assignment_marks !== null ? s.avg_assignment_marks : '—'}
+                                </td>
+                                <td style={{ padding: '12px' }}>
+                                  <span style={{ background: sp.bg, color: sp.color, borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 700 }}>
+                                    {sp.label}
+                                  </span>
+                                </td>
+                                <td style={{ padding: '12px', color: '#8898aa', fontSize: 12, whiteSpace: 'nowrap' }}>
+                                  {s.last_activity_at ? new Date(s.last_activity_at).toLocaleDateString() : 'Never'}
+                                </td>
+                                <td style={{ padding: '12px' }}>
+                                  <Button size="sm" color="primary" outline
+                                    style={{ fontSize: 11, padding: '3px 12px', fontWeight: 700 }}
+                                    onClick={() => setViewingStudent({ id: s.student_id, name: s.student_name })}>
+                                    View
+                                  </Button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                          {filtered.length === 0 && (
+                            <tr>
+                              <td colSpan={11} style={{ textAlign: 'center', padding: 20, color: '#8898aa' }}>
+                                No students match the search criteria.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
                 )}
               </CardBody>
             )}
@@ -489,12 +790,13 @@ function TeacherReport({ data }) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function Report() {
-  const [loading,  setLoading]  = useState(true);
-  const [role,     setRole]     = useState('');
-  const [data,     setData]     = useState([]);
-  const [weekly,   setWeekly]   = useState([]);
-  const [history,  setHistory]  = useState([]);
-  const [error,    setError]    = useState('');
+  const [loading,          setLoading]         = useState(true);
+  const [role,             setRole]            = useState('');
+  const [data,             setData]            = useState([]);
+  const [weekly,           setWeekly]          = useState([]);
+  const [quizHistory,      setQuizHistory]     = useState([]);
+  const [practiceHistory,  setPracticeHistory]  = useState([]);
+  const [error,            setError]           = useState('');
 
   useEffect(() => {
     const userRole = (window.localStorage.getItem('role') || '').toLowerCase();
@@ -509,15 +811,17 @@ export default function Report() {
     if (userRole === 'student') {
       requests.push(
         http.get('/api/progress/weekly').catch(() => ({ data: [] })),
-        http.get('/api/progress/quiz-history').catch(() => ({ data: [] })),
+        http.get('/api/progress/quiz-history?type=test').catch(() => ({ data: [] })),
+        http.get('/api/progress/quiz-history?type=practice').catch(() => ({ data: [] })),
       );
     }
 
     Promise.all(requests)
-      .then(([progressRes, weeklyRes, historyRes]) => {
+      .then(([progressRes, weeklyRes, quizRes, practiceRes]) => {
         setData(progressRes.data.data || []);
-        if (weeklyRes)  setWeekly(weeklyRes.data   || []);
-        if (historyRes) setHistory(historyRes.data  || []);
+        if (weeklyRes)    setWeekly(weeklyRes.data || []);
+        if (quizRes)      setQuizHistory(quizRes.data || []);
+        if (practiceRes)  setPracticeHistory(practiceRes.data || []);
       })
       .catch(() => setError('Failed to load progress data. Please try again.'))
       .finally(() => setLoading(false));
@@ -566,7 +870,14 @@ export default function Report() {
         )}
 
         {!loading && !error && role === 'student' && (
-          <StudentReport data={data} weekly={weekly} history={history} />
+          <StudentReport
+            data={data}
+            weekly={weekly}
+            quizHistory={quizHistory}
+            practiceHistory={practiceHistory}
+            studentId={null}
+            isTeacherView={false}
+          />
         )}
         {!loading && !error && role === 'teacher' && (
           <TeacherReport data={data} />

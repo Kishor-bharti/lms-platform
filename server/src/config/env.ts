@@ -63,5 +63,6 @@ export function validateEnv(): void {
     }
   }
 
+  // Use console here intentionally — logger depends on env and may not be ready yet
   console.log('[env] All required environment variables validated ✅');
 }

@@ -3,6 +3,7 @@
 
 import { Pool, PoolClient } from 'pg';
 import { env } from './env';
+import logger from './logger';
 
 export const pool = new Pool({
   connectionString: env.DATABASE_URL,
@@ -15,8 +16,8 @@ export const pool = new Pool({
 });
 
 pool.query('SELECT 1')
-  .then(() => console.log('[db] Connection successful'))
-  .catch((err) => console.error('[db] Connection failed:', err.message));
+  .then(() => logger.info('[db] Connection successful'))
+  .catch((err) => logger.error('[db] Connection failed', { error: err.message }));
 
 // ─── Standard query helper ─────────────────────────────────────
 export async function query<T extends Record<string, any> = any>(
@@ -58,14 +59,14 @@ export async function withTransaction<T>(
 
 // ─── Startup connection check ──────────────────────────────────
 export async function verifyConnection(): Promise<void> {
-  console.log('[db] Verifying PostgreSQL connection...');
+  logger.info('[db] Verifying PostgreSQL connection...');
   try {
     const res = await pool.query<{ version: string }>('SELECT version()');
     const version = res.rows[0]?.version ?? '';
     if (!/postgres/i.test(version)) {
       throw new Error(`Not PostgreSQL: ${version}`);
     }
-    console.log('[db] PostgreSQL verified:', version.split(' ').slice(0, 2).join(' '));
+    logger.info('[db] PostgreSQL verified', { version: version.split(' ').slice(0, 2).join(' ') });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     throw new Error(`DB verification failed: ${msg}`);

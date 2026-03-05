@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import logger from '../../config/logger';
 import { createClient } from '@supabase/supabase-js';
 import { env } from '../../config/env';
 
@@ -21,7 +22,7 @@ export async function uploadQuizImage(req: Request, res: Response) {
     const { data } = supabase.storage.from('quiz-images').getPublicUrl(filename);
     return res.json({ url: data.publicUrl });
   } catch (err) {
-    console.error('[upload:quiz-image]', err);
+    logger.error('[upload:quiz-image]', err);
     return res.status(500).json({ error: 'Upload failed' });
   }
 }

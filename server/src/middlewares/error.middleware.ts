@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { env } from '../config/env';
+import logger from '../config/logger';
 
 export interface AppError extends Error {
   statusCode?: number;
@@ -18,11 +19,18 @@ export function errorHandler(err: AppError, req: Request, res: Response, _next: 
     status,
     path: req.path,
     method: req.method,
+    user_id: req.user?.id,
+    role: req.user?.role,
+    ip: req.ip,
     details: err.details,
     stack: env.NODE_ENV !== 'production' ? err.stack : undefined,
   };
 
-  console.error('[error]', logPayload);
+  if (status >= 500) {
+    logger.error('Unhandled server error', logPayload);
+  } else {
+    logger.warn('Client error response', logPayload);
+  }
 
   return res.status(status).json({
     error: {
