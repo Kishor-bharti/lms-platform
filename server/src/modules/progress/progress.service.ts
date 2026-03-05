@@ -75,6 +75,7 @@ export interface QuizHistoryItem {
   attempt_id: string;
   quiz_title: string;
   subject_name: string;
+  course_name: string;
   quiz_type: string;
   score_pct: number | null;
   correct: number;
@@ -95,6 +96,7 @@ export async function getQuizHistory(studentId: string, quizType?: string): Prom
       qa.id             AS attempt_id,
       qz.title          AS quiz_title,
       sub.name          AS subject_name,
+      c.name            AS course_name,
       qz.quiz_type,
       qa.score_pct,
       qa.time_taken_seconds,
@@ -106,11 +108,12 @@ export async function getQuizHistory(studentId: string, quizType?: string): Prom
     FROM quiz_attempts qa
     JOIN quizzes  qz  ON qz.id  = qa.quiz_id
     LEFT JOIN subjects sub ON sub.id = qz.subject_id
+    LEFT JOIN courses c ON c.id = COALESCE(qz.course_id, sub.course_id)
     LEFT JOIN attempt_answers aa ON aa.attempt_id = qa.id
     WHERE qa.student_id = $1
       AND qa.status = 'submitted'
       ${typeFilter}
-    GROUP BY qa.id, qz.title, sub.name, qz.quiz_type
+    GROUP BY qa.id, qz.title, sub.name, c.name, qz.quiz_type
     ORDER BY qa.submitted_at DESC
     LIMIT 20
   `, params);
@@ -119,6 +122,7 @@ export async function getQuizHistory(studentId: string, quizType?: string): Prom
     attempt_id:         r.attempt_id,
     quiz_title:         r.quiz_title,
     subject_name:       r.subject_name,
+    course_name:        r.course_name,
     quiz_type:          r.quiz_type,
     score_pct:          r.score_pct != null ? Number(Number(r.score_pct).toFixed(1)) : null,
     correct:            Number(r.correct),
@@ -219,7 +223,7 @@ export async function getStudentProgress(studentId: string): Promise<SubjectProg
     FROM subject_enrollments se
     JOIN subjects sub ON sub.id = se.subject_id
     JOIN courses  c   ON c.id   = sub.course_id
-    LEFT JOIN quizzes   qz    ON qz.subject_id  = sub.id
+    LEFT JOIN quizzes   qz    ON (qz.subject_id = sub.id OR (qz.subject_id IS NULL AND qz.course_id = c.id))
     LEFT JOIN quiz_attempts qa ON qa.quiz_id = qz.id AND qa.student_id = $1
     LEFT JOIN assignments a    ON a.subject_id  = sub.id
     LEFT JOIN assignment_submissions asub ON asub.assignment_id = a.id AND asub.student_id = $1
@@ -360,7 +364,7 @@ export async function getTeacherReport(teacherId: string): Promise<TeacherSubjec
     JOIN users u ON u.id = se.student_id
 
     LEFT JOIN quizzes qz
-      ON qz.subject_id = sub.id
+      ON (qz.subject_id = sub.id OR (qz.subject_id IS NULL AND qz.course_id = c.id))
     LEFT JOIN quiz_attempts qa
       ON qa.quiz_id = qz.id AND qa.student_id = u.id
     LEFT JOIN assignments a

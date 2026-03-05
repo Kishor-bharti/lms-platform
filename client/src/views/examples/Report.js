@@ -217,7 +217,7 @@ function ActivityChart({ data: initialData, studentId, isTeacherView }) {
 
 // ─── History Table (shared for Quiz & Practice) ──────────────────────────────
 
-function HistoryTable({ data, title, icon, showReview }) {
+function HistoryTable({ data, title, icon, nameCol, contextCol, contextField }) {
   const [showAll, setShowAll] = useState(false);
   if (!data || data.length === 0) return null;
   const visible = showAll ? data : data.slice(0, 5);
@@ -234,8 +234,8 @@ function HistoryTable({ data, title, icon, showReview }) {
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: '#f8f9fa' }}>
-              {['Quiz', 'Subject', 'Score', '✓', '✗', 'Time', 'Date', 'Level', ...(showReview ? [''] : [])].map(h => (
-                <th key={h} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
+              {[nameCol || 'Quiz', contextCol || 'Subject', 'Score', '✓', '✗', 'Time', 'Date', 'Level', ''].map((h, idx) => (
+                <th key={h + idx} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -247,7 +247,7 @@ function HistoryTable({ data, title, icon, showReview }) {
                   <td style={{ padding: '12px 14px', fontWeight: 600, color: '#32325d', maxWidth: 180 }}>
                     <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.quiz_title}</div>
                   </td>
-                  <td style={{ padding: '12px 14px', color: '#525f7f', fontSize: 13, whiteSpace: 'nowrap' }}>{item.subject_name}</td>
+                  <td style={{ padding: '12px 14px', color: '#525f7f', fontSize: 13, whiteSpace: 'nowrap' }}>{item[contextField || 'subject_name'] || '—'}</td>
                   <td style={{ padding: '12px 14px' }}>
                     <span style={{ fontWeight: 800, fontSize: 15, color: perf.color }}>
                       {item.score_pct !== null ? `${item.score_pct}%` : '—'}
@@ -276,14 +276,12 @@ function HistoryTable({ data, title, icon, showReview }) {
                       {perf.label}
                     </span>
                   </td>
-                  {showReview && (
-                    <td style={{ padding: '12px 14px' }}>
-                      <Button size="sm" color="info" outline style={{ fontSize: 11, padding: '2px 10px' }}
-                        onClick={() => window.location.href = `#/admin/quiz/${item.attempt_id}`}>
-                        Review
-                      </Button>
-                    </td>
-                  )}
+                  <td style={{ padding: '12px 14px' }}>
+                    <Button size="sm" color="info" outline style={{ fontSize: 11, padding: '2px 10px' }}
+                      onClick={() => window.location.href = `#/admin/quiz/${item.attempt_id}`}>
+                      Review
+                    </Button>
+                  </td>
                 </tr>
               );
             })}
@@ -446,10 +444,10 @@ function StudentReport({ data, weekly, quizHistory, practiceHistory, studentId, 
       <ActivityChart data={weekly} studentId={studentId} isTeacherView={isTeacherView} />
 
       {/* Quiz History */}
-      <HistoryTable data={quizHistory} title="Recent Quiz History" icon="📋" showReview={false} />
+      <HistoryTable data={quizHistory} title="Recent Quiz History" icon="📋" nameCol="Quiz" contextCol="Course" contextField="course_name" />
 
       {/* Practice History */}
-      <HistoryTable data={practiceHistory} title="Recent Practice History" icon="🎯" showReview={true} />
+      <HistoryTable data={practiceHistory} title="Recent Practice History" icon="🎯" nameCol="Practice" contextCol="Subject" contextField="subject_name" />
 
       {/* Subject breakdown heading */}
       <Row className="mb-2">
