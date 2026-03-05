@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Enterprise LMS platform with two independently runnable sub-projects:
+10xAccel — Enterprise LMS platform with two independently runnable sub-projects:
 - `client/` — React 18 SPA (Create React App)
 - `server/` — TypeScript/Express REST API backed by PostgreSQL
 

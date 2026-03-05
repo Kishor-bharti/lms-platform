@@ -3,6 +3,7 @@ import {
   Container, Row, Col, Card, CardHeader, CardBody, CardTitle, Badge, Button, Input,
 } from 'reactstrap';
 import Header from 'components/Headers/Header.js';
+import LatexRenderer from 'components/LatexRenderer.js';
 import http from 'utils/http';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -215,11 +216,156 @@ function ActivityChart({ data: initialData, studentId, isTeacherView }) {
   );
 }
 
+// ─── Attempt Review Panel ─────────────────────────────────────────────────
+
+function AttemptReviewPanel({ attemptId, studentId, isTeacherView, onClose }) {
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    setLoading(true);
+    const url = isTeacherView && studentId
+      ? `/api/progress/student/${studentId}/attempt/${attemptId}/review`
+      : `/api/progress/attempt/${attemptId}/review`;
+    http.get(url)
+      .then(res => setData(res.data))
+      .catch(() => setError('Failed to load review. The attempt may not be available.'))
+      .finally(() => setLoading(false));
+  }, [attemptId, studentId, isTeacherView]);
+
+  if (loading) {
+    return (
+      <Card className="shadow mb-4" style={{ borderRadius: 12 }}>
+        <CardBody className="text-center py-5">
+          <div style={{ fontSize: 32, marginBottom: 8 }}>⏳</div>
+          <p className="text-muted">Loading review...</p>
+        </CardBody>
+      </Card>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <Card className="shadow mb-4" style={{ borderRadius: 12 }}>
+        <CardBody className="text-center py-4">
+          <p className="text-danger">{error || 'No data'}</p>
+          <Button size="sm" color="secondary" onClick={onClose}>← Back</Button>
+        </CardBody>
+      </Card>
+    );
+  }
+
+  const { attempt, answers } = data;
+  const scorePct = Number(attempt.score_pct || 0).toFixed(1);
+  const timeSecs = attempt.time_taken_seconds || 0;
+  const mins = Math.floor(timeSecs / 60);
+  const secs = timeSecs % 60;
+  const correctCount = answers?.filter(a => a.is_correct).length || 0;
+
+  return (
+    <>
+      <div className="mb-3">
+        <Button size="sm" color="secondary" onClick={onClose} style={{ fontWeight: 600 }}>← Back to History</Button>
+      </div>
+      <Card className="shadow mb-4" style={{ borderRadius: 16, textAlign: 'center', overflow: 'hidden' }}>
+        <div style={{ background: 'linear-gradient(135deg, #5e72e4, #825ee4)', padding: '28px 20px' }}>
+          <div style={{ fontSize: 56, fontWeight: 900, color: '#fff', lineHeight: 1 }}>{scorePct}%</div>
+          <div style={{ color: 'rgba(255,255,255,0.75)', marginTop: 6 }}>
+            {Number(attempt.marks_obtained || 0).toFixed(1)} / {Number(attempt.total_marks || 0).toFixed(1)} marks
+          </div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: '#fff', marginTop: 4 }}>{attempt.quiz_title}</div>
+        </div>
+        <CardBody>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 32, padding: '12px 0' }}>
+            <div>
+              <div style={{ fontSize: 11, color: '#8898aa', fontWeight: 700, textTransform: 'uppercase' }}>Time Taken</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: '#32325d' }}>{mins}m {secs}s</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: '#8898aa', fontWeight: 700, textTransform: 'uppercase' }}>Correct</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: '#32325d' }}>{correctCount} / {answers?.length || 0}</div>
+            </div>
+          </div>
+        </CardBody>
+      </Card>
+
+      <h4 style={{ color: '#32325d', marginBottom: 16 }}>Review Answers</h4>
+      {answers?.map((a, idx) => (
+        <Card key={a.question_id} className="shadow mb-3" style={{ borderRadius: 12, borderLeft: `4px solid ${a.is_correct ? '#2dce89' : '#f5365c'}` }}>
+          <CardBody>
+            <div className="d-flex justify-content-between align-items-start mb-3">
+              <div style={{ fontWeight: 600, color: '#32325d', flex: 1, lineHeight: 1.5 }}>
+                <span>{idx + 1}. </span><LatexRenderer text={a.question_text || ''} />
+              </div>
+              <Badge color={a.is_correct ? 'success' : 'danger'} style={{ marginLeft: 12, flexShrink: 0 }}>
+                {a.is_correct ? `+${Number(a.marks_awarded).toFixed(1)}` : '0'} marks
+              </Badge>
+            </div>
+            {a.image_url && (
+              <div style={{ background: '#f8f9fa', padding: 10, borderRadius: 8, margin: '8px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', maxHeight: 200, overflow: 'hidden' }}>
+                <img src={a.image_url} alt="" style={{ maxWidth: '100%', maxHeight: 180, borderRadius: 6, objectFit: 'contain' }} />
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+              {a.topic_name && (
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10 }}>📌 {a.topic_name}</span>
+              )}
+              {a.difficulty && (
+                <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 10, textTransform: 'capitalize',
+                  background: a.difficulty === 'easy' ? '#d4edda' : a.difficulty === 'hard' ? '#f8d7da' : '#fff3cd',
+                  color: a.difficulty === 'easy' ? '#155724' : a.difficulty === 'hard' ? '#721c24' : '#856404' }}>
+                  {a.difficulty}
+                </span>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{ background: a.is_correct ? '#eafaf1' : '#fde8ec', border: `1px solid ${a.is_correct ? '#2dce89' : '#f5365c'}`, borderRadius: 8, padding: '6px 14px', fontSize: 13 }}>
+                <span style={{ fontWeight: 700 }}>Your answer: </span>
+                {a.selected_label ? <><span>{a.selected_label}. </span><LatexRenderer text={a.selected_text || ''} /></> : 'Not answered'}
+              </div>
+              {!a.is_correct && (
+                <div style={{ background: '#eafaf1', border: '1px solid #2dce89', borderRadius: 8, padding: '6px 14px', fontSize: 13 }}>
+                  <span style={{ fontWeight: 700 }}>Correct: </span>
+                  <span>{a.correct_label}. </span><LatexRenderer text={a.correct_text || ''} />
+                </div>
+              )}
+            </div>
+            {a.explanation && (
+              <div style={{ marginTop: 10, padding: '8px 12px', background: '#fff8e6', borderRadius: 8, fontSize: 13, color: '#525f7f' }}>
+                <span style={{ fontWeight: 700 }}>Explanation: </span><LatexRenderer text={a.explanation} />
+                {a.explanation_image_url && (
+                  <div style={{ marginTop: 8, background: '#f8f9fa', padding: 8, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <img src={a.explanation_image_url} alt="Explanation" style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 6, objectFit: 'contain', display: 'block' }} />
+                  </div>
+                )}
+              </div>
+            )}
+          </CardBody>
+        </Card>
+      ))}
+    </>
+  );
+}
+
 // ─── History Table (shared for Quiz & Practice) ──────────────────────────────
 
-function HistoryTable({ data, title, icon, nameCol, contextCol, contextField }) {
+function HistoryTable({ data, title, icon, nameCol, contextCol, contextField, studentId, isTeacherView }) {
   const [showAll, setShowAll] = useState(false);
+  const [reviewAttemptId, setReviewAttemptId] = useState(null);
   if (!data || data.length === 0) return null;
+
+  if (reviewAttemptId) {
+    return (
+      <AttemptReviewPanel
+        attemptId={reviewAttemptId}
+        studentId={studentId}
+        isTeacherView={isTeacherView}
+        onClose={() => setReviewAttemptId(null)}
+      />
+    );
+  }
+
   const visible = showAll ? data : data.slice(0, 5);
 
   return (
@@ -278,7 +424,7 @@ function HistoryTable({ data, title, icon, nameCol, contextCol, contextField }) 
                   </td>
                   <td style={{ padding: '12px 14px' }}>
                     <Button size="sm" color="info" outline style={{ fontSize: 11, padding: '2px 10px' }}
-                      onClick={() => window.location.href = `#/admin/quiz/${item.attempt_id}`}>
+                      onClick={() => setReviewAttemptId(item.attempt_id)}>
                       Review
                     </Button>
                   </td>
@@ -444,10 +590,10 @@ function StudentReport({ data, weekly, quizHistory, practiceHistory, studentId, 
       <ActivityChart data={weekly} studentId={studentId} isTeacherView={isTeacherView} />
 
       {/* Quiz History */}
-      <HistoryTable data={quizHistory} title="Recent Quiz History" icon="📋" nameCol="Quiz" contextCol="Course" contextField="course_name" />
+      <HistoryTable data={quizHistory} title="Recent Quiz History" icon="📋" nameCol="Quiz" contextCol="Course" contextField="course_name" studentId={studentId} isTeacherView={isTeacherView} />
 
       {/* Practice History */}
-      <HistoryTable data={practiceHistory} title="Recent Practice History" icon="🎯" nameCol="Practice" contextCol="Subject" contextField="subject_name" />
+      <HistoryTable data={practiceHistory} title="Recent Practice History" icon="🎯" nameCol="Practice" contextCol="Subject" contextField="subject_name" studentId={studentId} isTeacherView={isTeacherView} />
 
       {/* Subject breakdown heading */}
       <Row className="mb-2">

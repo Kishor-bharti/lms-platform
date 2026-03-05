@@ -42,7 +42,7 @@ const Admin = (props) => {
         return routes[i].name;
       }
     }
-    return "Brand";
+    return "10xAccel";
   };
 
   return (

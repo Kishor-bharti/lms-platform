@@ -1,5 +1,5 @@
 # 10xAccel LMS — Complete Feature Roadmap & Copilot Prompt Pack
-> Based on codebase audit of lms-platform-main as of Feb 2026.
+> Based on codebase audit of 10xAccel-main as of Feb 2026.
 > Work phases IN ORDER. Never skip. Never combine.
 
 ---
@@ -23,7 +23,7 @@
 # ═══ PHASE 1 — App Rename + Topics System + Sidebar Quiz Node ═══
 
 ## Context
-- App title currently says "lms-platform-2026" in browser tab
+- App title currently says "10xAccel" in browser tab
 - No topics table exists in the schema yet
 - Sidebar renders `course.subjects.map(...)` — needs a "Quiz" node appended at the bottom of each course's subject list
 - This phase adds zero breaking changes

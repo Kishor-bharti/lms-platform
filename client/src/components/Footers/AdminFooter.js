@@ -9,11 +9,11 @@ const Footer = () => {
             © {new Date().getFullYear()}{" "}
             <a
               className="font-weight-bold ml-1"
-              href="#lms-platform"
+              href="#10xAccel"
               rel="noopener noreferrer"
               target="_blank"
             >
-              lms-platform
+              10xAccel
             </a>
           </div>
         </Col>

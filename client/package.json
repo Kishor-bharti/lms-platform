@@ -1,7 +1,7 @@
 {
-  "name": "lms-platform",
+  "name": "10xaccel",
   "version": "1.2.4",
-  "description": "lms-learning-platform-react-app",
+  "description": "10xAccel-learning-platform-react-app",
   "main": "index.js",
   "engines": {
     "node": ">=18.0.0",
@@ -16,7 +16,7 @@
     "reactjs",
     "dashboard",
     "dashboard-react",
-    "lms-platform"
+    "10xaccel"
   ],
   "author": "Kishor",
   "license": "other",
@@ -31,8 +31,8 @@
     "lint": "eslint src",
     "eject": "react-scripts eject",
     "install:clean": "rm -rf node_modules/ && rm -rf package-lock.json && npm install && npm start",
-    "compile:scss": "sass src/assets/scss/lms-platform.scss src/assets/css/lms-platform.css",
-    "minify:scss": "sass src/assets/scss/lms-platform.scss src/assets/css/lms-platform.min.css --style compressed",
+    "compile:scss": "sass src/assets/scss/10xaccel.scss src/assets/css/10xaccel.css",
+    "minify:scss": "sass src/assets/scss/10xaccel.scss src/assets/css/10xaccel.min.css --style compressed",
     "build:scss": "npm run compile:scss && npm run minify:scss"
   },
   "eslintConfig": {

@@ -410,6 +410,38 @@ export async function getTeacherReport(teacherId: string): Promise<TeacherSubjec
   return Array.from(subjectMap.values());
 }
 
+// ---- Attempt review (returns questions, answers, explanations) ----
+
+export async function getAttemptReview(attemptId: string, studentId: string) {
+  const attemptRows = await query<any>(`
+    SELECT qa.*, q.title AS quiz_title, q.passing_score
+    FROM quiz_attempts qa
+    JOIN quizzes q ON q.id = qa.quiz_id
+    WHERE qa.id = $1 AND qa.student_id = $2
+  `, [attemptId, studentId]);
+
+  if (!attemptRows[0]) throw new Error('Attempt not found');
+  const attempt = attemptRows[0];
+
+  const answerRows = await query<any>(`
+    SELECT
+      aa.question_id, aa.selected_option_id, aa.is_correct, aa.marks_awarded,
+      q.question_text, q.image_url, q.explanation, q.explanation_image_url,
+      q.difficulty, q.marks AS total_marks, t.name AS topic_name,
+      sel.option_label AS selected_label, sel.option_text AS selected_text,
+      cor.id AS correct_option_id, cor.option_label AS correct_label, cor.option_text AS correct_text
+    FROM attempt_answers aa
+    JOIN questions q ON q.id = aa.question_id
+    LEFT JOIN topics t ON t.id = q.topic_id
+    LEFT JOIN options sel ON sel.id = aa.selected_option_id
+    LEFT JOIN options cor ON cor.question_id = q.id AND cor.is_correct = true
+    WHERE aa.attempt_id = $1
+    ORDER BY q.order_index
+  `, [attemptId]);
+
+  return { attempt, answers: answerRows };
+}
+
 // ---- Teacher: check if student belongs to one of teacher's subjects ----
 
 export async function isStudentOfTeacher(teacherId: string, studentId: string): Promise<boolean> {

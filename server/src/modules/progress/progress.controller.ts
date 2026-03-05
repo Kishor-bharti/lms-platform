@@ -7,6 +7,7 @@ import {
   getActivityForRange,
   getQuizHistory,
   getTopicAnalysis,
+  getAttemptReview,
   isStudentOfTeacher,
 } from './progress.service';
 
@@ -182,5 +183,46 @@ export async function getStudentTopicAnalysis(req: Request, res: Response) {
   } catch (err) {
     logger.error('[progress:student-topic-analysis]', err);
     return res.status(500).json({ error: 'Failed to fetch student topic analysis' });
+  }
+}
+
+// ---- Student: review own attempt ----
+
+export async function getMyAttemptReview(req: Request, res: Response) {
+  try {
+    const userId    = req.user!.id;
+    const role      = req.user!.role;
+    const attemptId = req.params.attemptId as string;
+    if (role !== 'student') return res.status(403).json({ error: 'Students only' });
+    if (!attemptId) return res.status(400).json({ error: 'attemptId is required' });
+    const data = await getAttemptReview(attemptId, userId);
+    return res.json(data);
+  } catch (err: any) {
+    if (err.message === 'Attempt not found') return res.status(404).json({ error: 'Attempt not found' });
+    logger.error('[progress:my-attempt-review]', err);
+    return res.status(500).json({ error: 'Failed to fetch attempt review' });
+  }
+}
+
+// ---- Teacher: review a student's attempt ----
+
+export async function getStudentAttemptReview(req: Request, res: Response) {
+  try {
+    const teacherId = req.user!.id;
+    const role      = req.user!.role;
+    const studentId = req.params.studentId as string;
+    const attemptId = req.params.attemptId as string;
+    if (role !== 'teacher') return res.status(403).json({ error: 'Teachers only' });
+    if (!studentId || !attemptId) return res.status(400).json({ error: 'studentId and attemptId are required' });
+
+    const allowed = await isStudentOfTeacher(teacherId, studentId);
+    if (!allowed) return res.status(403).json({ error: 'Student is not in your subjects' });
+
+    const data = await getAttemptReview(attemptId, studentId);
+    return res.json(data);
+  } catch (err: any) {
+    if (err.message === 'Attempt not found') return res.status(404).json({ error: 'Attempt not found' });
+    logger.error('[progress:student-attempt-review]', err);
+    return res.status(500).json({ error: 'Failed to fetch attempt review' });
   }
 }

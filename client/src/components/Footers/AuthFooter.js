@@ -11,10 +11,10 @@ const Login = () => {
                 © {new Date().getFullYear()}{" "}
                 <a
                   className="font-weight-bold ml-1"
-                  href="#lms-platform"
+                  href="#10xAccel"
                   target="_blank"
                 >
-                  lms-platform
+                  10xAccel
                 </a>
               </div>
             </Col>
@@ -22,10 +22,10 @@ const Login = () => {
               <Nav className="nav-footer justify-content-center justify-content-xl-end">
                 <NavItem>
                   <NavLink
-                    href="#lms-platform"
+                    href="#10xAccel"
                     target="_blank"
                   >
-                    lms-platform
+                    10xAccel
                   </NavLink>
                 </NavItem>
                 <NavItem>

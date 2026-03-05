@@ -1,5 +1,5 @@
 -- ============================================================
--- LMS Platform — Canonical Schema
+-- 10xAccel — Canonical Schema
 -- Source of truth for a fresh database setup.
 -- Last synced: 2026-03-04 (matches local + production state)
 -- ============================================================
