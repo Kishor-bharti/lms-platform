@@ -91,15 +91,17 @@ export async function getMyTopicAnalysis(req: Request, res: Response) {
 
 export async function getStudentReport(req: Request, res: Response) {
   try {
-    const teacherId = req.user!.id;
+    const callerId  = req.user!.id;
     const role      = req.user!.role;
     const studentId = req.params.studentId;
-    if (role !== 'teacher') return res.status(403).json({ error: 'Teachers only' });
+    if (role !== 'teacher' && role !== 'admin') return res.status(403).json({ error: 'Teachers and admins only' });
     if (!studentId) return res.status(400).json({ error: 'studentId is required' });
 
-    // Check access
-    const allowed = await isStudentOfTeacher(teacherId, studentId);
-    if (!allowed) return res.status(403).json({ error: 'Student is not in your subjects' });
+    // Admins can see any student; teachers can only see their own subjects
+    if (role === 'teacher') {
+      const allowed = await isStudentOfTeacher(callerId, studentId);
+      if (!allowed) return res.status(403).json({ error: 'Student is not in your subjects' });
+    }
 
     const data = await getStudentProgress(studentId);
     return res.json({ role: 'student', data });
@@ -111,13 +113,15 @@ export async function getStudentReport(req: Request, res: Response) {
 
 export async function getStudentWeeklyActivity(req: Request, res: Response) {
   try {
-    const teacherId = req.user!.id;
+    const callerId  = req.user!.id;
     const role      = req.user!.role;
     const studentId = req.params.studentId as string;
-    if (role !== 'teacher') return res.status(403).json({ error: 'Teachers only' });
+    if (role !== 'teacher' && role !== 'admin') return res.status(403).json({ error: 'Teachers and admins only' });
 
-    const allowed = await isStudentOfTeacher(teacherId, studentId);
-    if (!allowed) return res.status(403).json({ error: 'Student is not in your subjects' });
+    if (role === 'teacher') {
+      const allowed = await isStudentOfTeacher(callerId, studentId);
+      if (!allowed) return res.status(403).json({ error: 'Student is not in your subjects' });
+    }
 
     const data = await getWeeklyActivity(studentId);
     return res.json(data);
@@ -129,13 +133,15 @@ export async function getStudentWeeklyActivity(req: Request, res: Response) {
 
 export async function getStudentActivityRange(req: Request, res: Response) {
   try {
-    const teacherId = req.user!.id;
+    const callerId  = req.user!.id;
     const role      = req.user!.role;
     const studentId = req.params.studentId as string;
-    if (role !== 'teacher') return res.status(403).json({ error: 'Teachers only' });
+    if (role !== 'teacher' && role !== 'admin') return res.status(403).json({ error: 'Teachers and admins only' });
 
-    const allowed = await isStudentOfTeacher(teacherId, studentId);
-    if (!allowed) return res.status(403).json({ error: 'Student is not in your subjects' });
+    if (role === 'teacher') {
+      const allowed = await isStudentOfTeacher(callerId, studentId);
+      if (!allowed) return res.status(403).json({ error: 'Student is not in your subjects' });
+    }
 
     const { start, end } = req.query as { start?: string; end?: string };
     if (!start || !end) return res.status(400).json({ error: 'start and end query params required (YYYY-MM-DD)' });
@@ -149,13 +155,15 @@ export async function getStudentActivityRange(req: Request, res: Response) {
 
 export async function getStudentQuizHistory(req: Request, res: Response) {
   try {
-    const teacherId = req.user!.id;
+    const callerId  = req.user!.id;
     const role      = req.user!.role;
     const studentId = req.params.studentId as string;
-    if (role !== 'teacher') return res.status(403).json({ error: 'Teachers only' });
+    if (role !== 'teacher' && role !== 'admin') return res.status(403).json({ error: 'Teachers and admins only' });
 
-    const allowed = await isStudentOfTeacher(teacherId, studentId);
-    if (!allowed) return res.status(403).json({ error: 'Student is not in your subjects' });
+    if (role === 'teacher') {
+      const allowed = await isStudentOfTeacher(callerId, studentId);
+      if (!allowed) return res.status(403).json({ error: 'Student is not in your subjects' });
+    }
 
     const quizType = req.query.type as string | undefined;
     const data = await getQuizHistory(studentId, quizType);
@@ -168,15 +176,17 @@ export async function getStudentQuizHistory(req: Request, res: Response) {
 
 export async function getStudentTopicAnalysis(req: Request, res: Response) {
   try {
-    const teacherId = req.user!.id;
+    const callerId  = req.user!.id;
     const role      = req.user!.role;
     const studentId = req.params.studentId as string;
     const subjectId = req.params.subjectId as string;
-    if (role !== 'teacher') return res.status(403).json({ error: 'Teachers only' });
+    if (role !== 'teacher' && role !== 'admin') return res.status(403).json({ error: 'Teachers and admins only' });
     if (!studentId || !subjectId) return res.status(400).json({ error: 'studentId and subjectId are required' });
 
-    const allowed = await isStudentOfTeacher(teacherId, studentId);
-    if (!allowed) return res.status(403).json({ error: 'Student is not in your subjects' });
+    if (role === 'teacher') {
+      const allowed = await isStudentOfTeacher(callerId, studentId);
+      if (!allowed) return res.status(403).json({ error: 'Student is not in your subjects' });
+    }
 
     const data = await getTopicAnalysis(studentId, subjectId);
     return res.json(data);
@@ -208,15 +218,17 @@ export async function getMyAttemptReview(req: Request, res: Response) {
 
 export async function getStudentAttemptReview(req: Request, res: Response) {
   try {
-    const teacherId = req.user!.id;
+    const callerId  = req.user!.id;
     const role      = req.user!.role;
     const studentId = req.params.studentId as string;
     const attemptId = req.params.attemptId as string;
-    if (role !== 'teacher') return res.status(403).json({ error: 'Teachers only' });
+    if (role !== 'teacher' && role !== 'admin') return res.status(403).json({ error: 'Teachers and admins only' });
     if (!studentId || !attemptId) return res.status(400).json({ error: 'studentId and attemptId are required' });
 
-    const allowed = await isStudentOfTeacher(teacherId, studentId);
-    if (!allowed) return res.status(403).json({ error: 'Student is not in your subjects' });
+    if (role === 'teacher') {
+      const allowed = await isStudentOfTeacher(callerId, studentId);
+      if (!allowed) return res.status(403).json({ error: 'Student is not in your subjects' });
+    }
 
     const data = await getAttemptReview(attemptId, studentId);
     return res.json(data);

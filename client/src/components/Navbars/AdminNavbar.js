@@ -49,7 +49,7 @@ const AdminNavbar = (props) => {
         <Container className="d-flex flex-column flex-md-row align-items-center" fluid>
           <Link
             className="h4 mb-0 text-white text-uppercase"
-            to="/"
+            to="/admin/index"
           >
             {props.brandText}
           </Link>

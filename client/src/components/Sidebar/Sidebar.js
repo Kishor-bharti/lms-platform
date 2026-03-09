@@ -285,36 +285,6 @@ const Sidebar = (props) => {
               </Nav>
             </>
           )}
-
-
-          {/* ── Resources section ── */}
-          <hr className="my-3" />
-          <h6
-            className="navbar-heading text-muted"
-            style={mini ? { display: "none" } : undefined}
-          >
-            Resources
-          </h6>
-          <Nav className="mb-md-3" navbar>
-            <NavItem>
-              <NavLink href="#" title="Course Guide">
-                <i className="ni ni-spaceship" />
-                <span className="nav-link-text" style={mini ? { display: "none" } : undefined}>Course Guide</span>
-              </NavLink>
-            </NavItem>
-            <NavItem>
-              <NavLink href="#" title="Student Support">
-                <i className="ni ni-palette" />
-                <span className="nav-link-text" style={mini ? { display: "none" } : undefined}>Student Support</span>
-              </NavLink>
-            </NavItem>
-            <NavItem>
-              <NavLink href="#" title="Help Center">
-                <i className="ni ni-ui-04" />
-                <span className="nav-link-text" style={mini ? { display: "none" } : undefined}>Help Center</span>
-              </NavLink>
-            </NavItem>
-          </Nav>
         </Collapse>
 
         <style>{`

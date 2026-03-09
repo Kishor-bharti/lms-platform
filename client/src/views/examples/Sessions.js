@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Button, Card, CardHeader, CardBody, CardTitle,
   Container, Row, Col, Badge,
@@ -16,20 +16,6 @@ const Sessions = () => {
   const [actionError, setActionError] = useState("");
   const errorCount = useRef(0);
 
-  useEffect(() => {
-    const role = typeof window !== "undefined" ? window.localStorage.getItem("role") : null;
-    setUserRole(role);
-    fetchSessions();
-    const interval = setInterval(() => {
-      if (errorCount.current >= 3) {
-        clearInterval(interval);
-        return;
-      }
-      fetchSessions();
-    }, 60000);
-    return () => clearInterval(interval);
-  }, []);
-
   // Priority order: LIVE → TODAY → TOMORROW → SCHEDULED → COMPLETED
   const STATUS_PRIORITY = { LIVE: 0, TODAY: 1, TOMORROW: 2, SCHEDULED: 3, COMPLETED: 4 };
 
@@ -38,14 +24,13 @@ const Sessions = () => {
       const pa = STATUS_PRIORITY[a.status] ?? 9;
       const pb = STATUS_PRIORITY[b.status] ?? 9;
       if (pa !== pb) return pa - pb;
-      // Within the same status group: upcoming sorted ASC, completed sorted DESC
       const ta = new Date(a.scheduled_at).getTime();
       const tb = new Date(b.scheduled_at).getTime();
       return a.status === 'COMPLETED' ? tb - ta : ta - tb;
     });
   };
 
-  const fetchSessions = async () => {
+  const fetchSessions = useCallback(async () => {
     try {
       const response = await http.get('/api/classes/my-sessions-v2');
       const data = Array.isArray(response?.data) ? response.data : [];
@@ -61,7 +46,21 @@ const Sessions = () => {
         console.warn('[polling] Stopped after 3 consecutive errors');
       }
     }
-  };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const role = typeof window !== "undefined" ? window.localStorage.getItem("role") : null;
+    setUserRole(role);
+    fetchSessions();
+    const interval = setInterval(() => {
+      if (errorCount.current >= 3) {
+        clearInterval(interval);
+        return;
+      }
+      fetchSessions();
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [fetchSessions]);
 
   const getStatusBadge = (status) => {
     switch (status) {
@@ -135,6 +134,30 @@ const Sessions = () => {
 
   const isTeacherOrAdmin = userRole === 'teacher' || userRole === 'admin';
 
+  const filterSessionsByView = (list) => {
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    const dayOfWeek = now.getDay();
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - dayOfWeek);
+    weekStart.setHours(0, 0, 0, 0);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    weekEnd.setHours(23, 59, 59, 999);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+    return list.filter((s) => {
+      const d = new Date(s.scheduled_at);
+      if (selectedView === 'day') return d.toISOString().slice(0, 10) === today;
+      if (selectedView === 'week') return d >= weekStart && d <= weekEnd;
+      if (selectedView === 'month') return d >= monthStart && d <= monthEnd;
+      return true;
+    });
+  };
+
+  const visibleSessions = filterSessionsByView(sessions);
+
   return (
     <>
       <Header />
@@ -159,12 +182,14 @@ const Sessions = () => {
                 </div>
 
                 <div className="session-stack">
-                  {sessions.length === 0 ? (
+                  {visibleSessions.length === 0 ? (
                     <div className="text-center py-5">
-                      <p className="text-muted">No sessions scheduled yet</p>
+                      <p className="text-muted">
+                        {sessions.length === 0 ? 'No sessions scheduled yet' : `No sessions for this ${selectedView}`}
+                      </p>
                     </div>
                   ) : (
-                    sessions.map((session) => (
+                    visibleSessions.map((session) => (
                       <div
                         key={session.id}
                         className="session-item mb-3 bg-white border rounded"

@@ -665,7 +665,7 @@ export default function SubjectTeacher() {
                               )}
                               {a.description && <p className="small text-muted mb-1 mt-1">{a.description}</p>}
                               <div className="small text-muted">
-                                <span className="mr-3">Max marks: {a.max_marks}</span>
+                                <span className="mr-3">Max points: {a.max_marks}</span>
                                 {a.due_date && <span>Due: {new Date(a.due_date).toLocaleDateString()}</span>}
                                 <span className="ml-3">Submissions: {a.submission_count || 0}</span>
                               </div>
@@ -718,7 +718,7 @@ export default function SubjectTeacher() {
                             {sub.notes && <p className="small text-muted mt-1 mb-0">{sub.notes}</p>}
                             {sub.marks_awarded != null && (
                               <div className="small mt-1">
-                                <strong>Marks: {sub.marks_awarded}</strong>
+                                <strong>Points: {sub.marks_awarded}</strong>
                                 {sub.feedback && <span className="text-muted ml-2">— {sub.feedback}</span>}
                               </div>
                             )}
@@ -742,7 +742,7 @@ export default function SubjectTeacher() {
                             <Row>
                               <Col md="4">
                                 <FormGroup className="mb-2">
-                                  <Label className="small">Marks Awarded</Label>
+                                  <Label className="small">Points Awarded</Label>
                                   <Input type="number" bsSize="sm" value={gradeForm.marks}
                                     onChange={(e) => setGradeForm({ ...gradeForm, marks: e.target.value })} />
                                 </FormGroup>
@@ -851,7 +851,7 @@ export default function SubjectTeacher() {
               <FormGroup><Label>Description</Label><Input type="textarea" rows={2} value={assignForm.description} onChange={(e) => setAssignForm({ ...assignForm, description: e.target.value })} /></FormGroup>
               <Row>
                 <Col md="6"><FormGroup><Label>Due Date</Label><Input type="datetime-local" value={assignForm.due_date} onChange={(e) => setAssignForm({ ...assignForm, due_date: e.target.value })} /></FormGroup></Col>
-                <Col md="6"><FormGroup><Label>Max Marks</Label><Input type="number" value={assignForm.max_marks} onChange={(e) => setAssignForm({ ...assignForm, max_marks: e.target.value })} /></FormGroup></Col>
+                <Col md="6"><FormGroup><Label>Max Points</Label><Input type="number" value={assignForm.max_marks} onChange={(e) => setAssignForm({ ...assignForm, max_marks: e.target.value })} /></FormGroup></Col>
               </Row>
               <FormGroup><Label>Attachment URL</Label><Input value={assignForm.attachment_url} onChange={(e) => setAssignForm({ ...assignForm, attachment_url: e.target.value })} placeholder="https://..." /></FormGroup>
               <FormGroup>
