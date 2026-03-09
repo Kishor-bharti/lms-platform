@@ -254,6 +254,18 @@ export async function deleteSubject(req: Request, res: Response) {
   }
 }
 
+export async function deleteCourse(req: Request, res: Response) {
+  try {
+    const { courseId } = req.params;
+    if (!courseId) return res.status(400).json({ error: 'courseId is required' });
+    await adminService.deleteCourse(courseId);
+    return res.json({ success: true });
+  } catch (err) {
+    logger.error('[admin] deleteCourse:', err);
+    return res.status(500).json({ error: 'Failed to delete course' });
+  }
+}
+
 export async function getAllSessions(req: Request, res: Response) {
   try {
     const sessions = await adminService.getAllSessionsAdmin();

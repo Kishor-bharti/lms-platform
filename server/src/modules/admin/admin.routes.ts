@@ -21,6 +21,7 @@ router.delete('/users/:userId/roles/:roleName', adminController.removeRole);
 // Courses
 router.get('/courses', adminController.getCourses);
 router.post('/courses', adminController.createCourse);
+router.delete('/courses/:courseId', adminController.deleteCourse);
 
 // Subjects
 router.get('/subjects', adminController.getSubjects);

@@ -1,4 +1,40 @@
+import { useState, useEffect } from "react";
 import { Container } from "reactstrap";
+
+const QUOTES = [
+  "Every expert was once a beginner. Keep going! 🚀",
+  "Learning is the passport to the future. 🌍",
+  "Small progress is still progress. Keep pushing! 💪",
+  "Your only limit is your mind. Believe in yourself! ✨",
+  "Success is the sum of small efforts, repeated daily. 🏆",
+  "The more you learn, the more you earn. 📚",
+  "Dream big. Study hard. Stay humble. 🌟",
+  "Knowledge is power. Keep leveling up! ⚡",
+  "Today's effort is tomorrow's achievement. 🎯",
+  "You are capable of amazing things. Keep going! 🌈",
+];
+
+function useTypewriter(text, speed = 45) {
+  const [displayed, setDisplayed] = useState("");
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    setDisplayed("");
+    setDone(false);
+    let i = 0;
+    const timer = setInterval(() => {
+      i++;
+      setDisplayed(text.slice(0, i));
+      if (i >= text.length) {
+        clearInterval(timer);
+        setDone(true);
+      }
+    }, speed);
+    return () => clearInterval(timer);
+  }, [text, speed]);
+
+  return { displayed, done };
+}
 
 const Header = () => {
   const user = (() => {
@@ -15,6 +51,18 @@ const Header = () => {
     return "Good Evening";
   })();
 
+  const [quoteIndex, setQuoteIndex] = useState(0);
+  const { displayed, done } = useTypewriter(QUOTES[quoteIndex]);
+
+  // After typing finishes, wait 2.5s then move to next quote
+  useEffect(() => {
+    if (!done) return;
+    const t = setTimeout(() => {
+      setQuoteIndex((i) => (i + 1) % QUOTES.length);
+    }, 2500);
+    return () => clearTimeout(t);
+  }, [done]);
+
   return (
     <>
       <div className="header header-animated pb-8 pt-5 pt-md-8">
@@ -27,7 +75,10 @@ const Header = () => {
             <h2 className="header-greeting">
               {greeting}{user ? `, ${user}` : ""} <span className="wave-emoji">👋</span>
             </h2>
-            <p className="header-subtitle">Here's what's happening with your learning today</p>
+            <p className="header-subtitle">
+              {displayed}
+              <span className="type-cursor" />
+            </p>
           </div>
         </Container>
       </div>
@@ -84,6 +135,20 @@ const Header = () => {
           font-size: 0.95rem;
           margin: 0;
           font-weight: 400;
+          min-height: 1.4em;
+        }
+        .type-cursor {
+          display: inline-block;
+          width: 2px;
+          height: 0.85em;
+          background: rgba(255,255,255,0.65);
+          margin-left: 2px;
+          vertical-align: middle;
+          animation: cursorBlink 0.75s step-end infinite;
+        }
+        @keyframes cursorBlink {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0; }
         }
         .wave-emoji {
           display: inline-block;
