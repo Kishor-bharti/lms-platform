@@ -21,6 +21,7 @@ const AdminNavbar = () => {
             <img
               alt="..."
               src={require("../../assets/img/brand/argon-react-white.png")}
+              style={{ height: '60px', width: 'auto' }}
             />
           </NavbarBrand>
           <button className="navbar-toggler" id="navbar-collapse-main">

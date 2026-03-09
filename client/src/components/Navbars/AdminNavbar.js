@@ -23,7 +23,11 @@ const AdminNavbar = (props) => {
     try {
       const raw = window.localStorage.getItem("user") || "";
       const u = raw ? JSON.parse(raw) : {};
+      // Auth API returns camelCase (firstName / lastName)
+      if (u.firstName || u.lastName) return `${u.firstName || ""} ${u.lastName || ""}`.trim();
+      // Legacy snake_case fallback
       if (u.first_name || u.last_name) return `${u.first_name || ""} ${u.last_name || ""}`.trim();
+      // name field set by profile save
       return typeof u.name === "string" ? u.name : "";
     } catch {
       return "";

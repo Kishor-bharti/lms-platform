@@ -196,7 +196,7 @@ const Sidebar = (props) => {
         {/* Brand logo */}
         {logo && (
           <NavbarBrand className="pt-0" {...navbarBrandProps}>
-            <img alt={logo.imgAlt} className="navbar-brand-img" src={logo.imgSrc} />
+            <img alt={logo.imgAlt} className="navbar-brand-img" src={logo.imgSrc} style={{ maxHeight: '64px', width: 'auto' }} />
           </NavbarBrand>
         )}
 

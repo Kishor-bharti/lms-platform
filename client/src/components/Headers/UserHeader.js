@@ -9,9 +9,13 @@ const UserHeader = () => {
       return {};
     }
   })();
-  const name = typeof user.name === "string" ? user.name : "";
-  const role = typeof user.role === "string" ? user.role : "";
-  const roleDisplay = role ? role.charAt(0) + role.slice(1).toLowerCase() : "";
+  const firstName = user.firstName || user.first_name || "";
+  const lastName  = user.lastName  || user.last_name  || "";
+  const name = firstName || lastName
+    ? `${firstName} ${lastName}`.trim()
+    : (typeof user.name === "string" ? user.name : "");
+  const role = user.activeRole || user.role || "";
+  const roleDisplay = role ? role.charAt(0).toUpperCase() + role.slice(1).toLowerCase() : "";
   return (
     <>
       <div

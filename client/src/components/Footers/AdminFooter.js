@@ -9,7 +9,7 @@ const Footer = () => {
             © {new Date().getFullYear()}{" "}
             <a
               className="font-weight-bold ml-1"
-              href="#10xAccel"
+              href="https://10xaccel.com/"
               rel="noopener noreferrer"
               target="_blank"
             >
@@ -23,7 +23,7 @@ const Footer = () => {
 
             <NavItem>
               <NavLink
-                href="#about"
+                href="https://10xaccel.com/"
                 rel="noopener noreferrer"
                 target="_blank"
               >

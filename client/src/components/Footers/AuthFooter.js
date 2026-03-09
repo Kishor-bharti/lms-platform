@@ -11,7 +11,8 @@ const Login = () => {
                 © {new Date().getFullYear()}{" "}
                 <a
                   className="font-weight-bold ml-1"
-                  href="#10xAccel"
+                  href="https://10xaccel.com/"
+                  rel="noopener noreferrer"
                   target="_blank"
                 >
                   10xAccel
@@ -22,7 +23,8 @@ const Login = () => {
               <Nav className="nav-footer justify-content-center justify-content-xl-end">
                 <NavItem>
                   <NavLink
-                    href="#10xAccel"
+                    href="https://10xaccel.com/"
+                    rel="noopener noreferrer"
                     target="_blank"
                   >
                     10xAccel
@@ -30,7 +32,8 @@ const Login = () => {
                 </NavItem>
                 <NavItem>
                   <NavLink
-                    href="#about"
+                    href="https://10xaccel.com/"
+                    rel="noopener noreferrer"
                     target="_blank"
                   >
                     About Us
