@@ -259,15 +259,18 @@ describe('admin.service', () => {
   // ── deleteSubject ───────────────────────────────────────────────────
 
   describe('deleteSubject', () => {
-    it('deletes teachers, enrollments, then the subject', async () => {
+    it('clears attempt_answers then deletes the subject', async () => {
       mockQuery
-        .mockResolvedValueOnce([]) // DELETE subject_teachers
-        .mockResolvedValueOnce([]) // DELETE subject_enrollments
+        .mockResolvedValueOnce([]) // DELETE attempt_answers
         .mockResolvedValueOnce([]); // DELETE subjects
 
       await deleteSubject('sub-uuid');
 
-      expect(mockQuery).toHaveBeenCalledTimes(3);
+      expect(mockQuery).toHaveBeenCalledTimes(2);
+      const firstSql = (mockQuery.mock.calls[0] as any[])[0] as string;
+      expect(firstSql).toContain('attempt_answers');
+      const secondSql = (mockQuery.mock.calls[1] as any[])[0] as string;
+      expect(secondSql).toContain('subjects');
     });
   });
 });
