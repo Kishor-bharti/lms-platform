@@ -388,7 +388,7 @@ export default function SubjectStudent() {
                               {[
                                 { icon: '❓', val: `${q.question_count} questions` },
                                 { icon: '⏱', val: `${q.duration_minutes} mins` },
-                                { icon: '✅', val: q.passing_score ? `${q.passing_score}% to pass` : 'No pass mark' },
+                                { icon: '✅', val: q.passing_score ? `${q.passing_score}% to pass` : 'No pass points' },
                                 { icon: '🔄', val: q.max_attempts ? `${q.max_attempts} attempts` : 'Unlimited' },
                               ].map((item) => (
                                 <div key={item.icon} style={{ background: '#f8f9fa', borderRadius: 8, padding: '8px 10px', fontSize: 12, color: '#525f7f' }}>
@@ -443,7 +443,7 @@ export default function SubjectStudent() {
                             {a.description && <p className="text-muted small mb-2">{a.description}</p>}
 
                             <div className="d-flex align-items-center" style={{ gap: 16, flexWrap: 'wrap' }}>
-                              <span className="small text-muted">Max marks: <strong>{a.max_marks}</strong></span>
+                              <span className="small text-muted">Max points: <strong>{a.max_marks}</strong></span>
                               {a.attachment_url && (
                                 <a href={a.attachment_url} target="_blank" rel="noreferrer" className="small" style={{ color: '#5e72e4' }}>
                                   View Materials
@@ -457,7 +457,7 @@ export default function SubjectStudent() {
                                 {isGraded ? (
                                   <div>
                                     <span style={{ fontWeight: 700, color: '#2dce89' }}>
-                                      Graded: {sub.marks_awarded} / {a.max_marks}
+                                      Points: {sub.marks_awarded} / {a.max_marks}
                                     </span>
                                     {sub.feedback && <p className="small text-muted mb-0 mt-1">Feedback: {sub.feedback}</p>}
                                   </div>

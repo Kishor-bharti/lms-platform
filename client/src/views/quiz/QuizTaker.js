@@ -416,7 +416,7 @@ export default function QuizTaker() {
                         style={{ fontWeight: 600, textTransform: 'capitalize' }}>
                         {q?.difficulty}
                       </Badge>
-                      <Badge color="info">{q?.marks} {q?.marks === 1 ? 'mark' : 'marks'}</Badge>
+                      <Badge color="info">{q?.marks} {q?.marks === 1 ? 'point' : 'points'}</Badge>
                     </div>
                   </div>
                 </CardHeader>
@@ -642,7 +642,7 @@ export default function QuizTaker() {
                         <span>{idx + 1}. </span><LatexRenderer text={a.question_text || ''} />
                       </div>
                       <Badge color={a.is_correct ? 'success' : 'danger'} style={{ marginLeft: 12, flexShrink: 0 }}>
-                        {a.is_correct ? `+${Number(a.marks_awarded).toFixed(1)}` : '0'} marks
+                        {a.is_correct ? `+${Number(a.marks_awarded).toFixed(1)}` : '0'} points
                       </Badge>
                     </div>
                     {a.image_url && (
@@ -701,7 +701,7 @@ export default function QuizTaker() {
               <div style={{ background: 'linear-gradient(135deg, #5e72e4, #825ee4)', padding: '36px 24px' }}>
                 <div style={{ fontSize: 72, fontWeight: 900, color: '#fff', lineHeight: 1 }}>{scorePct}%</div>
                 <div style={{ color: 'rgba(255,255,255,0.75)', marginTop: 8 }}>
-                    {Number(attempt.marks_obtained).toFixed(1)} / {Number(attempt.total_marks).toFixed(1)} marks
+                    {Number(attempt.marks_obtained).toFixed(1)} / {Number(attempt.total_marks).toFixed(1)} points
                   </div>
                 </div>
                 <CardBody>
@@ -738,7 +738,7 @@ export default function QuizTaker() {
                         <span>{idx + 1}. </span><LatexRenderer text={a.question_text || ''} />
                       </div>
                       <Badge color={a.is_correct ? 'success' : 'danger'} style={{ marginLeft: 12, flexShrink: 0 }}>
-                        {a.is_correct ? `+${Number(a.marks_awarded).toFixed(1)}` : '0'} marks
+                        {a.is_correct ? `+${Number(a.marks_awarded).toFixed(1)}` : '0'} points
                       </Badge>
                     </div>
                     {a.image_url && (

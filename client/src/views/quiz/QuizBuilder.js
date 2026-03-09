@@ -210,6 +210,10 @@ export default function QuizBuilder() {
           questions,
         });
         savedId = res.data.id;
+        // Teachers: auto-unpublish after edit — admin must review before re-publishing
+        if (!isAdmin) {
+          await http.patch(`/api/quizzes/${savedId}/publish`, { is_published: false });
+        }
       } else {
         // Create mode — POST
         const payload = {
@@ -374,7 +378,7 @@ export default function QuizBuilder() {
                       </Input>
                       <Input type="number" bsSize="sm" value={q.marks} min={0.5} step={0.5} style={{ width: 70 }}
                         onChange={(e) => updateQuestion(qi, 'marks', Number(e.target.value))}
-                        title="Marks" />
+                        title="Points" />
                       {questions.length > 1 && (
                         <Button size="sm" color="danger" outline style={{ borderRadius: 20, padding: '2px 10px' }}
                           onClick={() => removeQuestion(qi)}>Remove</Button>

@@ -1,5 +1,4 @@
 import { Link } from "react-router-dom";
-// reactstrap components
 import {
   UncontrolledCollapse,
   NavbarBrand,
@@ -12,15 +11,16 @@ import {
   Col,
 } from "reactstrap";
 
-const AdminNavbar = () => {
+const AuthNavbar = () => {
   return (
     <>
-      <Navbar className="navbar-top navbar-horizontal navbar-dark" expand="md">
+      <Navbar className="navbar-top navbar-horizontal navbar-dark auth-navbar-modern" expand="md">
         <Container className="px-4">
-          <NavbarBrand to="/" tag={Link}>
+          <NavbarBrand to="/" tag={Link} className="auth-navbar-brand">
             <img
-              alt="..."
+              alt="10xAccel"
               src={require("../../assets/img/brand/argon-react-white.png")}
+              style={{ height: '60px', width: 'auto' }}
             />
           </NavbarBrand>
           <button className="navbar-toggler" id="navbar-collapse-main">
@@ -32,7 +32,7 @@ const AdminNavbar = () => {
                 <Col className="collapse-brand" xs="6">
                   <Link to="/">
                     <img
-                      alt="..."
+                      alt="10xAccel"
                       src={require("../../assets/img/brand/argon-react.png")}
                     />
                   </Link>
@@ -48,20 +48,48 @@ const AdminNavbar = () => {
             <Nav className="ml-auto" navbar>
               <NavItem>
                 <NavLink
-                  className="nav-link-icon"
+                  className="auth-nav-link"
                   to="/auth/admin-login"
                   tag={Link}
                 >
-                  <i className="ni ni-circle-08" />
-                  <span className="nav-link-inner--text">Admin</span>
+                  <i className="ni ni-circle-08" style={{ marginRight: 6 }} />
+                  <span>Admin</span>
                 </NavLink>
               </NavItem>
             </Nav>
           </UncontrolledCollapse>
         </Container>
       </Navbar>
+      <style>{`
+        .auth-navbar-modern {
+          background: transparent !important;
+          box-shadow: none !important;
+          padding-top: 16px !important;
+          padding-bottom: 16px !important;
+        }
+        .auth-navbar-brand {
+          transition: transform 0.3s ease !important;
+        }
+        .auth-navbar-brand:hover {
+          transform: scale(1.05) !important;
+        }
+        .auth-nav-link {
+          color: rgba(255,255,255,0.8) !important;
+          font-weight: 700 !important;
+          font-size: 14px !important;
+          padding: 8px 18px !important;
+          border-radius: 10px !important;
+          transition: all 0.3s ease !important;
+          display: flex !important;
+          align-items: center !important;
+        }
+        .auth-nav-link:hover {
+          color: #fff !important;
+          background: rgba(255,255,255,0.1) !important;
+        }
+      `}</style>
     </>
   );
 };
 
-export default AdminNavbar;
+export default AuthNavbar;

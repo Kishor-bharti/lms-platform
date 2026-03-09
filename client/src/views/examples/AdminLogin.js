@@ -78,7 +78,7 @@ const AdminLogin = () => {
                         <InputGroupText><i className="ni ni-email-83" /></InputGroupText>
                       </InputGroupAddon>
                       <Input
-                        placeholder="admin@100xlearning.com"
+                        placeholder="admin@10xaccel.com"
                         type="email"
                         autoComplete="email"
                         required

@@ -9,11 +9,11 @@ import http from 'utils/http';
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function perfLabel(score) {
-  if (score === null || score === undefined) return { label: 'N/A', color: '#8898aa', bg: '#f0f4f8' };
-  if (score >= 80) return { label: 'Strong',     color: '#2dce89', bg: '#e3f9ee' };
-  if (score >= 60) return { label: 'Good',       color: '#5e72e4', bg: '#eef0fd' };
-  if (score >= 40) return { label: 'Needs Work', color: '#fb6340', bg: '#fff0eb' };
-  return             { label: 'At Risk',         color: '#f5365c', bg: '#fde8ec' };
+  if (score === null || score === undefined) return { label: 'N/A',               color: '#8898aa', bg: '#f0f4f8' };
+  if (score >= 90) return { label: 'Strong',           color: '#2dce89', bg: '#e3f9ee' };
+  if (score >= 80) return { label: 'Good',             color: '#5e72e4', bg: '#eef0fd' };
+  if (score >= 60) return { label: 'Needs Improvement',color: '#fb6340', bg: '#fff0eb' };
+  return             { label: 'Needs Work',            color: '#f5365c', bg: '#fde8ec' };
 }
 
 function fmtTime(mins) {
@@ -272,7 +272,7 @@ function AttemptReviewPanel({ attemptId, studentId, isTeacherView, onClose }) {
         <div style={{ background: 'linear-gradient(135deg, #5e72e4, #825ee4)', padding: '28px 20px' }}>
           <div style={{ fontSize: 56, fontWeight: 900, color: '#fff', lineHeight: 1 }}>{scorePct}%</div>
           <div style={{ color: 'rgba(255,255,255,0.75)', marginTop: 6 }}>
-            {Number(attempt.marks_obtained || 0).toFixed(1)} / {Number(attempt.total_marks || 0).toFixed(1)} marks
+            {Number(attempt.marks_obtained || 0).toFixed(1)} / {Number(attempt.total_marks || 0).toFixed(1)} points
           </div>
           <div style={{ fontSize: 14, fontWeight: 600, color: '#fff', marginTop: 4 }}>{attempt.quiz_title}</div>
         </div>
@@ -299,7 +299,7 @@ function AttemptReviewPanel({ attemptId, studentId, isTeacherView, onClose }) {
                 <span>{idx + 1}. </span><LatexRenderer text={a.question_text || ''} />
               </div>
               <Badge color={a.is_correct ? 'success' : 'danger'} style={{ marginLeft: 12, flexShrink: 0 }}>
-                {a.is_correct ? `+${Number(a.marks_awarded).toFixed(1)}` : '0'} marks
+                {a.is_correct ? `+${Number(a.marks_awarded).toFixed(1)}` : '0'} points
               </Badge>
             </div>
             {a.image_url && (
@@ -467,8 +467,7 @@ function TopicAnalysisTable({ subjectId, subjectName, studentId, isTeacherView }
   const statusColor = (s) => {
     if (s === 'Strong') return { color: '#2dce89', bg: '#e3f9ee' };
     if (s === 'Good') return { color: '#5e72e4', bg: '#eef0fd' };
-    if (s === 'Needs Work') return { color: '#fb6340', bg: '#fff0eb' };
-    if (s === 'At Risk') return { color: '#f5365c', bg: '#fde8ec' };
+    if (s === 'Needs Work') return { color: '#f5365c', bg: '#fde8ec' };
     return { color: '#8898aa', bg: '#f0f4f8' };
   };
 
@@ -679,7 +678,7 @@ function StudentReport({ data, weekly, quizHistory, practiceHistory, studentId, 
                       {[
                         { l: 'Submitted', v: subj.assignments_submitted, c: '#5e72e4' },
                         { l: 'Graded',    v: subj.assignments_graded,    c: '#2dce89' },
-                        { l: 'Avg Marks', v: subj.avg_assignment_marks !== null ? subj.avg_assignment_marks : 'N/A', c: '#fb6340' },
+                        { l: 'Avg Points', v: subj.avg_assignment_marks !== null ? subj.avg_assignment_marks : 'N/A', c: '#fb6340' },
                       ].map((item) => (
                         <div key={item.l} style={{ background: '#f0f4f8', borderRadius: 8, padding: '8px 10px', textAlign: 'center', flex: 1, minWidth: 60 }}>
                           <div style={{ fontSize: 15, fontWeight: 800, color: item.c }}>{item.v}</div>
@@ -716,9 +715,9 @@ function StudentReport({ data, weekly, quizHistory, practiceHistory, studentId, 
   );
 }
 
-// ─── Student Detail View (for teacher) ───────────────────────────────────────
+// ─── Student Detail View (for teacher / admin) ───────────────────────────────
 
-function StudentDetailView({ studentId, studentName, onBack }) {
+function StudentDetailView({ studentId, studentName, onBack, backLabel }) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState([]);
   const [weekly, setWeekly] = useState([]);
@@ -750,7 +749,7 @@ function StudentDetailView({ studentId, studentName, onBack }) {
         <Col>
           <div className="d-flex align-items-center" style={{ gap: 12 }}>
             <Button size="sm" color="secondary" onClick={onBack} style={{ fontWeight: 600 }}>
-              ← Back to Class Report
+              ← {backLabel || 'Back to Class Report'}
             </Button>
             <h4 style={{ margin: 0, color: '#32325d' }}>📊 {studentName}'s Report</h4>
           </div>
@@ -776,6 +775,94 @@ function StudentDetailView({ studentId, studentName, onBack }) {
         />
       )}
     </>
+  );
+}
+
+// ─── Admin Report ─────────────────────────────────────────────────────────────
+
+function AdminReport() {
+  const [students, setStudents] = useState([]);
+  const [search, setSearch] = useState('');
+  const [loadingStudents, setLoadingStudents] = useState(true);
+  const [viewingStudent, setViewingStudent] = useState(null);
+
+  useEffect(() => {
+    http.get('/api/admin/users?role=student&page=1&limit=200')
+      .then(res => setStudents(res.data?.users || res.data?.data || []))
+      .catch(() => setStudents([]))
+      .finally(() => setLoadingStudents(false));
+  }, []);
+
+  if (viewingStudent) {
+    return (
+      <StudentDetailView
+        studentId={viewingStudent.id}
+        studentName={`${viewingStudent.first_name || ''} ${viewingStudent.last_name || ''}`.trim()}
+        onBack={() => setViewingStudent(null)}
+        backLabel="Back to Student List"
+      />
+    );
+  }
+
+  const filtered = search
+    ? students.filter(s =>
+        `${s.first_name} ${s.last_name}`.toLowerCase().includes(search.toLowerCase()) ||
+        s.email.toLowerCase().includes(search.toLowerCase())
+      )
+    : students;
+
+  return (
+    <Row>
+      <Col>
+        <Card className="shadow" style={{ borderRadius: 12 }}>
+          <CardHeader style={{ background: '#f8f9fa', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
+            <CardTitle className="mb-0" style={{ color: '#32325d' }}>📊 Student Reports</CardTitle>
+            <p className="text-muted small mb-0 mt-1">Select a student to view their progress report</p>
+          </CardHeader>
+          <CardBody>
+            <div style={{ marginBottom: 16, maxWidth: 400 }}>
+              <Input
+                type="text"
+                placeholder="🔍 Search by name or email..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                style={{ borderRadius: 8, fontSize: 13 }}
+              />
+            </div>
+            {loadingStudents ? (
+              <div className="text-center py-4 text-muted">Loading students...</div>
+            ) : filtered.length === 0 ? (
+              <div className="text-center py-4 text-muted">No students found</div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
+                {filtered.map(s => (
+                  <div
+                    key={s.id}
+                    onClick={() => setViewingStudent(s)}
+                    style={{
+                      background: '#fff', border: '1px solid #e9eef5', borderRadius: 10,
+                      padding: '14px 16px', cursor: 'pointer', transition: 'box-shadow .15s ease',
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'}
+                    onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}
+                  >
+                    <div style={{ fontWeight: 700, color: '#32325d', marginBottom: 4 }}>
+                      {s.first_name} {s.last_name}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#8898aa' }}>{s.email}</div>
+                    <div style={{ marginTop: 10 }}>
+                      <Button size="sm" color="primary" outline style={{ fontSize: 11, padding: '3px 14px', fontWeight: 700 }}>
+                        View Report →
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardBody>
+        </Card>
+      </Col>
+    </Row>
   );
 }
 
@@ -865,7 +952,7 @@ function TeacherReport({ data }) {
                       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                         <thead>
                           <tr style={{ background: '#f8f9fa' }}>
-                            {['Student', 'Quizzes', 'Practice', 'Avg Score', 'Best', 'Assignments', 'Graded', 'Avg Marks', 'Level', 'Last Active', ''].map(h => (
+                            {['Student', 'Quizzes', 'Practice', 'Avg Score', 'Best', 'Assignments', 'Graded', 'Avg Points', 'Level', 'Last Active', ''].map(h => (
                               <th key={h} style={{ padding: '10px 12px', fontSize: 11, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'left', whiteSpace: 'nowrap' }}>{h}</th>
                             ))}
                           </tr>
@@ -983,10 +1070,10 @@ export default function Report() {
       >
         <Row className="mb-4">
           <Col>
-            <h2 style={{ color: '#32325d', margin: 0 }}>
+            <h2 style={{ color: '#fff', margin: 0 }}>
               {role === 'teacher' ? '📊 Class Report' : '📊 My Progress'}
             </h2>
-            <p className="text-muted small mt-1">
+            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.875rem', marginTop: 4, marginBottom: 0 }}>
               {role === 'teacher'
                 ? 'Live performance data for all your subjects'
                 : 'Your quiz results, weekly activity, and subject progress'}
@@ -1029,15 +1116,7 @@ export default function Report() {
           <TeacherReport data={data} />
         )}
         {!loading && role === 'admin' && (
-          <Row>
-            <Col>
-              <Card className="shadow" style={{ borderRadius: 12 }}>
-                <CardBody className="text-center py-5">
-                  <p className="text-muted">Use the Admin Panel to view platform-wide statistics.</p>
-                </CardBody>
-              </Card>
-            </Col>
-          </Row>
+          <AdminReport />
         )}
       </Container>
     </>

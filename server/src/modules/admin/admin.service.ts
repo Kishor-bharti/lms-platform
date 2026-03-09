@@ -82,19 +82,28 @@ export async function getStats(): Promise<AdminStats> {
 export async function getUsers(
   roleFilter?: string,
   page: number = 1,
-  limit: number = 20
+  limit: number = 20,
+  activeFilter?: string   // 'active' | 'inactive' | undefined
 ): Promise<{ users: AdminUser[]; total: number; page: number; totalPages: number }> {
-  let roleWhere = '';
+  const conditions: string[] = [];
   const params: any[] = [];
 
   if (roleFilter && roleFilter !== 'all') {
-    roleWhere = `WHERE EXISTS (
+    params.push(roleFilter);
+    conditions.push(`EXISTS (
       SELECT 1 FROM user_roles ur2
       JOIN roles r2 ON r2.id = ur2.role_id
-      WHERE ur2.user_id = u.id AND r2.name = $1
-    )`;
-    params.push(roleFilter);
+      WHERE ur2.user_id = u.id AND r2.name = $${params.length}
+    )`);
   }
+
+  if (activeFilter === 'active') {
+    conditions.push(`u.is_active = TRUE`);
+  } else if (activeFilter === 'inactive') {
+    conditions.push(`u.is_active = FALSE`);
+  }
+
+  const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
   const rows = await query<any>(`
     SELECT
@@ -108,7 +117,7 @@ export async function getUsers(
     FROM users u
     LEFT JOIN user_roles ur ON ur.user_id = u.id
     LEFT JOIN roles r ON r.id = ur.role_id
-    ${roleWhere}
+    ${whereClause}
     GROUP BY u.id, u.email, u.first_name, u.last_name,
              u.phone, u.is_active, u.last_login_at, u.created_at
     ORDER BY u.created_at DESC
@@ -428,10 +437,15 @@ export async function updateSubject(
 // ---- Delete subject ----
 
 export async function deleteSubject(subjectId: string): Promise<void> {
-  // Delete related records first
-  await query(`DELETE FROM subject_teachers WHERE subject_id = $1`, [subjectId]);
-  await query(`DELETE FROM subject_enrollments WHERE subject_id = $1`, [subjectId]);
-  // Now delete the subject
+  // attempt_answers.question_id has no ON DELETE CASCADE — must clear manually
+  // before the cascade on quizzes→questions fires and blocks the delete
+  await query(`
+    DELETE FROM attempt_answers WHERE question_id IN (
+      SELECT q.id FROM questions q
+      JOIN quizzes qz ON qz.id = q.quiz_id
+      WHERE qz.subject_id = $1
+    )
+  `, [subjectId]);
   await query(`DELETE FROM subjects WHERE id = $1`, [subjectId]);
 }
 
@@ -441,6 +455,7 @@ export async function getAllSessionsAdmin() {
   const rows = await query<any>(`
     SELECT
       s.id, s.title, s.status,
+      s.subject_id, s.teacher_id,
       s.session_date::text AS session_date,
       s.start_time::text   AS start_time,
       s.meeting_link,
@@ -448,26 +463,34 @@ export async function getAllSessionsAdmin() {
       sub.name AS subject_name,
       c.name   AS course_name,
       u.first_name || ' ' || u.last_name AS teacher_name,
-      u.email AS teacher_email
+      u.email AS teacher_email,
+      COUNT(se.student_id) FILTER (WHERE se.enrollment_status = 'active') AS enrolled_count
     FROM sessions s
     JOIN subjects sub ON sub.id = s.subject_id
     JOIN courses  c   ON c.id   = sub.course_id
     JOIN users    u   ON u.id   = s.teacher_id
     LEFT JOIN topics t ON t.id  = s.topic_id
+    LEFT JOIN subject_enrollments se ON se.subject_id = s.subject_id
+    GROUP BY s.id, s.title, s.status, s.subject_id, s.teacher_id,
+             s.session_date, s.start_time, s.meeting_link,
+             t.name, sub.name, c.name, u.first_name, u.last_name, u.email
     ORDER BY s.session_date DESC, s.start_time DESC
-    LIMIT 200
+    LIMIT 500
   `);
 
   return rows.map((r) => ({
-    id:           r.id,
-    title:        r.title,
-    status:       r.status,
-    scheduled_at: `${r.session_date}T${r.start_time.replace(/[+-]\d{2}:\d{2}$/, '')}`,
-    zoom_link:    r.meeting_link,
-    topic_name:   r.topic_name ?? null,
-    subject_name: r.subject_name,
-    course_name:  r.course_name,
-    teacher_name: r.teacher_name,
-    teacher_email: r.teacher_email,
+    id:             r.id,
+    title:          r.title,
+    status:         r.status,
+    subject_id:     r.subject_id,
+    teacher_id:     r.teacher_id,
+    scheduled_at:   `${r.session_date}T${r.start_time.replace(/[+-]\d{2}:\d{2}$/, '')}`,
+    zoom_link:      r.meeting_link,
+    topic_name:     r.topic_name ?? null,
+    subject_name:   r.subject_name,
+    course_name:    r.course_name,
+    teacher_name:   r.teacher_name,
+    teacher_email:  r.teacher_email,
+    enrolled_count: Number(r.enrolled_count),
   }));
 }
