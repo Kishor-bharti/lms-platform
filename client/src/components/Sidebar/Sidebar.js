@@ -126,8 +126,8 @@ const Sidebar = (props) => {
               <NavItem key={`quiz-${course.id}`} className="sidebar-nav-item">
                 <NavLink to={`/admin/course-quiz/${course.id}`} tag={NavLinkRRD} onClick={closeCollapse}
                   title={`${course.name} — Test Sets`} className="sidebar-link quiz-link" style={{ padding: "6px 12px", fontSize: "13px" }}>
-                  <i className="ni ni-paper-diploma" style={{ fontSize: "9px", color: "#5e72e4", marginRight: "8px" }} />
-                  <span style={{ color: "#5e72e4", fontWeight: 700 }}>Quiz</span>
+                  <i className="ni ni-paper-diploma nav-link-icon" style={{ fontSize: "9px", marginRight: "8px" }} />
+                  <span className="nav-link-text" style={{ fontWeight: 700 }}>Quiz</span>
                 </NavLink>
               </NavItem>
             </div>
@@ -259,7 +259,10 @@ const Sidebar = (props) => {
             box-shadow: 0 4px 16px rgba(94,114,228,0.3);
           }
           .sidebar-link.active i,
+          .sidebar-link.active span,
           .sidebar-link.active .nav-link-text { color: #fff !important; }
+          .quiz-link:not(.active) .nav-link-icon,
+          .quiz-link:not(.active) .nav-link-text { color: #5e72e4; }
           .subject-list { animation: slideDown 0.3s ease; }
           @keyframes slideDown {
             from { opacity: 0; transform: translateY(-8px); }

@@ -70,8 +70,8 @@ export default function CourseQuiz() {
           <Col>
             <div className="d-flex justify-content-between align-items-center flex-wrap" style={{ gap: 10 }}>
               <div>
-                <h2 style={{ color: '#32325d', margin: 0 }}>📝 {courseName} — Test Sets</h2>
-                <p className="text-muted small mt-1 mb-0">Full-length course tests. Complete each in one sitting.</p>
+                <h2 style={{ color: '#fff', margin: 0 }}>📝 {courseName} — Test Sets</h2>
+                <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.875rem', marginTop: 4, marginBottom: 0 }}>Full-length course tests. Complete each in one sitting.</p>
               </div>
               {isStaff && (
                 <Button color="primary" style={{ borderRadius: 8, fontWeight: 700 }}

@@ -1070,10 +1070,10 @@ export default function Report() {
       >
         <Row className="mb-4">
           <Col>
-            <h2 style={{ color: '#32325d', margin: 0 }}>
+            <h2 style={{ color: '#fff', margin: 0 }}>
               {role === 'teacher' ? '📊 Class Report' : '📊 My Progress'}
             </h2>
-            <p className="text-muted small mt-1">
+            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.875rem', marginTop: 4, marginBottom: 0 }}>
               {role === 'teacher'
                 ? 'Live performance data for all your subjects'
                 : 'Your quiz results, weekly activity, and subject progress'}
