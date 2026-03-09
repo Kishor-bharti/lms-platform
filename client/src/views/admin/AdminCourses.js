@@ -14,7 +14,6 @@ export default function AdminCourses() {
   const [submitting, setSubmitting] = useState(false);
   const [formError,  setFormError]  = useState('');
   const [form, setForm] = useState({ name: '', code: '', description: '' });
-  const [deleteModal, setDeleteModal] = useState({ open: false, course: null });
 
   useEffect(() => { fetchCourses(); }, []);
 
@@ -47,17 +46,6 @@ export default function AdminCourses() {
       setFormError(err?.response?.data?.error || 'Failed to create course');
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!deleteModal.course) return;
-    try {
-      await http.delete(`/api/admin/courses/${deleteModal.course.id}`);
-      setDeleteModal({ open: false, course: null });
-      fetchCourses();
-    } catch (err) {
-      alert(err?.response?.data?.error || 'Failed to delete course');
     }
   };
 
@@ -95,8 +83,6 @@ export default function AdminCourses() {
                           borderLeft: '4px solid #5e72e4',
                           padding: 20,
                           height: '100%',
-                          display: 'flex',
-                          flexDirection: 'column',
                         }}>
                           <div className="d-flex justify-content-between align-items-start mb-2">
                             <div>
@@ -114,22 +100,11 @@ export default function AdminCourses() {
                           {c.description && (
                             <p style={{ color: '#8898aa', fontSize: 13, marginBottom: 12 }}>{c.description}</p>
                           )}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <i className="ni ni-collection" style={{ color: '#5e72e4', fontSize: 14 }} />
                             <span style={{ fontSize: 13, color: '#525f7f', fontWeight: 600 }}>
                               {c.subject_count} {c.subject_count === 1 ? 'subject' : 'subjects'}
                             </span>
-                          </div>
-                          <div style={{ marginTop: 14 }}>
-                            <Button
-                              color="danger"
-                              outline
-                              size="sm"
-                              style={{ borderRadius: 8, fontWeight: 700, width: '100%' }}
-                              onClick={() => setDeleteModal({ open: true, course: c })}
-                            >
-                              🗑️ Delete Course
-                            </Button>
                           </div>
                         </div>
                       </Col>
@@ -180,22 +155,6 @@ export default function AdminCourses() {
               {submitting ? 'Creating...' : 'Create Course'}
             </Button>
             <Button color="link" onClick={() => setModalOpen(false)}>Cancel</Button>
-          </ModalFooter>
-        </Modal>
-
-        {/* Delete Confirmation Modal */}
-        <Modal isOpen={deleteModal.open} toggle={() => setDeleteModal({ open: false, course: null })} centered size="sm">
-          <ModalHeader toggle={() => setDeleteModal({ open: false, course: null })}>
-            Confirm Delete
-          </ModalHeader>
-          <ModalBody className="text-center">
-            <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
-            <p>Are you sure you want to permanently delete <strong>{deleteModal.course?.name}</strong>?</p>
-            <p className="text-muted small">This will delete all associated subjects, enrollments, quizzes, and sessions. This action <strong>cannot be undone</strong>.</p>
-          </ModalBody>
-          <ModalFooter className="justify-content-center">
-            <Button color="danger" onClick={handleDelete}>Yes, Delete</Button>
-            <Button color="secondary" outline onClick={() => setDeleteModal({ open: false, course: null })}>Cancel</Button>
           </ModalFooter>
         </Modal>
       </Container>

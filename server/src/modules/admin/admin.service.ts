@@ -239,10 +239,6 @@ export async function createCourse(data: {
   return { ...rows[0], subject_count: 0 };
 }
 
-export async function deleteCourse(courseId: string): Promise<void> {
-  await query('DELETE FROM courses WHERE id = $1', [courseId]);
-}
-
 // ---- Subjects ----
 
 export async function getSubjects(courseId?: string): Promise<AdminSubject[]> {
