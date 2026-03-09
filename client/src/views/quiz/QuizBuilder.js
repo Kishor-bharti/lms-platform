@@ -210,6 +210,10 @@ export default function QuizBuilder() {
           questions,
         });
         savedId = res.data.id;
+        // Teachers: auto-unpublish after edit — admin must review before re-publishing
+        if (!isAdmin) {
+          await http.patch(`/api/quizzes/${savedId}/publish`, { is_published: false });
+        }
       } else {
         // Create mode — POST
         const payload = {

@@ -467,8 +467,7 @@ function TopicAnalysisTable({ subjectId, subjectName, studentId, isTeacherView }
   const statusColor = (s) => {
     if (s === 'Strong') return { color: '#2dce89', bg: '#e3f9ee' };
     if (s === 'Good') return { color: '#5e72e4', bg: '#eef0fd' };
-    if (s === 'Needs Work') return { color: '#fb6340', bg: '#fff0eb' };
-    if (s === 'At Risk') return { color: '#f5365c', bg: '#fde8ec' };
+    if (s === 'Needs Work') return { color: '#f5365c', bg: '#fde8ec' };
     return { color: '#8898aa', bg: '#f0f4f8' };
   };
 

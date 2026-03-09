@@ -7,17 +7,29 @@ const Index = (props) => {
   return (
     <>
       <Header />
-      {/* Page content */}
-      <Container className="mt--7" fluid style={{ backgroundColor: "rgb(196, 214, 226)", minHeight: "100vh", paddingTop: "30px", paddingBottom: "30px" }}>
+      <Container className="mt--7" fluid style={{ background: "linear-gradient(180deg, #eef2f7 0%, #e3eaf4 100%)", minHeight: "100vh", paddingTop: "30px", paddingBottom: "30px" }}>
         <Row>
           <Col lg="8" className="mb-4">
-            <UpcomingClasses />
+            <div className="dash-card-animate" style={{ animationDelay: '0.1s' }}>
+              <UpcomingClasses />
+            </div>
           </Col>
           <Col lg="4" className="mb-4">
-            <CalendarWidget />
+            <div className="dash-card-animate" style={{ animationDelay: '0.2s' }}>
+              <CalendarWidget />
+            </div>
           </Col>
         </Row>
       </Container>
+      <style>{`
+        .dash-card-animate {
+          animation: dashCardIn 0.5s ease both;
+        }
+        @keyframes dashCardIn {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </>
   );
 };

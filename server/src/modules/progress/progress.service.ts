@@ -263,7 +263,7 @@ export interface TopicAnalysis {
   correct_answers: number;
   incorrect_answers: number;
   accuracy_pct: number | null;
-  status: string;  // 'Strong' | 'Good' | 'Needs Work' | 'At Risk' | 'N/A'
+  status: string;  // 'Strong' | 'Good' | 'Needs Work' | 'N/A'
 }
 
 export async function getTopicAnalysis(studentId: string, subjectId: string): Promise<TopicAnalysis[]> {
@@ -295,8 +295,7 @@ export async function getTopicAnalysis(studentId: string, subjectId: string): Pr
     if (accuracy !== null) {
       if (accuracy >= 80) status = 'Strong';
       else if (accuracy >= 60) status = 'Good';
-      else if (accuracy >= 40) status = 'Needs Work';
-      else status = 'At Risk';
+      else status = 'Needs Work';
     }
     return {
       topic_id: r.topic_id,

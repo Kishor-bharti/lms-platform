@@ -39,6 +39,7 @@ export default function LatexRenderer({ text, style }) {
         expanded.push(part);
         continue;
       }
+      // eslint-disable-next-line no-useless-escape
       const inlineRegex = /\$([^\$]+?)\$/g;
       let iLast = 0;
       let iMatch;

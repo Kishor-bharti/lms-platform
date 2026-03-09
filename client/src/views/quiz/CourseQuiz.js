@@ -13,7 +13,7 @@ export default function CourseQuiz() {
   const [deleteModal, setDeleteModal] = useState({ open: false, quiz: null });
 
   const userRole = (window.localStorage.getItem('role') || '').toLowerCase();
-  const userId = window.localStorage.getItem('userId');
+  const userId = (() => { try { return JSON.parse(window.localStorage.getItem('user') || '{}').id || null; } catch { return null; } })();
   const isAdmin = userRole === 'admin';
   const isTeacher = userRole === 'teacher';
   const isStaff = isAdmin || isTeacher;

@@ -62,11 +62,14 @@ export default function CalendarWidget() {
               today.getDate() === c.day &&
               today.getMonth() === current.getMonth() &&
               today.getFullYear() === current.getFullYear();
-            const bg = c.type === "curr" ? (isToday ? "#6c757d" : "#2f3641") : "#232a34";
-            const color = c.type === "curr" ? "#fff" : "#6c757d";
+            const bg = c.type === "curr" ? (isToday ? "linear-gradient(135deg, #5e72e4, #825ee4)" : "rgba(255,255,255,0.04)") : "transparent";
+            const color = c.type === "curr" ? "#fff" : "rgba(255,255,255,0.2)";
             return (
               <div key={i} style={{ background: bg, color, borderRadius: 10, minHeight: 44,
-                display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700 }}>
+                display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700,
+                boxShadow: isToday ? '0 4px 12px rgba(94,114,228,0.4)' : 'none',
+                transition: 'all 0.2s ease',
+                cursor: c.type === 'curr' ? 'default' : 'default' }}>
                 {c.day}
               </div>
             );
@@ -76,15 +79,42 @@ export default function CalendarWidget() {
           {/* FIX: navigate to correct page based on role */}
           <button
             type="button"
-            className="btn p-0"
-            style={{ background: "transparent", color: "#ffca28", fontWeight: 700, textDecoration: "underline" }}
+            className="btn cal-view-sessions-btn"
             onClick={() => navigate(sessionsPath)}
           >
-            View Sessions
+            View Sessions →
           </button>
         </div>
       </CardBody>
       <style>{`
+        .cal-nav-btn {
+          background: rgba(255,255,255,0.08) !important;
+          color: rgba(255,255,255,0.7) !important;
+          border: none !important;
+          border-radius: 8px !important;
+          font-weight: 700 !important;
+          transition: all 0.2s ease !important;
+          padding: 4px 10px !important;
+        }
+        .cal-nav-btn:hover {
+          background: rgba(255,255,255,0.15) !important;
+          color: #fff !important;
+        }
+        .cal-view-sessions-btn {
+          background: linear-gradient(135deg, #5e72e4, #825ee4) !important;
+          color: #fff !important;
+          border: none !important;
+          border-radius: 12px !important;
+          font-weight: 700 !important;
+          padding: 8px 24px !important;
+          font-size: 13px !important;
+          box-shadow: 0 4px 14px rgba(94,114,228,0.35) !important;
+          transition: all 0.3s ease !important;
+        }
+        .cal-view-sessions-btn:hover {
+          transform: translateY(-2px) !important;
+          box-shadow: 0 6px 20px rgba(94,114,228,0.5) !important;
+        }
         @media (max-width: 1040px), (max-height: 780px) {
           .card-header .d-flex { flex-wrap: wrap; }
           .card-header .btn { padding: 2px 6px; }

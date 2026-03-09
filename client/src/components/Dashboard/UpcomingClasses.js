@@ -65,9 +65,14 @@ export default function UpcomingClasses() {
   };
 
   return (
-    <Card className="shadow upcoming-legacy" style={{ borderRadius: 12, background: "#f8fbff" }}>
-      <CardHeader className="border-0" style={{ background: "#eaf3ff", borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
-        <CardTitle className="mb-0" style={{ fontWeight: 700 }}>Upcoming Sessions</CardTitle>
+    <Card className="shadow-lg upcoming-modern" style={{ borderRadius: 16, background: "#fff" }}>
+      <CardHeader className="border-0 upcoming-header">
+        <div className="d-flex align-items-center">
+          <span style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg, #11cdef, #1171ef)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <i className="ni ni-calendar-grid-58" style={{ color: '#fff', fontSize: 16 }} />
+          </span>
+          <CardTitle className="mb-0 ml-3" style={{ fontWeight: 800, color: '#1a1f36' }}>Upcoming Sessions</CardTitle>
+        </div>
       </CardHeader>
       <CardBody style={{ paddingTop: 0 }}>
         <div className="table-responsive">
@@ -239,14 +244,17 @@ export default function UpcomingClasses() {
         </Modal>
       </CardBody>
       <style>{`
-        .upcoming-legacy { box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
-        .thead-light th { color: #7f8da7; font-weight: 700; letter-spacing: .02em; }
-        .details-modal .modal-content { border-radius: 12px; box-shadow: 0 16px 40px rgba(0,0,0,.18); border: none; }
+        .upcoming-modern { box-shadow: 0 10px 40px rgba(0,0,0,0.06) !important; overflow: hidden; }
+        .upcoming-header { background: linear-gradient(135deg, #f8faff 0%, #fff 100%); padding: 20px 24px !important; }
+        .thead-light th { color: #8898aa !important; font-weight: 700 !important; letter-spacing: .5px; font-size: 11px; text-transform: uppercase; }
+        .upcoming-modern tbody tr { transition: all 0.3s ease; }
+        .upcoming-modern tbody tr:hover { background: #f8faff; }
+        .details-modal .modal-content { border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,.18); border: none; }
         @keyframes liveBlink { 0%,100% { opacity: 1 } 50% { opacity: .3 } }
         .live-blink { animation: liveBlink 1s infinite; }
         @media (max-width: 767.98px) {
-          .upcoming-legacy { border-radius: 10px; }
-          .upcoming-legacy .card-header { padding: .75rem 1rem; }
+          .upcoming-modern { border-radius: 12px !important; }
+          .upcoming-modern .card-header { padding: .75rem 1rem !important; }
           .table-responsive { overflow-x: auto; }
           table { font-size: .9rem; }
           .chips { grid-template-columns: 1fr; }
