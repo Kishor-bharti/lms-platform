@@ -7,10 +7,11 @@ import { useNavigate } from "react-router-dom";
 import http from "../../utils/http";
 
 const AdminLogin = () => {
-  const [isLoading, setIsLoading] = useState(false);
-  const [email,     setEmail]     = useState("");
-  const [password,  setPassword]  = useState("");
-  const [error,     setError]     = useState("");
+  const [isLoading,    setIsLoading]    = useState(false);
+  const [email,        setEmail]        = useState("");
+  const [password,     setPassword]     = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [error,        setError]        = useState("");
   const navigate = useNavigate();
 
   const handleLogin = async (e) => {
@@ -99,12 +100,22 @@ const AdminLogin = () => {
                   <Input
                     className="al-input"
                     placeholder="Enter your password"
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     autoComplete="current-password"
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                   />
+                  <InputGroupAddon addonType="append">
+                    <InputGroupText
+                      className="al-input-icon"
+                      onClick={() => setShowPassword(v => !v)}
+                      style={{ cursor: 'pointer' }}
+                      title={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      <i className={showPassword ? 'ni ni-glasses-2' : 'fa fa-eye-slash'} style={{ fontSize: 14 }} />
+                    </InputGroupText>
+                  </InputGroupAddon>
                 </InputGroup>
               </FormGroup>
 
