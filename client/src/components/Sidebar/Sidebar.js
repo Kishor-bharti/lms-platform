@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { NavLink as NavLinkRRD, Link, useNavigate } from "react-router-dom";
 import { PropTypes } from "prop-types";
 import {
@@ -14,10 +15,11 @@ const COURSE_ICONS = {
 const DEFAULT_COURSE = { icon: "ni ni-collection",  color: "#2dce89" };
 
 const Sidebar = (props) => {
-  const [collapseOpen, setCollapseOpen] = useState(false);
-  const [mini, setMini] = useState(false);
-  const [courses, setCourses] = useState([]);
+  const [collapseOpen,   setCollapseOpen]   = useState(false);
+  const [mini,           setMini]           = useState(false);
+  const [courses,        setCourses]        = useState([]);
   const [expandedCourse, setExpandedCourse] = useState(null);
+  const [logoutOpen,     setLogoutOpen]     = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -66,13 +68,7 @@ const Sidebar = (props) => {
             onClick={(e) => {
               if (prop.name === "Logout") {
                 e.preventDefault();
-                const confirmed = window.confirm('Are you sure you want to logout?');
-                if (!confirmed) return;
-                window.localStorage.removeItem("accessToken");
-                window.localStorage.removeItem("refreshToken");
-                window.localStorage.removeItem("role");
-                window.localStorage.removeItem("user");
-                navigate("/auth/login");
+                setLogoutOpen(true);
               } else { closeCollapse(); }
             }}
             title={prop.name}
@@ -143,6 +139,7 @@ const Sidebar = (props) => {
   else if (logo?.outterLink) navbarBrandProps = { href: logo.outterLink, target: "_blank" };
 
   return (
+    <>
     <Navbar
       className={`navbar-vertical fixed-left navbar-light ${mini ? "sidebar-mini" : ""} ${collapseOpen ? "sidebar-open" : ""}`}
       expand="md" id="sidenav-main"
@@ -306,7 +303,96 @@ const Sidebar = (props) => {
         onClick={() => setMini((v) => { const n = !v; localStorage.setItem("sidebar-mini", String(n)); return n; })}>
         <i className={mini ? "ni ni-bold-right" : "ni ni-bold-left"} />
       </button>
+
     </Navbar>
+
+      {/* ── Logout confirmation dialog — rendered via portal to escape Navbar stacking context ── */}
+      {logoutOpen && createPortal(
+        <div className="logout-overlay" onClick={() => setLogoutOpen(false)}>
+          <div className="logout-dialog" onClick={e => e.stopPropagation()}>
+            <div className="logout-icon-wrap">
+              <i className="ni ni-user-run" />
+            </div>
+            <h5 className="logout-title">Sign out?</h5>
+            <p className="logout-desc">You'll need to sign back in to access your account.</p>
+            <div className="logout-actions">
+              <button className="logout-btn-cancel" onClick={() => setLogoutOpen(false)}>
+                Stay signed in
+              </button>
+              <button className="logout-btn-confirm" onClick={() => {
+                window.localStorage.removeItem("accessToken");
+                window.localStorage.removeItem("refreshToken");
+                window.localStorage.removeItem("role");
+                window.localStorage.removeItem("user");
+                setLogoutOpen(false);
+                navigate("/auth/login");
+              }}>
+                Sign out
+              </button>
+            </div>
+          </div>
+          <style>{`
+            .logout-overlay {
+              position: fixed; inset: 0; z-index: 9999;
+              background: rgba(15,20,40,0.55);
+              backdrop-filter: blur(4px);
+              display: flex; align-items: center; justify-content: center;
+              animation: loFadeIn 0.2s ease;
+            }
+            @keyframes loFadeIn { from { opacity: 0; } to { opacity: 1; } }
+            .logout-dialog {
+              background: #fff;
+              border-radius: 20px;
+              padding: 36px 32px 28px;
+              width: 100%; max-width: 360px;
+              text-align: center;
+              box-shadow: 0 24px 64px rgba(0,0,0,0.18);
+              animation: loSlideUp 0.25s cubic-bezier(0.22,1,0.36,1);
+            }
+            @keyframes loSlideUp {
+              from { opacity: 0; transform: translateY(20px) scale(0.97); }
+              to   { opacity: 1; transform: translateY(0) scale(1); }
+            }
+            .logout-icon-wrap {
+              width: 64px; height: 64px; border-radius: 50%;
+              background: linear-gradient(135deg, #fff1f3, #ffe4e8);
+              border: 1.5px solid #ffd0d7;
+              display: flex; align-items: center; justify-content: center;
+              margin: 0 auto 18px;
+            }
+            .logout-icon-wrap i { font-size: 26px; color: #f5365c; }
+            .logout-title {
+              font-size: 18px; font-weight: 800; color: #1a1d2e;
+              margin-bottom: 8px; letter-spacing: -0.2px;
+            }
+            .logout-desc {
+              font-size: 13.5px; color: #8898aa; margin-bottom: 28px; line-height: 1.5;
+            }
+            .logout-actions { display: flex; gap: 10px; }
+            .logout-btn-cancel {
+              flex: 1; padding: 11px 16px; border-radius: 12px;
+              border: 1.5px solid #e3e8f0; background: #f7f8fc;
+              color: #525f7f; font-weight: 700; font-size: 14px;
+              cursor: pointer; transition: all 0.2s ease;
+            }
+            .logout-btn-cancel:hover { background: #eef1f8; border-color: #d0d7e6; }
+            .logout-btn-confirm {
+              flex: 1; padding: 11px 16px; border-radius: 12px;
+              border: none;
+              background: linear-gradient(135deg, #f5365c, #f53680);
+              color: #fff; font-weight: 700; font-size: 14px;
+              cursor: pointer; transition: all 0.2s ease;
+              box-shadow: 0 4px 14px rgba(245,54,92,0.35);
+            }
+            .logout-btn-confirm:hover {
+              transform: translateY(-1px);
+              box-shadow: 0 6px 20px rgba(245,54,92,0.45);
+            }
+          `}</style>
+        </div>,
+        document.body
+      )}
+    </>
   );
 };
 
