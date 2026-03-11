@@ -21,11 +21,12 @@ const ROLE_REDIRECT = {
 };
 
 const Login = () => {
-  const [selectedRole, setSelectedRole] = useState(null);
-  const [email,        setEmail]        = useState("");
-  const [password,     setPassword]     = useState("");
-  const [error,        setError]        = useState("");
-  const [isLoading,    setIsLoading]    = useState(false);
+  const [selectedRole,  setSelectedRole]  = useState(null);
+  const [email,         setEmail]         = useState("");
+  const [password,      setPassword]      = useState("");
+  const [showPassword,  setShowPassword]  = useState(false);
+  const [error,         setError]         = useState("");
+  const [isLoading,     setIsLoading]     = useState(false);
   const navigate = useNavigate();
 
   const validate = () => {
@@ -129,11 +130,21 @@ const Login = () => {
                   <Input
                     className="login-input"
                     placeholder="Password"
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     autoComplete="current-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                   />
+                  <InputGroupAddon addonType="append">
+                    <InputGroupText
+                      className="login-input-icon"
+                      onClick={() => setShowPassword(v => !v)}
+                      style={{ cursor: 'pointer' }}
+                      title={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      <i className={showPassword ? 'ni ni-glasses-2' : 'fa fa-eye-slash'} style={{ fontSize: 14 }} />
+                    </InputGroupText>
+                  </InputGroupAddon>
                 </InputGroup>
               </FormGroup>
 
