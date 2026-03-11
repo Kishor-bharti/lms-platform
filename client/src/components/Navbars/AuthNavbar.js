@@ -4,7 +4,6 @@ import {
   NavbarBrand,
   Navbar,
   NavItem,
-  NavLink,
   Nav,
   Container,
   Row,
@@ -47,14 +46,14 @@ const AuthNavbar = () => {
             </div>
             <Nav className="ml-auto" navbar>
               <NavItem>
-                <NavLink
+                <a
                   className="auth-nav-link"
-                  to="/auth/admin-login"
-                  tag={Link}
+                  href="https://10xaccel.com/contact"
+                  target="_blank"
+                  rel="noopener noreferrer"
                 >
-                  <i className="ni ni-circle-08" />
-                  <span>Admin</span>
-                </NavLink>
+                  Contact Us
+                </a>
               </NavItem>
             </Nav>
           </UncontrolledCollapse>
