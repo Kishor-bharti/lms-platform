@@ -19,7 +19,7 @@ const AuthNavbar = () => {
           <NavbarBrand to="/" tag={Link} className="auth-navbar-brand">
             <img
               alt="10xAccel"
-              src={require("../../assets/img/brand/argon-react-white.png")}
+              src={require("../../assets/img/brand/argon-react.png")}
               style={{ height: '60px', width: 'auto' }}
             />
           </NavbarBrand>
@@ -52,7 +52,7 @@ const AuthNavbar = () => {
                   to="/auth/admin-login"
                   tag={Link}
                 >
-                  <i className="ni ni-circle-08" style={{ marginRight: 6 }} />
+                  <i className="ni ni-circle-08" />
                   <span>Admin</span>
                 </NavLink>
               </NavItem>
@@ -62,10 +62,11 @@ const AuthNavbar = () => {
       </Navbar>
       <style>{`
         .auth-navbar-modern {
-          background: transparent !important;
-          box-shadow: none !important;
-          padding-top: 16px !important;
-          padding-bottom: 16px !important;
+          background: #ffffff !important;
+          box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12) !important;
+          padding-top: 14px !important;
+          padding-bottom: 14px !important;
+          margin-top: 14px !important;
         }
         .auth-navbar-brand {
           transition: transform 0.3s ease !important;
@@ -74,18 +75,24 @@ const AuthNavbar = () => {
           transform: scale(1.05) !important;
         }
         .auth-nav-link {
-          color: rgba(255,255,255,0.8) !important;
+          color: #ffffff !important;
           font-weight: 700 !important;
-          font-size: 14px !important;
-          padding: 8px 18px !important;
-          border-radius: 10px !important;
+          font-size: 13px !important;
+          padding: 8px 20px !important;
+          border-radius: 50px !important;
+          background: linear-gradient(135deg, #5e72e4, #825ee4) !important;
           transition: all 0.3s ease !important;
           display: flex !important;
           align-items: center !important;
+          gap: 6px !important;
+          letter-spacing: 0.3px !important;
+          box-shadow: 0 4px 14px rgba(94, 114, 228, 0.4) !important;
         }
         .auth-nav-link:hover {
-          color: #fff !important;
-          background: rgba(255,255,255,0.1) !important;
+          color: #ffffff !important;
+          background: linear-gradient(135deg, #4a5fd4, #6e4ed4) !important;
+          box-shadow: 0 6px 20px rgba(94, 114, 228, 0.55) !important;
+          transform: translateY(-1px) !important;
         }
       `}</style>
     </>

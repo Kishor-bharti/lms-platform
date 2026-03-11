@@ -5,7 +5,7 @@ import AuthNavbar from "components/Navbars/AuthNavbar.js";
 import AuthFooter from "components/Footers/AuthFooter.js";
 import routes from "routes.js";
 
-const Auth = (props) => {
+const Auth = () => {
   const mainContent = React.useRef(null);
   const location = useLocation();
 
@@ -113,6 +113,7 @@ const Auth = (props) => {
         }
         .auth-welcome-animate {
           animation: fadeInUp 0.7s ease;
+          padding-top: 2rem;
         }
         @keyframes fadeInUp {
           from { opacity: 0; transform: translateY(30px); }
