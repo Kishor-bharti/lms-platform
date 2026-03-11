@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Container, Row, Col, Card, CardBody, Button, Badge, Modal, ModalHeader, ModalBody, ModalFooter } from 'reactstrap';
 import Header from 'components/Headers/Header.js';
 import http from 'utils/http';
+import { QuizCardSkeleton } from 'components/Skeleton.js';
 
 export default function CourseQuiz() {
   const { courseId } = useParams();
@@ -84,9 +85,7 @@ export default function CourseQuiz() {
         </Row>
 
         {loading ? (
-          <Row><Col><Card className="shadow" style={{ borderRadius: 12 }}>
-            <CardBody className="text-center py-5"><p>Loading...</p></CardBody>
-          </Card></Col></Row>
+          <QuizCardSkeleton count={6} />
         ) : quizzes.length === 0 ? (
           <Row><Col><Card className="shadow" style={{ borderRadius: 12 }}>
             <CardBody className="text-center py-5">

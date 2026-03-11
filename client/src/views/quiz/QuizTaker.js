@@ -5,6 +5,7 @@ import {
 import Header from 'components/Headers/Header.js';
 import LatexRenderer from 'components/LatexRenderer.js';
 import { useNavigate, useParams } from 'react-router-dom';
+import { PageCardSkeleton } from 'components/Skeleton.js';
 import http from 'utils/http';
 import { API_BASE } from 'utils/api';
 
@@ -269,7 +270,7 @@ export default function QuizTaker() {
       <>
         <Header />
         <Container className="mt--7" fluid style={{ backgroundColor: 'rgb(196,214,226)', minHeight: '100vh', paddingTop: 30 }}>
-          <Row><Col><Card><CardBody className="text-center py-5"><p>Loading...</p></CardBody></Card></Col></Row>
+          <PageCardSkeleton />
         </Container>
       </>
     );
