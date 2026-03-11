@@ -6,6 +6,7 @@ import {
 import Header from 'components/Headers/Header.js';
 import LatexRenderer from 'components/LatexRenderer.js';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { PageCardSkeleton } from 'components/Skeleton.js';
 import http from 'utils/http';
 
 const BLANK_OPTION = (label) => ({ label, text: '', is_correct: false });
@@ -250,7 +251,7 @@ export default function QuizBuilder() {
     <>
       <Header />
       <Container className="mt--7" fluid style={{ backgroundColor: 'rgb(196,214,226)', minHeight: '100vh', paddingTop: 30 }}>
-        <Row><Col><div className="text-center py-5"><p>Loading quiz...</p></div></Col></Row>
+        <PageCardSkeleton />
       </Container>
     </>
   );

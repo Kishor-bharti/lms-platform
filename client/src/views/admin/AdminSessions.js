@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { TableSkeleton } from 'components/Skeleton.js';
 import {
   Container, Row, Col, Card, CardHeader, CardBody, CardTitle, Button,
   Modal, ModalHeader, ModalBody, Badge,
@@ -143,9 +144,7 @@ export default function AdminSessions() {
                 )}
               </CardHeader>
               <CardBody style={{ overflowX: 'auto' }}>
-                {loading ? (
-                  <p className="text-center text-muted py-4">Loading...</p>
-                ) : filtered.length === 0 ? (
+                {filtered.length === 0 && !loading ? (
                   <p className="text-center text-muted py-4">No sessions found</p>
                 ) : (
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -156,7 +155,7 @@ export default function AdminSessions() {
                         ))}
                       </tr>
                     </thead>
-                    <tbody>
+                    {loading ? <TableSkeleton cols={8} rows={6} /> : <tbody>
                       {filtered.map((s) => {
                         const style = STATUS_STYLE[s.status] || STATUS_STYLE.scheduled;
                         return (
@@ -196,7 +195,7 @@ export default function AdminSessions() {
                           </tr>
                         );
                       })}
-                    </tbody>
+                    </tbody>}
                   </table>
                 )}
               </CardBody>

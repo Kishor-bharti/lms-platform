@@ -5,7 +5,7 @@ import AuthNavbar from "components/Navbars/AuthNavbar.js";
 import AuthFooter from "components/Footers/AuthFooter.js";
 import routes from "routes.js";
 
-const Auth = (props) => {
+const Auth = () => {
   const mainContent = React.useRef(null);
   const location = useLocation();
 
@@ -47,7 +47,7 @@ const Auth = (props) => {
               <Row className="justify-content-center">
                 <Col lg="5" md="6">
                   <div className="auth-welcome-animate">
-                    <h1 className="auth-title">Welcome! <span className="wave-emoji">👋</span></h1>
+                    <h1 className="auth-title">Welcome!</h1>
                     <p className="auth-subtitle">
                       Access your learning management system. Choose your role to get started.
                     </p>
@@ -113,6 +113,7 @@ const Auth = (props) => {
         }
         .auth-welcome-animate {
           animation: fadeInUp 0.7s ease;
+          padding-top: 2rem;
         }
         @keyframes fadeInUp {
           from { opacity: 0; transform: translateY(30px); }
@@ -128,20 +129,6 @@ const Auth = (props) => {
           color: rgba(255,255,255,0.65);
           font-size: 1rem;
           line-height: 1.6;
-        }
-        .wave-emoji {
-          display: inline-block;
-          animation: wave 2.5s ease-in-out infinite;
-          transform-origin: 70% 70%;
-        }
-        @keyframes wave {
-          0% { transform: rotate(0deg); }
-          10% { transform: rotate(14deg); }
-          20% { transform: rotate(-8deg); }
-          30% { transform: rotate(14deg); }
-          40% { transform: rotate(-4deg); }
-          50% { transform: rotate(10deg); }
-          60%, 100% { transform: rotate(0deg); }
         }
       `}</style>
     </>

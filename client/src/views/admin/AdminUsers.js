@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, CardHeader, CardBody, CardTitle, Button, Badge, Modal, ModalHeader, ModalBody, ModalFooter, Form, FormGroup, Label, Input } from 'reactstrap';
 import Header from 'components/Headers/Header.js';
 import http from 'utils/http';
+import { TableSkeleton } from 'components/Skeleton.js';
 
 const ROLE_COLORS = { admin: 'danger', teacher: 'warning', student: 'info' };
 
@@ -114,9 +115,7 @@ export default function AdminUsers() {
                 </div>
               </CardHeader>
               <CardBody style={{ overflowX: 'auto' }}>
-                {loading ? (
-                  <p className="text-center text-muted py-4">Loading...</p>
-                ) : filtered.length === 0 ? (
+                {filtered.length === 0 && !loading ? (
                   <p className="text-center text-muted py-4">No users found</p>
                 ) : (
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -127,7 +126,7 @@ export default function AdminUsers() {
                         ))}
                       </tr>
                     </thead>
-                    <tbody>
+                    {loading ? <TableSkeleton cols={6} rows={7} /> : <tbody>
                       {filtered.map((u) => (
                         <tr key={u.id} style={{ borderBottom: '1px solid #f0f4f8' }}>
                           <td style={{ padding: '12px 14px', fontWeight: 600, color: '#32325d' }}>
@@ -162,7 +161,7 @@ export default function AdminUsers() {
                           </td>
                         </tr>
                       ))}
-                    </tbody>
+                    </tbody>}
                   </table>
                 )}
                 <div className="d-flex justify-content-between align-items-center mt-3">

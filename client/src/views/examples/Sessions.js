@@ -5,6 +5,7 @@ import {
 } from "reactstrap";
 import Header from "components/Headers/Header.js";
 import http from "utils/http";
+import { SessionCardSkeleton } from 'components/Skeleton.js';
 
 const Sessions = () => {
   const [sessions, setSessions] = useState([]);
@@ -125,7 +126,7 @@ const Sessions = () => {
         <Header />
         <Container className="mt--7" fluid style={{ backgroundColor: "rgb(196, 214, 226)", minHeight: "100vh", paddingTop: "30px", paddingBottom: "30px" }}>
           <Row><Col lg="12">
-            <Card><CardBody className="text-center py-5"><p>Loading sessions...</p></CardBody></Card>
+            <Card><CardBody className="py-4"><SessionCardSkeleton count={5} /></CardBody></Card>
           </Col></Row>
         </Container>
       </>
