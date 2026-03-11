@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Card, CardHeader, CardBody, CardTitle, Table, Badge, Button, Modal, ModalHeader, ModalBody, ModalFooter } from "reactstrap";
 import http from "utils/http";
+import { TableSkeleton } from 'components/Skeleton.js';
 
 const BATCH_SIZE = 4;
 
 export default function UpcomingClasses() {
   const [allSessions, setAllSessions] = useState([]);
   const [visibleCount, setVisibleCount] = useState(BATCH_SIZE);
+  const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState(null);
   const errorCount = useRef(0);
@@ -43,6 +45,8 @@ export default function UpcomingClasses() {
       if (errorCount.current >= 3) {
         console.warn('[polling] Stopped after 3 consecutive errors');
       }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -86,7 +90,7 @@ export default function UpcomingClasses() {
                 <th scope="col" className="text-right">Action</th>
               </tr>
             </thead>
-            <tbody>
+            {loading ? <TableSkeleton cols={5} rows={4} /> : <tbody>
               {sessions.length === 0 ? (
                 <tr><td colSpan="5" className="text-center py-3"><span className="text-muted">No upcoming sessions</span></td></tr>
               ) : (
@@ -140,7 +144,7 @@ export default function UpcomingClasses() {
                   </tr>
                 ))
               )}
-            </tbody>
+            </tbody>}
           </Table>
         </div>
         {allSessions.length > BATCH_SIZE && (

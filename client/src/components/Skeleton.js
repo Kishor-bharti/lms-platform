@@ -144,6 +144,34 @@ export const PageCardSkeleton = () => (
   </>
 );
 
+/** Skeleton bar chart (Report activity chart) */
+export const ChartSkeleton = () => (
+  <>
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 130, paddingBottom: 4, overflow: 'hidden' }}>
+      {Array.from({ length: 14 }).map((_, i) => (
+        <Bar key={i} w="100%" h={`${30 + ((i * 17) % 70)}%`} style={{ flex: 1, borderRadius: '4px 4px 0 0', minWidth: 14 }} />
+      ))}
+    </div>
+    <style>{SHIMMER_CSS}</style>
+  </>
+);
+
+/** Skeleton grid for teacher's student list in Report */
+export const StudentGridSkeleton = ({ count = 6 }) => (
+  <>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} style={{ background: '#fff', border: '1px solid #e9eef5', borderRadius: 10, padding: '14px 16px' }}>
+          <Bar w="55%" h={14} style={{ marginBottom: 8, borderRadius: 8 }} />
+          <Bar w="75%" h={10} style={{ marginBottom: 14 }} />
+          <Bar w={90} h={26} style={{ borderRadius: 20 }} />
+        </div>
+      ))}
+    </div>
+    <style>{SHIMMER_CSS}</style>
+  </>
+);
+
 /** Skeleton grid for AdminCourses card layout */
 export const CourseCardSkeleton = ({ count = 6 }) => (
   <>

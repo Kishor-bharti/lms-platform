@@ -7,6 +7,7 @@ import {
 } from 'reactstrap';
 import Header from 'components/Headers/Header.js';
 import http from 'utils/http';
+import { TopicCardSkeleton } from 'components/Skeleton.js';
 
 function statusBadge(status) {
   switch (status) {
@@ -319,7 +320,7 @@ export default function SubjectTeacher() {
     <>
       <Header />
       <Container className="mt--7" fluid style={{ backgroundColor: 'rgb(196,214,226)', minHeight: '100vh', paddingTop: 30 }}>
-        <Row><Col><Card><CardBody className="text-center py-5"><p>Loading...</p></CardBody></Card></Col></Row>
+        <Row><Col><Card><CardBody className="py-4"><TopicCardSkeleton count={6} /></CardBody></Card></Col></Row>
       </Container>
     </>
   );

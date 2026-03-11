@@ -5,6 +5,7 @@ import {
 import Header from 'components/Headers/Header.js';
 import LatexRenderer from 'components/LatexRenderer.js';
 import http from 'utils/http';
+import { TableSkeleton, ChartSkeleton, StudentGridSkeleton, PageCardSkeleton } from 'components/Skeleton.js';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -154,7 +155,7 @@ function ActivityChart({ data: initialData, studentId, isTeacherView }) {
       </CardHeader>
       <CardBody>
         {loading ? (
-          <div style={{ textAlign: 'center', padding: 20, color: '#8898aa' }}>Loading...</div>
+          <ChartSkeleton />
         ) : (
           <>
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: mode === 'month' ? 2 : 8, height: 130, paddingBottom: 4, overflowX: 'auto' }}>
@@ -237,10 +238,7 @@ function AttemptReviewPanel({ attemptId, studentId, isTeacherView, onClose }) {
   if (loading) {
     return (
       <Card className="shadow mb-4" style={{ borderRadius: 12 }}>
-        <CardBody className="text-center py-5">
-          <div style={{ fontSize: 32, marginBottom: 8 }}>⏳</div>
-          <p className="text-muted">Loading review...</p>
-        </CardBody>
+        <CardBody className="py-4"><PageCardSkeleton /></CardBody>
       </Card>
     );
   }
@@ -757,9 +755,15 @@ function StudentDetailView({ studentId, studentName, onBack, backLabel }) {
       </Row>
       {loading && (
         <Card className="shadow" style={{ borderRadius: 12 }}>
-          <CardBody className="text-center py-5">
-            <div style={{ fontSize: 32, marginBottom: 8 }}>⏳</div>
-            <p className="text-muted">Loading student report...</p>
+          <CardBody style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead><tr style={{ background: '#f8f9fa' }}>
+                {['Subject','Quizzes','Avg Score','Time Spent','Status'].map(h => (
+                  <th key={h} style={{ padding: '10px 14px', fontSize: 12, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase', letterSpacing: 0.5 }}>{h}</th>
+                ))}
+              </tr></thead>
+              <TableSkeleton cols={5} rows={5} />
+            </table>
           </CardBody>
         </Card>
       )}
@@ -830,7 +834,7 @@ function AdminReport() {
               />
             </div>
             {loadingStudents ? (
-              <div className="text-center py-4 text-muted">Loading students...</div>
+              <StudentGridSkeleton count={6} />
             ) : filtered.length === 0 ? (
               <div className="text-center py-4 text-muted">No students found</div>
             ) : (
@@ -1085,9 +1089,15 @@ export default function Report() {
           <Row>
             <Col>
               <Card className="shadow" style={{ borderRadius: 12 }}>
-                <CardBody className="text-center py-5">
-                  <div style={{ fontSize: 32, marginBottom: 8 }}>⏳</div>
-                  <p className="text-muted">Loading your progress...</p>
+                <CardBody style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead><tr style={{ background: '#f8f9fa' }}>
+                      {['Subject','Quizzes','Avg Score','Time Spent','Status'].map(h => (
+                        <th key={h} style={{ padding: '10px 14px', fontSize: 12, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase', letterSpacing: 0.5 }}>{h}</th>
+                      ))}
+                    </tr></thead>
+                    <TableSkeleton cols={5} rows={5} />
+                  </table>
                 </CardBody>
               </Card>
             </Col>
