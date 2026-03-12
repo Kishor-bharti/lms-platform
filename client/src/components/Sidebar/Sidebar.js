@@ -20,11 +20,47 @@ const Sidebar = (props) => {
   const [courses,        setCourses]        = useState([]);
   const [expandedCourse, setExpandedCourse] = useState(null);
   const [logoutOpen,     setLogoutOpen]     = useState(false);
+  const [toggleHovered,  setToggleHovered]  = useState(false);
+  const [showHint,       setShowHint]       = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     const saved = localStorage.getItem("sidebar-mini");
     if (saved === "true") setMini(true);
+  }, []);
+
+  /* ── one-time onboarding hint ── */
+  useEffect(() => {
+    if (!localStorage.getItem("sidebar-shortcut-seen")) {
+      const t = setTimeout(() => setShowHint(true), 1200);
+      return () => clearTimeout(t);
+    }
+  }, []);
+  useEffect(() => {
+    if (!showHint) return;
+    const t = setTimeout(() => {
+      setShowHint(false);
+      localStorage.setItem("sidebar-shortcut-seen", "1");
+    }, 5000);
+    return () => clearTimeout(t);
+  }, [showHint]);
+
+  /* ── Ctrl+X global keyboard shortcut ── */
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.ctrlKey && e.key === "x" && !e.shiftKey && !e.altKey) {
+        const tag = document.activeElement?.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+        e.preventDefault();
+        setMini((v) => {
+          const n = !v;
+          localStorage.setItem("sidebar-mini", String(n));
+          return n;
+        });
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
   }, []);
 
   useEffect(() => { fetchCourses(); }, []);
@@ -266,19 +302,117 @@ const Sidebar = (props) => {
             to   { opacity: 1; transform: translateY(0); }
           }
           #sidenav-main .sidebar-edge-toggle {
-            position: absolute; right: -14px; top: 50%; transform: translateY(-50%);
             width: 28px; height: 28px; border-radius: 50%;
             background: linear-gradient(135deg, #5e72e4 0%, #825ee4 100%);
             border: 2px solid #fff;
             box-shadow: 0 4px 12px rgba(94,114,228,0.3);
-            display: flex; align-items: center; justify-content: center; z-index: 1040;
-            color: #fff; transition: all 0.3s ease;
+            display: flex; align-items: center; justify-content: center;
+            color: #fff; transition: all 0.3s ease; padding: 0 !important;
           }
           #sidenav-main .sidebar-edge-toggle:hover {
-            transform: translateY(-50%) scale(1.15);
+            transform: scale(1.15);
             box-shadow: 0 6px 20px rgba(94,114,228,0.4);
           }
           #sidenav-main .sidebar-edge-toggle i { font-size: 10px; }
+
+          /* ── hover tooltip ── */
+          .st-tooltip {
+            position: absolute;
+            left: calc(100% + 12px);
+            top: 50%; transform: translateY(-50%);
+            background: #1a1d2e;
+            border-radius: 10px;
+            padding: 8px 12px;
+            white-space: nowrap;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.22);
+            pointer-events: none;
+            animation: stFadeIn 0.15s ease;
+            z-index: 2000;
+          }
+          .st-tooltip::before {
+            content: "";
+            position: absolute;
+            right: 100%; top: 50%; transform: translateY(-50%);
+            border: 6px solid transparent;
+            border-right-color: #1a1d2e;
+          }
+          @keyframes stFadeIn {
+            from { opacity: 0; transform: translateY(-50%) translateX(-4px); }
+            to   { opacity: 1; transform: translateY(-50%) translateX(0); }
+          }
+          .st-tooltip-title {
+            font-size: 12px; font-weight: 600; color: #fff;
+            margin-bottom: 5px;
+          }
+          .st-tooltip-shortcut {
+            display: flex; align-items: center; gap: 4px;
+          }
+          .st-tooltip-shortcut span { color: rgba(255,255,255,0.4); font-size: 11px; }
+          .st-tooltip kbd {
+            background: rgba(255,255,255,0.12);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 5px;
+            padding: 2px 7px;
+            font-size: 11px;
+            color: #fff;
+            font-family: inherit;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+          }
+
+          /* ── onboarding hint ── */
+          .st-hint {
+            position: absolute;
+            left: calc(100% + 16px);
+            top: 50%; transform: translateY(-50%);
+            background: #fff;
+            border-radius: 14px;
+            padding: 14px 16px 14px 14px;
+            width: 240px;
+            box-shadow: 0 16px 48px rgba(0,0,0,0.16), 0 0 0 1px rgba(94,114,228,0.15);
+            display: flex; align-items: flex-start; gap: 10px;
+            z-index: 2000;
+            animation: stHintIn 0.3s cubic-bezier(0.22,1,0.36,1);
+          }
+          .st-hint::before {
+            content: "";
+            position: absolute;
+            right: 100%; top: 50%; transform: translateY(-50%);
+            border: 7px solid transparent;
+            border-right-color: #fff;
+          }
+          @keyframes stHintIn {
+            from { opacity: 0; transform: translateY(-50%) translateX(-8px) scale(0.95); }
+            to   { opacity: 1; transform: translateY(-50%) translateX(0) scale(1); }
+          }
+          .st-hint-icon { font-size: 20px; flex-shrink: 0; line-height: 1.3; }
+          .st-hint-body {
+            flex: 1; display: flex; flex-direction: column; gap: 4px;
+          }
+          .st-hint-body strong {
+            font-size: 13px; font-weight: 800; color: #1a1d2e;
+          }
+          .st-hint-body span {
+            font-size: 12px; color: #718096; line-height: 1.45;
+          }
+          .st-hint-body kbd {
+            display: inline-block;
+            background: #edf2f7;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            padding: 0px 5px;
+            font-size: 11px;
+            color: #5e72e4;
+            font-weight: 700;
+            font-family: inherit;
+          }
+          .st-hint-close {
+            background: none; border: none;
+            color: #a0aec0; font-size: 16px; line-height: 1;
+            cursor: pointer; padding: 0; flex-shrink: 0;
+            transition: color 0.15s;
+          }
+          .st-hint-close:hover { color: #4a5568; }
           .admin-item .sidebar-link:hover {
             background: linear-gradient(135deg, rgba(245,54,92,0.08) 0%, rgba(245,54,92,0.04) 100%) !important;
           }
@@ -299,10 +433,42 @@ const Sidebar = (props) => {
           }
         `}</style>
       </Container>
-      <button type="button" className="sidebar-edge-toggle btn" aria-label="Toggle sidebar"
-        onClick={() => setMini((v) => { const n = !v; localStorage.setItem("sidebar-mini", String(n)); return n; })}>
-        <i className={mini ? "ni ni-bold-right" : "ni ni-bold-left"} />
-      </button>
+      <div style={{ position: "absolute", right: -14, top: "50%", transform: "translateY(-50%)", zIndex: 1040 }}>
+        <button
+          type="button"
+          className="sidebar-edge-toggle btn"
+          aria-label="Toggle sidebar"
+          onClick={() => setMini((v) => { const n = !v; localStorage.setItem("sidebar-mini", String(n)); return n; })}
+          onMouseEnter={() => setToggleHovered(true)}
+          onMouseLeave={() => setToggleHovered(false)}
+        >
+          <i className={mini ? "ni ni-bold-right" : "ni ni-bold-left"} />
+        </button>
+
+        {/* hover tooltip */}
+        {toggleHovered && !showHint && (
+          <div className="st-tooltip">
+            <div className="st-tooltip-title">{mini ? "Expand sidebar" : "Collapse sidebar"}</div>
+            <div className="st-tooltip-shortcut">
+              <kbd>Ctrl</kbd>
+              <span>+</span>
+              <kbd>X</kbd>
+            </div>
+          </div>
+        )}
+
+        {/* one-time onboarding hint */}
+        {showHint && (
+          <div className="st-hint">
+            <div className="st-hint-icon">✨</div>
+            <div className="st-hint-body">
+              <strong>Keyboard shortcut</strong>
+              <span>Press <kbd>Ctrl</kbd> + <kbd>X</kbd> to collapse or expand the sidebar anytime!</span>
+            </div>
+            <button className="st-hint-close" onClick={() => { setShowHint(false); localStorage.setItem("sidebar-shortcut-seen", "1"); }}>×</button>
+          </div>
+        )}
+      </div>
 
     </Navbar>
 
