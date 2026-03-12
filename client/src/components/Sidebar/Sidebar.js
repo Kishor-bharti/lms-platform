@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import { NavLink as NavLinkRRD, Link, useNavigate } from "react-router-dom";
 import { PropTypes } from "prop-types";
@@ -22,6 +22,8 @@ const Sidebar = (props) => {
   const [logoutOpen,     setLogoutOpen]     = useState(false);
   const [toggleHovered,  setToggleHovered]  = useState(false);
   const [showHint,       setShowHint]       = useState(false);
+  const [tooltipPos,     setTooltipPos]     = useState({ top: 0, left: 0 });
+  const toggleBtnRef = useRef(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -32,7 +34,13 @@ const Sidebar = (props) => {
   /* ── one-time onboarding hint ── */
   useEffect(() => {
     if (!localStorage.getItem("sidebar-shortcut-seen")) {
-      const t = setTimeout(() => setShowHint(true), 1200);
+      const t = setTimeout(() => {
+        if (toggleBtnRef.current) {
+          const r = toggleBtnRef.current.getBoundingClientRect();
+          setTooltipPos({ top: r.top + r.height / 2, left: r.right + 16 });
+        }
+        setShowHint(true);
+      }, 1200);
       return () => clearTimeout(t);
     }
   }, []);
@@ -45,10 +53,10 @@ const Sidebar = (props) => {
     return () => clearTimeout(t);
   }, [showHint]);
 
-  /* ── Ctrl+X global keyboard shortcut ── */
+  /* ── Ctrl+B global keyboard shortcut ── */
   useEffect(() => {
     const handler = (e) => {
-      if (e.ctrlKey && e.key === "x" && !e.shiftKey && !e.altKey) {
+      if (e.ctrlKey && e.key === "b" && !e.shiftKey && !e.altKey) {
         const tag = document.activeElement?.tagName;
         if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
         e.preventDefault();
@@ -317,9 +325,8 @@ const Sidebar = (props) => {
 
           /* ── hover tooltip ── */
           .st-tooltip {
-            position: absolute;
-            left: calc(100% + 12px);
-            top: 50%; transform: translateY(-50%);
+            position: fixed;
+            transform: translateY(-50%);
             background: #1a1d2e;
             border-radius: 10px;
             padding: 8px 12px;
@@ -327,7 +334,7 @@ const Sidebar = (props) => {
             box-shadow: 0 8px 24px rgba(0,0,0,0.22);
             pointer-events: none;
             animation: stFadeIn 0.15s ease;
-            z-index: 2000;
+            z-index: 9999;
           }
           .st-tooltip::before {
             content: "";
@@ -362,16 +369,15 @@ const Sidebar = (props) => {
 
           /* ── onboarding hint ── */
           .st-hint {
-            position: absolute;
-            left: calc(100% + 16px);
-            top: 50%; transform: translateY(-50%);
+            position: fixed;
+            transform: translateY(-50%);
             background: #fff;
             border-radius: 14px;
             padding: 14px 16px 14px 14px;
             width: 240px;
             box-shadow: 0 16px 48px rgba(0,0,0,0.16), 0 0 0 1px rgba(94,114,228,0.15);
             display: flex; align-items: flex-start; gap: 10px;
-            z-index: 2000;
+            z-index: 9999;
             animation: stHintIn 0.3s cubic-bezier(0.22,1,0.36,1);
           }
           .st-hint::before {
@@ -383,7 +389,7 @@ const Sidebar = (props) => {
           }
           @keyframes stHintIn {
             from { opacity: 0; transform: translateY(-50%) translateX(-8px) scale(0.95); }
-            to   { opacity: 1; transform: translateY(-50%) translateX(0) scale(1); }
+            to   { opacity: 1; transform: translateY(-50%) scale(1); }
           }
           .st-hint-icon { font-size: 20px; flex-shrink: 0; line-height: 1.3; }
           .st-hint-body {
@@ -435,38 +441,47 @@ const Sidebar = (props) => {
       </Container>
       <div style={{ position: "absolute", right: -14, top: "50%", transform: "translateY(-50%)", zIndex: 1040 }}>
         <button
+          ref={toggleBtnRef}
           type="button"
           className="sidebar-edge-toggle btn"
           aria-label="Toggle sidebar"
           onClick={() => setMini((v) => { const n = !v; localStorage.setItem("sidebar-mini", String(n)); return n; })}
-          onMouseEnter={() => setToggleHovered(true)}
+          onMouseEnter={() => {
+            if (toggleBtnRef.current) {
+              const r = toggleBtnRef.current.getBoundingClientRect();
+              setTooltipPos({ top: r.top + r.height / 2, left: r.right + 12 });
+            }
+            setToggleHovered(true);
+          }}
           onMouseLeave={() => setToggleHovered(false)}
         >
           <i className={mini ? "ni ni-bold-right" : "ni ni-bold-left"} />
         </button>
 
-        {/* hover tooltip */}
-        {toggleHovered && !showHint && (
-          <div className="st-tooltip">
+        {/* hover tooltip — rendered via portal to escape sidebar overflow clipping */}
+        {toggleHovered && !showHint && createPortal(
+          <div className="st-tooltip" style={{ top: tooltipPos.top, left: tooltipPos.left }}>
             <div className="st-tooltip-title">{mini ? "Expand sidebar" : "Collapse sidebar"}</div>
             <div className="st-tooltip-shortcut">
               <kbd>Ctrl</kbd>
               <span>+</span>
-              <kbd>X</kbd>
+              <kbd>B</kbd>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
 
-        {/* one-time onboarding hint */}
-        {showHint && (
-          <div className="st-hint">
+        {/* one-time onboarding hint — rendered via portal */}
+        {showHint && createPortal(
+          <div className="st-hint" style={{ top: tooltipPos.top, left: tooltipPos.left }}>
             <div className="st-hint-icon">✨</div>
             <div className="st-hint-body">
               <strong>Keyboard shortcut</strong>
-              <span>Press <kbd>Ctrl</kbd> + <kbd>X</kbd> to collapse or expand the sidebar anytime!</span>
+              <span>Press <kbd>Ctrl</kbd> + <kbd>B</kbd> to collapse or expand the sidebar anytime!</span>
             </div>
             <button className="st-hint-close" onClick={() => { setShowHint(false); localStorage.setItem("sidebar-shortcut-seen", "1"); }}>×</button>
-          </div>
+          </div>,
+          document.body
         )}
       </div>
 
