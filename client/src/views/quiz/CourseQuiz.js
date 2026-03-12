@@ -63,7 +63,7 @@ export default function CourseQuiz() {
 
   return (
     <>
-      <Header />
+      <Header hideSubtitle />
       <Container className="mt--7" fluid
         style={{ backgroundColor: 'rgb(196,214,226)', minHeight: '100vh', paddingTop: 30, paddingBottom: 30 }}>
 

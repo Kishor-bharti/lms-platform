@@ -36,7 +36,7 @@ function useTypewriter(text, speed = 45) {
   return { displayed, done };
 }
 
-const Header = () => {
+const Header = ({ hideSubtitle = false }) => {
   const user = (() => {
     try {
       const raw = window.localStorage.getItem("user") || "";
@@ -54,12 +54,12 @@ const Header = () => {
   const [quoteIndex, setQuoteIndex] = useState(0);
   const { displayed, done } = useTypewriter(QUOTES[quoteIndex]);
 
-  // After typing finishes, wait 2.5s then move to next quote
+  // After typing finishes, wait 4s then move to next quote
   useEffect(() => {
     if (!done) return;
     const t = setTimeout(() => {
       setQuoteIndex((i) => (i + 1) % QUOTES.length);
-    }, 2500);
+    }, 4000);
     return () => clearTimeout(t);
   }, [done]);
 
@@ -73,12 +73,14 @@ const Header = () => {
         <Container fluid>
           <div className="header-welcome">
             <h2 className="header-greeting">
-              {greeting}{user ? `, ${user}` : ""} <span className="wave-emoji">👋</span>
+              {greeting}{user ? `, ${user}` : ""}
             </h2>
-            <p className="header-subtitle">
-              {displayed}
-              <span className="type-cursor" />
-            </p>
+            {!hideSubtitle && (
+              <p className="header-subtitle">
+                {displayed}
+                <span className="type-cursor" />
+              </p>
+            )}
           </div>
         </Container>
       </div>
@@ -149,21 +151,6 @@ const Header = () => {
         @keyframes cursorBlink {
           0%, 100% { opacity: 1; }
           50% { opacity: 0; }
-        }
-        .wave-emoji {
-          display: inline-block;
-          animation: wave 2.5s ease-in-out infinite;
-          transform-origin: 70% 70%;
-        }
-        @keyframes wave {
-          0%   { transform: rotate(0deg); }
-          10%  { transform: rotate(14deg); }
-          20%  { transform: rotate(-8deg); }
-          30%  { transform: rotate(14deg); }
-          40%  { transform: rotate(-4deg); }
-          50%  { transform: rotate(10deg); }
-          60%  { transform: rotate(0deg); }
-          100% { transform: rotate(0deg); }
         }
         @keyframes fadeInUp {
           from { opacity: 0; transform: translateY(20px); }

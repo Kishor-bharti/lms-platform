@@ -268,7 +268,7 @@ export default function QuizTaker() {
   if (phase === 'loading') {
     return (
       <>
-        <Header />
+        <Header hideSubtitle />
         <Container className="mt--7" fluid style={{ backgroundColor: 'rgb(196,214,226)', minHeight: '100vh', paddingTop: 30 }}>
           <PageCardSkeleton />
         </Container>
@@ -279,7 +279,7 @@ export default function QuizTaker() {
   if (phase === 'error') {
     return (
       <>
-        <Header />
+        <Header hideSubtitle />
         <Container className="mt--7" fluid style={{ backgroundColor: 'rgb(196,214,226)', minHeight: '100vh', paddingTop: 30 }}>
           <Row><Col><Card><CardBody className="text-center py-5">
             <p className="text-danger">{error}</p>
@@ -301,7 +301,7 @@ export default function QuizTaker() {
 
     return (
       <>
-        <Header />
+        <Header hideSubtitle />
         <Container className="mt--7" fluid style={{ backgroundColor: 'rgb(196,214,226)', minHeight: '100vh', paddingTop: 30, paddingBottom: 30 }}>
           <Row className="justify-content-center">
             <Col lg="7">
@@ -396,7 +396,7 @@ export default function QuizTaker() {
 
     return (
       <>
-        <Header />
+        <Header hideSubtitle />
         <Container className="mt--7" fluid style={{ backgroundColor: 'rgb(196,214,226)', minHeight: '100vh', paddingTop: 30, paddingBottom: 30 }}>
           <Row>
             {/* Main question */}
@@ -598,7 +598,7 @@ export default function QuizTaker() {
     const incorrectCount = answeredCount - correctCount;
     return (
       <>
-        <Header />
+        <Header hideSubtitle />
         <Container className="mt--7" fluid style={{ backgroundColor: 'rgb(196,214,226)', minHeight: '100vh', paddingTop: 30, paddingBottom: 30 }}>
           <Row className="justify-content-center mb-4">
             <Col lg="8">
@@ -693,7 +693,7 @@ export default function QuizTaker() {
 
     return (
       <>
-        <Header />
+        <Header hideSubtitle />
         <Container className="mt--7" fluid style={{ backgroundColor: 'rgb(196,214,226)', minHeight: '100vh', paddingTop: 30, paddingBottom: 30 }}>
           <Row className="justify-content-center mb-4">
             <Col lg="8">

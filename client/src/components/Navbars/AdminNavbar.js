@@ -45,7 +45,6 @@ const AdminNavbar = (props) => {
       <Navbar className="navbar-top navbar-dark navbar-modern" expand="md" id="navbar-main">
         <Container className="d-flex flex-column flex-md-row align-items-center" fluid>
           <Link className="navbar-brand-text" to="/admin/index">
-            <i className="ni ni-planet mr-2" style={{ fontSize: 16 }} />
             {props.brandText}
           </Link>
 
@@ -80,7 +79,7 @@ const AdminNavbar = (props) => {
                 </DropdownToggle>
                 <DropdownMenu className="dropdown-menu-modern" right>
                   <div className="dropdown-header-gradient">
-                    <div style={{ fontWeight: 800, fontSize: 14 }}>👋 Welcome back!</div>
+                    <div style={{ fontWeight: 800, fontSize: 14 }}>Welcome back!</div>
                     <div style={{ fontSize: 12, opacity: 0.85, marginTop: 2 }}>{userName}</div>
                   </div>
                   <DropdownItem to="/admin/profile" tag={Link} className="dropdown-item-modern">
@@ -113,6 +112,7 @@ const AdminNavbar = (props) => {
           box-shadow: 0 4px 24px rgba(26, 31, 54, 0.3);
           border: none !important;
           padding: 0.65rem 0 !important;
+          z-index: 1031 !important;
         }
         .navbar-brand-text {
           font-size: 1rem;

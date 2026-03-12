@@ -30,7 +30,7 @@ const UserHeader = () => {
             <Col lg="7" md="10">
               <div className="uh-content">
                 <div className="uh-badge">{roleDisplay}</div>
-                <h1 className="uh-title">{`Hello, ${name}`} <span className="wave-emoji">👋</span></h1>
+                <h1 className="uh-title">{`Hello, ${name}`}</h1>
                 <p className="uh-subtitle">Manage your profile, update your info, and keep learning.</p>
                 <Button className="uh-edit-btn" onClick={(e) => e.preventDefault()}>
                   <i className="ni ni-settings mr-2" />
@@ -96,20 +96,6 @@ const UserHeader = () => {
           color: rgba(255,255,255,0.6);
           font-size: 1rem;
           margin-bottom: 20px;
-        }
-        .wave-emoji {
-          display: inline-block;
-          animation: wave 2.5s ease-in-out infinite;
-          transform-origin: 70% 70%;
-        }
-        @keyframes wave {
-          0%   { transform: rotate(0deg); }
-          10%  { transform: rotate(14deg); }
-          20%  { transform: rotate(-8deg); }
-          30%  { transform: rotate(14deg); }
-          40%  { transform: rotate(-4deg); }
-          50%  { transform: rotate(10deg); }
-          60%, 100% { transform: rotate(0deg); }
         }
         .uh-edit-btn {
           background: linear-gradient(135deg, #5e72e4 0%, #825ee4 100%) !important;
