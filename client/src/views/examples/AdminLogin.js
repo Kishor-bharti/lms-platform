@@ -56,10 +56,13 @@ const AdminLogin = () => {
 
           {/* Header */}
           <div className="al-card-header">
-            <div className="al-shield-ring">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-              </svg>
+            <div className="al-shield-wrap">
+              <div className="al-shield-orbit" />
+              <div className="al-shield-ring">
+                <svg className="al-shield-svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+              </div>
             </div>
             <h2 className="al-card-title">Administrator Portal</h2>
             <p className="al-card-subtitle">Restricted access · Credentials required</p>
@@ -175,15 +178,63 @@ const AdminLogin = () => {
           border-bottom: 1px solid rgba(255,255,255,0.07);
           background: linear-gradient(160deg, rgba(201,21,21,0.18) 0%, rgba(0,0,0,0) 60%);
         }
+        .al-shield-wrap {
+          position: relative;
+          width: 64px; height: 64px;
+          margin: 0 auto 16px;
+          cursor: default;
+        }
+        .al-shield-orbit {
+          position: absolute; inset: -8px;
+          border-radius: 50%;
+          border: 1.5px dashed rgba(201,21,21,0.4);
+          animation: alOrbit 6s linear infinite;
+        }
+        .al-shield-orbit::before {
+          content: '';
+          position: absolute;
+          width: 6px; height: 6px;
+          border-radius: 50%;
+          background: #ff6b6b;
+          top: -3px; left: 50%; transform: translateX(-50%);
+          box-shadow: 0 0 8px #ff6b6b;
+        }
+        @keyframes alOrbit { to { transform: rotate(360deg); } }
         .al-shield-ring {
           width: 64px; height: 64px;
           border-radius: 50%;
           background: rgba(201,21,21,0.15);
           border: 1.5px solid rgba(201,21,21,0.35);
           display: flex; align-items: center; justify-content: center;
-          margin: 0 auto 16px;
           color: #ff6b6b;
           box-shadow: 0 0 24px rgba(201,21,21,0.2);
+          animation: alShieldPulse 3s ease-in-out infinite;
+          transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        @keyframes alShieldPulse {
+          0%, 100% { box-shadow: 0 0 16px rgba(201,21,21,0.2); }
+          50%       { box-shadow: 0 0 36px rgba(201,21,21,0.45), 0 0 60px rgba(201,21,21,0.15); }
+        }
+        .al-shield-svg {
+          animation: alShieldBob 3s ease-in-out infinite;
+          transition: transform 0.3s ease;
+        }
+        @keyframes alShieldBob {
+          0%, 100% { transform: translateY(0); }
+          50%       { transform: translateY(-2px); }
+        }
+        .al-shield-wrap:hover .al-shield-ring {
+          transform: scale(1.12);
+          box-shadow: 0 0 48px rgba(201,21,21,0.6), 0 0 80px rgba(201,21,21,0.2);
+          background: rgba(201,21,21,0.28);
+        }
+        .al-shield-wrap:hover .al-shield-svg {
+          transform: scale(1.15) translateY(-1px);
+          filter: drop-shadow(0 0 6px rgba(255,107,107,0.8));
+        }
+        .al-shield-wrap:hover .al-shield-orbit {
+          animation-duration: 1.5s;
+          border-color: rgba(201,21,21,0.7);
         }
         .al-card-title {
           color: #fff;
