@@ -1,398 +1,539 @@
 import React, { useMemo, useState } from "react";
-import { Card, CardHeader, CardBody } from "reactstrap";
 import { useNavigate } from "react-router-dom";
 
+/* ── helpers ─────────────────────────────────────────── */
 function monthMatrix(date) {
-  const first = new Date(date.getFullYear(), date.getMonth(), 1);
-  const startDay = first.getDay();
-  const daysInMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-  const prevMonthDays = new Date(date.getFullYear(), date.getMonth(), 0).getDate();
+  const y = date.getFullYear(), m = date.getMonth();
+  const firstDay   = new Date(y, m, 1).getDay();
+  const daysInMo   = new Date(y, m + 1, 0).getDate();
+  const prevDays   = new Date(y, m, 0).getDate();
   const cells = [];
-  for (let i = 0; i < startDay; i++) {
-    cells.push({ day: prevMonthDays - startDay + 1 + i, type: "prev" });
-  }
-  for (let d = 1; d <= daysInMonth; d++) {
+  for (let i = 0; i < firstDay; i++)
+    cells.push({ day: prevDays - firstDay + 1 + i, type: "prev" });
+  for (let d = 1; d <= daysInMo; d++)
     cells.push({ day: d, type: "curr" });
-  }
-  let nextDay = 1;
-  while (cells.length % 7 !== 0) {
-    cells.push({ day: nextDay++, type: "next" });
-  }
+  let nd = 1;
+  while (cells.length % 7 !== 0)
+    cells.push({ day: nd++, type: "next" });
   return cells;
 }
 
-const MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-const MONTHS_FULL  = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const MO_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const MO_FULL  = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const DAY_HDRS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
+function fmt(y, m, d) {
+  return `${DAY_HDRS[new Date(y,m,d).getDay()]}, ${MO_SHORT[m]} ${d}`;
+}
+
+/* ── component ───────────────────────────────────────── */
 export default function CalendarWidget() {
-  const [current,  setCurrent]  = useState(new Date());
-  const [selected, setSelected] = useState(null); // { year, month, day }
-  const [view,     setView]     = useState("calendar"); // "calendar" | "month" | "year"
-  const [yearPage, setYearPage] = useState(
-    Math.floor(new Date().getFullYear() / 12) * 12
-  );
-  const today = new Date();
-  const cells = useMemo(() => monthMatrix(current), [current]);
+  const today     = useMemo(() => new Date(), []);
+  const [cur,     setCur]     = useState(new Date());
+  const [sel,     setSel]     = useState(null);          // {y,m,d}
+  const [view,    setView]    = useState("cal");          // "cal"|"month"|"year"
+  const [yrBase,  setYrBase]  = useState(() => Math.floor(today.getFullYear() / 12) * 12);
+  const cells = useMemo(() => monthMatrix(cur), [cur]);
   const navigate = useNavigate();
 
   const role = typeof window !== "undefined" ? window.localStorage.getItem("role") : null;
   const sessionsPath = role === "student" ? "/admin/classes" : "/admin/sessions";
 
-  const checkToday = (c) =>
+  const isToday = c =>
     c.type === "curr" &&
-    today.getDate()     === c.day &&
-    today.getMonth()    === current.getMonth() &&
-    today.getFullYear() === current.getFullYear();
+    c.day === today.getDate() &&
+    cur.getMonth()    === today.getMonth() &&
+    cur.getFullYear() === today.getFullYear();
 
-  const checkSelected = (c) =>
-    selected &&
-    c.type === "curr" &&
-    selected.day   === c.day &&
-    selected.month === current.getMonth() &&
-    selected.year  === current.getFullYear();
+  const isSel = c =>
+    sel && c.type === "curr" &&
+    sel.d === c.day && sel.m === cur.getMonth() && sel.y === cur.getFullYear();
 
-  const pickMonth = (idx) => {
-    setCurrent(new Date(current.getFullYear(), idx, 1));
-    setView("calendar");
-  };
-
-  const pickYear = (y) => {
-    setCurrent(new Date(y, current.getMonth(), 1));
-    setView("calendar");
-  };
-
-  const pickDay = (c) => {
+  const pickDay = c => {
     if (c.type === "prev") {
-      const d = new Date(current.getFullYear(), current.getMonth() - 1, c.day);
-      setCurrent(new Date(d.getFullYear(), d.getMonth(), 1));
-      setSelected({ year: d.getFullYear(), month: d.getMonth(), day: c.day });
+      const nb = new Date(cur.getFullYear(), cur.getMonth() - 1, 1);
+      setCur(nb); setSel({ y: nb.getFullYear(), m: nb.getMonth(), d: c.day });
     } else if (c.type === "next") {
-      const d = new Date(current.getFullYear(), current.getMonth() + 1, c.day);
-      setCurrent(new Date(d.getFullYear(), d.getMonth(), 1));
-      setSelected({ year: d.getFullYear(), month: d.getMonth(), day: c.day });
+      const nb = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
+      setCur(nb); setSel({ y: nb.getFullYear(), m: nb.getMonth(), d: c.day });
     } else {
-      setSelected({ year: current.getFullYear(), month: current.getMonth(), day: c.day });
+      setSel({ y: cur.getFullYear(), m: cur.getMonth(), d: c.day });
     }
   };
 
+  const navMonth = delta => setCur(new Date(cur.getFullYear(), cur.getMonth() + delta, 1));
+  const goToday  = () => { setCur(new Date()); setView("cal"); };
+
+  const selLabel = sel ? fmt(sel.y, sel.m, sel.d)
+    : fmt(today.getFullYear(), today.getMonth(), today.getDate());
+
   return (
-    <Card className="shadow cal-card">
-      <CardHeader className="cal-header">
-        {/* ── Month / Year clickable labels ── */}
-        <div className="d-flex align-items-center justify-content-between">
-          <div className="d-flex align-items-center" style={{ gap: 4 }}>
+    <div className="cw-root">
+
+      {/* ══ HEADER ══════════════════════════════════════ */}
+      <div className="cw-head">
+        <div className="cw-head-orb cw-orb1" />
+        <div className="cw-head-orb cw-orb2" />
+
+        {/* top row: nav arrows + month/year labels */}
+        <div className="cw-head-row cw-head-top">
+          <button className="cw-arrow" onClick={() => navMonth(-1)} title="Prev month">&#8249;</button>
+
+          <div className="cw-head-labels">
             <button
-              className="cal-label-btn"
-              onClick={() => setView(view === "month" ? "calendar" : "month")}
-              title="Pick month"
+              className={`cw-mo-btn${view === "month" ? " cw-lbl-active" : ""}`}
+              onClick={() => setView(view === "month" ? "cal" : "month")}
             >
-              {MONTHS_FULL[current.getMonth()]}
-              <span className="cal-label-caret">{view === "month" ? "▲" : "▼"}</span>
+              {MO_FULL[cur.getMonth()]}
             </button>
             <button
-              className="cal-label-btn"
-              onClick={() => {
-                setYearPage(Math.floor(current.getFullYear() / 12) * 12);
-                setView(view === "year" ? "calendar" : "year");
-              }}
-              title="Pick year"
+              className={`cw-yr-btn${view === "year" ? " cw-lbl-active" : ""}`}
+              onClick={() => { setYrBase(Math.floor(cur.getFullYear()/12)*12); setView(view === "year" ? "cal" : "year"); }}
             >
-              {current.getFullYear()}
-              <span className="cal-label-caret">{view === "year" ? "▲" : "▼"}</span>
+              {cur.getFullYear()}
             </button>
           </div>
 
-          <div className="d-flex align-items-center" style={{ gap: 6 }}>
-            {view === "year" && (
-              <>
-                <button className="cal-nav-btn" onClick={() => setYearPage(yearPage - 12)}>‹</button>
-                <button className="cal-nav-btn" onClick={() => setYearPage(yearPage + 12)}>›</button>
-              </>
-            )}
-            {view === "calendar" && (
-              <>
-                <button className="cal-nav-btn" title="Today"
-                  onClick={() => { setCurrent(new Date()); setView("calendar"); }}>
-                  Today
-                </button>
-                <button className="cal-nav-btn"
-                  onClick={() => setCurrent(new Date(current.getFullYear(), current.getMonth() - 1, 1))}>
-                  ‹
-                </button>
-                <button className="cal-nav-btn"
-                  onClick={() => setCurrent(new Date(current.getFullYear(), current.getMonth() + 1, 1))}>
-                  ›
-                </button>
-              </>
-            )}
-            {view !== "calendar" && (
-              <button className="cal-nav-btn" onClick={() => setView("calendar")} title="Close">✕</button>
-            )}
-          </div>
+          <button className="cw-arrow" onClick={() => navMonth(1)} title="Next month">&#8250;</button>
         </div>
-      </CardHeader>
 
-      <CardBody style={{ padding: "12px 16px 16px" }}>
+        {/* bottom row: selected / today label + today chip */}
+        <div className="cw-head-row cw-head-bot">
+          <div className="cw-sel-label">
+            <span className="cw-sel-dot" />
+            {sel ? "Selected" : "Today"} — <strong>{selLabel}</strong>
+          </div>
+          <button className="cw-today-chip" onClick={goToday}>Today</button>
+        </div>
+      </div>
 
-        {/* ── MONTH PICKER ── */}
+      {/* ══ BODY ════════════════════════════════════════ */}
+      <div className="cw-body">
+
+        {/* MONTH PICKER */}
         {view === "month" && (
-          <div className="cal-picker-grid cal-month-grid">
-            {MONTHS_SHORT.map((m, i) => (
-              <button
-                key={m}
-                className={`cal-picker-cell${i === current.getMonth() ? " cal-picker-active" : ""}`}
-                onClick={() => pickMonth(i)}
-              >
-                {m}
-              </button>
-            ))}
+          <div className="cw-picker-overlay">
+            <p className="cw-picker-hint">Select a month</p>
+            <div className="cw-mo-grid">
+              {MO_SHORT.map((m, i) => (
+                <button
+                  key={m}
+                  className={`cw-picker-cell${i === cur.getMonth() ? " cw-pcell-active" : ""}`}
+                  onClick={() => { setCur(new Date(cur.getFullYear(), i, 1)); setView("cal"); }}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
-        {/* ── YEAR PICKER ── */}
+        {/* YEAR PICKER */}
         {view === "year" && (
-          <>
-            <div className="cal-year-range">
-              {yearPage} – {yearPage + 11}
+          <div className="cw-picker-overlay">
+            <div className="cw-yr-nav">
+              <button className="cw-yr-nav-btn" onClick={() => setYrBase(yrBase - 12)}>&#8249;</button>
+              <span className="cw-picker-hint" style={{ margin: 0 }}>{yrBase} – {yrBase + 11}</span>
+              <button className="cw-yr-nav-btn" onClick={() => setYrBase(yrBase + 12)}>&#8250;</button>
             </div>
-            <div className="cal-picker-grid cal-year-grid">
-              {Array.from({ length: 12 }, (_, i) => yearPage + i).map((y) => (
+            <div className="cw-yr-grid">
+              {Array.from({ length: 12 }, (_, i) => yrBase + i).map(y => (
                 <button
                   key={y}
-                  className={`cal-picker-cell${y === current.getFullYear() ? " cal-picker-active" : ""}`}
-                  onClick={() => pickYear(y)}
+                  className={`cw-picker-cell${y === cur.getFullYear() ? " cw-pcell-active" : ""}`}
+                  onClick={() => { setCur(new Date(y, cur.getMonth(), 1)); setView("cal"); }}
                 >
                   {y}
                 </button>
               ))}
             </div>
-          </>
+          </div>
         )}
 
-        {/* ── CALENDAR DAY GRID ── */}
-        {view === "calendar" && (
-          <div className="cal-grid">
-            {"Sun Mon Tue Wed Thu Fri Sat".split(" ").map((d) => (
-              <div key={d} className="cal-weekday">{d}</div>
+        {/* CALENDAR GRID */}
+        {view === "cal" && (
+          <div className="cw-grid">
+            {DAY_HDRS.map((d, i) => (
+              <div key={d} className={`cw-wdhdr${i === 0 || i === 6 ? " cw-wkend" : ""}`}>{d}</div>
             ))}
             {cells.map((c, i) => {
-              const isTodayCell = checkToday(c);
-              const isSelectedCell = checkSelected(c);
+              const col    = i % 7;
+              const isWknd = col === 0 || col === 6;
+              const td     = isToday(c);
+              const sc     = isSel(c);
               return (
                 <div
                   key={i}
                   className={[
-                    "cal-day",
-                    c.type !== "curr" ? "cal-day--faded" : "",
-                    isTodayCell      ? "cal-day--today"    : "",
-                    isSelectedCell   ? "cal-day--selected" : "",
-                  ].join(" ")}
+                    "cw-cell",
+                    c.type !== "curr" ? "cw-faded"    : "",
+                    isWknd            ? "cw-wkend-cell": "",
+                    td                ? "cw-today"     : "",
+                    sc && !td         ? "cw-selected"  : "",
+                  ].filter(Boolean).join(" ")}
                   onClick={() => pickDay(c)}
-                  title={c.type === "curr"
-                    ? `${MONTHS_FULL[current.getMonth()]} ${c.day}, ${current.getFullYear()}`
-                    : ""}
+                  title={c.type === "curr" ? `${MO_FULL[cur.getMonth()]} ${c.day}, ${cur.getFullYear()}` : undefined}
                 >
-                  {c.day}
+                  <span className="cw-cell-inner">{c.day}</span>
+                  {td && <span className="cw-today-ring" />}
                 </div>
               );
             })}
           </div>
         )}
+      </div>
 
-        {/* selected date label */}
-        {selected && view === "calendar" && (
-          <div className="cal-selected-label">
-            {MONTHS_FULL[selected.month]} {selected.day}, {selected.year}
-          </div>
-        )}
+      {/* ══ FOOTER ══════════════════════════════════════ */}
+      <div className="cw-footer">
+        <button className="cw-sessions-btn" onClick={() => navigate(sessionsPath)}>
+          <span>View Sessions</span>
+          <span className="cw-btn-arrow">→</span>
+        </button>
+      </div>
 
-        <div className="text-center" style={{ marginTop: 14 }}>
-          <button
-            type="button"
-            className="btn cal-view-sessions-btn"
-            onClick={() => navigate(sessionsPath)}
-          >
-            View Sessions →
-          </button>
-        </div>
-      </CardBody>
-
+      {/* ══ STYLES ══════════════════════════════════════ */}
       <style>{`
-        .cal-card {
-          border-radius: 18px !important;
-          background: #232a34 !important;
+        /* ── root ── */
+        .cw-root {
+          border-radius: 20px;
+          overflow: hidden;
+          background: #16181f;
+          box-shadow: 0 8px 40px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.3);
+          display: flex;
+          flex-direction: column;
+          font-family: inherit;
+          user-select: none;
+        }
+
+        /* ── header ── */
+        .cw-head {
+          background: linear-gradient(135deg, #1a1f36 0%, #252d5a 50%, #1e3a8a 100%);
+          padding: 18px 20px 14px;
+          position: relative;
+          overflow: hidden;
+        }
+        .cw-head-orb {
+          position: absolute;
+          border-radius: 50%;
+          filter: blur(50px);
+          pointer-events: none;
+        }
+        .cw-orb1 {
+          width: 160px; height: 160px;
+          background: rgba(94,114,228,0.35);
+          top: -40px; right: -20px;
+        }
+        .cw-orb2 {
+          width: 100px; height: 100px;
+          background: rgba(130,94,228,0.25);
+          bottom: -20px; left: 10%;
+        }
+        .cw-head-row {
+          position: relative;
+          z-index: 1;
+          display: flex;
+          align-items: center;
+        }
+        .cw-head-top {
+          justify-content: space-between;
+          margin-bottom: 10px;
+        }
+        .cw-head-bot {
+          justify-content: space-between;
+        }
+
+        /* ── arrow buttons ── */
+        .cw-arrow {
+          width: 32px; height: 32px;
+          background: rgba(255,255,255,0.1) !important;
+          border: 1px solid rgba(255,255,255,0.15) !important;
+          border-radius: 50% !important;
           color: #fff !important;
-          border: none !important;
+          font-size: 18px !important;
+          line-height: 1 !important;
+          display: flex; align-items: center; justify-content: center;
+          cursor: pointer !important;
+          transition: all 0.2s ease !important;
+          padding: 0 !important;
+          flex-shrink: 0;
         }
-        .cal-header {
-          background: #2b313b !important;
-          border-top-left-radius: 18px !important;
-          border-top-right-radius: 18px !important;
-          padding: 14px 16px !important;
-          border-bottom: 1px solid rgba(255,255,255,0.07) !important;
+        .cw-arrow:hover {
+          background: rgba(255,255,255,0.2) !important;
+          border-color: rgba(255,255,255,0.35) !important;
+          transform: scale(1.08) !important;
         }
-        /* clickable month / year labels */
-        .cal-label-btn {
+
+        /* ── month / year labels ── */
+        .cw-head-labels {
+          display: flex;
+          align-items: baseline;
+          gap: 6px;
+        }
+        .cw-mo-btn {
           background: none !important;
           border: none !important;
           color: #fff !important;
-          font-size: 1rem !important;
-          font-weight: 700 !important;
-          padding: 4px 8px !important;
-          border-radius: 8px !important;
+          font-size: 1.25rem !important;
+          font-weight: 800 !important;
+          letter-spacing: -0.3px !important;
           cursor: pointer !important;
-          transition: background 0.18s ease !important;
-          display: inline-flex;
-          align-items: center;
-          gap: 4px;
+          padding: 2px 6px !important;
+          border-radius: 8px !important;
+          transition: background 0.18s !important;
+          line-height: 1.2 !important;
         }
-        .cal-label-btn:hover {
-          background: rgba(255,255,255,0.1) !important;
-        }
-        .cal-label-caret {
-          font-size: 9px;
-          opacity: 0.6;
-        }
-        /* prev / next / today nav buttons */
-        .cal-nav-btn {
-          background: rgba(255,255,255,0.08) !important;
-          color: rgba(255,255,255,0.8) !important;
+        .cw-yr-btn {
+          background: none !important;
           border: none !important;
-          border-radius: 8px !important;
-          font-weight: 600 !important;
-          font-size: 13px !important;
-          padding: 4px 10px !important;
+          color: rgba(255,255,255,0.55) !important;
+          font-size: 0.95rem !important;
+          font-weight: 700 !important;
           cursor: pointer !important;
-          transition: all 0.18s ease !important;
+          padding: 2px 6px !important;
+          border-radius: 8px !important;
+          transition: all 0.18s !important;
+          line-height: 1.2 !important;
         }
-        .cal-nav-btn:hover {
-          background: rgba(255,255,255,0.16) !important;
+        .cw-mo-btn:hover { background: rgba(255,255,255,0.12) !important; }
+        .cw-yr-btn:hover { background: rgba(255,255,255,0.1) !important; color: rgba(255,255,255,0.85) !important; }
+        .cw-lbl-active {
+          background: rgba(94,114,228,0.3) !important;
           color: #fff !important;
         }
-        /* day grid */
-        .cal-grid {
+
+        /* ── selected / today subline ── */
+        .cw-sel-label {
+          font-size: 11.5px;
+          color: rgba(255,255,255,0.5);
+          display: flex;
+          align-items: center;
+          gap: 5px;
+        }
+        .cw-sel-label strong { color: rgba(255,255,255,0.85); font-weight: 600; }
+        .cw-sel-dot {
+          width: 6px; height: 6px;
+          border-radius: 50%;
+          background: #5e72e4;
+          flex-shrink: 0;
+          box-shadow: 0 0 6px rgba(94,114,228,0.8);
+        }
+        .cw-today-chip {
+          background: rgba(255,255,255,0.12) !important;
+          border: 1px solid rgba(255,255,255,0.2) !important;
+          border-radius: 20px !important;
+          color: rgba(255,255,255,0.75) !important;
+          font-size: 11px !important;
+          font-weight: 700 !important;
+          padding: 3px 12px !important;
+          cursor: pointer !important;
+          transition: all 0.18s !important;
+          letter-spacing: 0.3px !important;
+          text-transform: uppercase !important;
+        }
+        .cw-today-chip:hover {
+          background: rgba(94,114,228,0.3) !important;
+          border-color: rgba(94,114,228,0.5) !important;
+          color: #fff !important;
+        }
+
+        /* ── body ── */
+        .cw-body {
+          padding: 16px 16px 8px;
+          background: #16181f;
+          flex: 1;
+        }
+
+        /* ── weekday headers ── */
+        .cw-grid {
           display: grid;
           grid-template-columns: repeat(7, 1fr);
-          gap: 6px;
-          margin-top: 6px;
+          gap: 4px;
         }
-        .cal-weekday {
-          color: #8892a4;
-          font-weight: 600;
-          font-size: 11px;
+        .cw-wdhdr {
           text-align: center;
-          padding-bottom: 4px;
+          font-size: 10.5px;
+          font-weight: 700;
+          color: #4a5568;
+          letter-spacing: 0.6px;
           text-transform: uppercase;
-          letter-spacing: 0.5px;
+          padding-bottom: 8px;
         }
-        .cal-day {
-          background: rgba(255,255,255,0.04);
-          color: #fff;
-          border-radius: 10px;
-          min-height: 40px;
+        .cw-wkend { color: #5e72e4; }
+
+        /* ── day cells ── */
+        .cw-cell {
+          position: relative;
+          aspect-ratio: 1;
           display: flex;
           align-items: center;
           justify-content: center;
-          font-weight: 600;
-          font-size: 13px;
           cursor: pointer;
+          border-radius: 50%;
           transition: all 0.18s ease;
-          user-select: none;
-          border: 1.5px solid transparent;
         }
-        .cal-day:hover {
-          background: rgba(94,114,228,0.22) !important;
-          border-color: rgba(94,114,228,0.4) !important;
+        .cw-cell-inner {
+          font-size: 13px;
+          font-weight: 600;
+          color: rgba(255,255,255,0.8);
+          position: relative;
+          z-index: 1;
+          line-height: 1;
         }
-        .cal-day--faded {
-          background: transparent !important;
-          color: rgba(255,255,255,0.18) !important;
+        .cw-cell:not(.cw-faded):not(.cw-today):hover .cw-cell-inner {
+          color: #fff;
         }
-        .cal-day--faded:hover {
-          background: rgba(255,255,255,0.06) !important;
-          border-color: transparent !important;
-          color: rgba(255,255,255,0.5) !important;
+        .cw-cell:not(.cw-faded):not(.cw-today):hover {
+          background: rgba(94,114,228,0.2);
         }
-        .cal-day--today {
-          background: linear-gradient(135deg, #5e72e4, #825ee4) !important;
-          color: #fff !important;
-          box-shadow: 0 4px 12px rgba(94,114,228,0.45) !important;
-          border-color: transparent !important;
+
+        /* faded (prev/next month) */
+        .cw-faded .cw-cell-inner { color: rgba(255,255,255,0.15); }
+        .cw-faded:hover { background: rgba(255,255,255,0.04) !important; }
+        .cw-faded:hover .cw-cell-inner { color: rgba(255,255,255,0.3) !important; }
+
+        /* weekend tint */
+        .cw-wkend-cell:not(.cw-faded) .cw-cell-inner { color: rgba(130,94,228,0.9); }
+
+        /* today */
+        .cw-today {
+          background: linear-gradient(135deg, #5e72e4 0%, #825ee4 100%);
+          box-shadow: 0 4px 14px rgba(94,114,228,0.5);
         }
-        .cal-day--selected:not(.cal-day--today) {
-          background: rgba(94,114,228,0.28) !important;
-          border-color: #5e72e4 !important;
-          color: #fff !important;
+        .cw-today .cw-cell-inner { color: #fff; font-weight: 800; }
+        .cw-today-ring {
+          position: absolute;
+          inset: -3px;
+          border-radius: 50%;
+          border: 2px solid rgba(255,255,255,0.35);
+          pointer-events: none;
         }
-        /* month / year pickers */
-        .cal-picker-grid {
-          display: grid;
-          gap: 8px;
-          margin-top: 8px;
+
+        /* selected (not today) */
+        .cw-selected {
+          background: rgba(94,114,228,0.18);
+          outline: 2px solid #5e72e4;
+          outline-offset: -2px;
         }
-        .cal-month-grid { grid-template-columns: repeat(3, 1fr); }
-        .cal-year-grid  { grid-template-columns: repeat(4, 1fr); }
-        .cal-picker-cell {
-          background: rgba(255,255,255,0.06) !important;
-          color: rgba(255,255,255,0.8) !important;
-          border: 1.5px solid transparent !important;
-          border-radius: 10px !important;
-          padding: 10px 4px !important;
-          font-weight: 600 !important;
-          font-size: 13px !important;
-          cursor: pointer !important;
-          transition: all 0.18s ease !important;
+        .cw-selected .cw-cell-inner { color: #fff; font-weight: 700; }
+
+        /* ── picker overlay ── */
+        .cw-picker-overlay {
+          animation: cwFadeIn 0.18s ease;
+        }
+        @keyframes cwFadeIn {
+          from { opacity: 0; transform: translateY(6px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .cw-picker-hint {
           text-align: center;
-        }
-        .cal-picker-cell:hover {
-          background: rgba(94,114,228,0.22) !important;
-          border-color: rgba(94,114,228,0.4) !important;
-          color: #fff !important;
-        }
-        .cal-picker-active {
-          background: linear-gradient(135deg, #5e72e4, #825ee4) !important;
-          color: #fff !important;
-          border-color: transparent !important;
-          box-shadow: 0 3px 10px rgba(94,114,228,0.4) !important;
-        }
-        .cal-year-range {
-          text-align: center;
-          color: rgba(255,255,255,0.4);
           font-size: 11px;
           font-weight: 600;
+          color: rgba(255,255,255,0.3);
           letter-spacing: 0.5px;
-          margin-bottom: 4px;
+          text-transform: uppercase;
+          margin-bottom: 10px;
         }
-        /* selected date display */
-        .cal-selected-label {
+        .cw-mo-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 8px;
+        }
+        .cw-yr-grid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 6px;
+        }
+        .cw-picker-cell {
+          background: rgba(255,255,255,0.05) !important;
+          border: 1px solid rgba(255,255,255,0.07) !important;
+          border-radius: 10px !important;
+          color: rgba(255,255,255,0.65) !important;
+          font-size: 12.5px !important;
+          font-weight: 600 !important;
+          padding: 9px 4px !important;
+          cursor: pointer !important;
+          transition: all 0.18s !important;
           text-align: center;
-          margin-top: 10px;
-          font-size: 12px;
-          font-weight: 600;
-          color: rgba(255,255,255,0.5);
-          letter-spacing: 0.3px;
         }
-        /* View Sessions button */
-        .cal-view-sessions-btn {
-          background: linear-gradient(135deg, #5e72e4, #825ee4) !important;
+        .cw-picker-cell:hover {
+          background: rgba(94,114,228,0.2) !important;
+          border-color: rgba(94,114,228,0.4) !important;
           color: #fff !important;
+        }
+        .cw-pcell-active {
+          background: linear-gradient(135deg, #5e72e4, #825ee4) !important;
+          border-color: transparent !important;
+          color: #fff !important;
+          box-shadow: 0 3px 10px rgba(94,114,228,0.4) !important;
+        }
+
+        /* year nav row */
+        .cw-yr-nav {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 10px;
+        }
+        .cw-yr-nav-btn {
+          background: rgba(255,255,255,0.08) !important;
           border: none !important;
-          border-radius: 12px !important;
-          font-weight: 700 !important;
-          padding: 8px 24px !important;
+          border-radius: 8px !important;
+          color: rgba(255,255,255,0.7) !important;
+          font-size: 18px !important;
+          width: 30px; height: 30px;
+          cursor: pointer !important;
+          display: flex; align-items: center; justify-content: center;
+          transition: all 0.18s !important;
+          padding: 0 !important;
+        }
+        .cw-yr-nav-btn:hover {
+          background: rgba(94,114,228,0.25) !important;
+          color: #fff !important;
+        }
+
+        /* ── footer ── */
+        .cw-footer {
+          padding: 10px 16px 16px;
+          background: #16181f;
+        }
+        .cw-sessions-btn {
+          width: 100%;
+          background: linear-gradient(135deg, #3b4fd8 0%, #5e72e4 50%, #825ee4 100%) !important;
+          border: none !important;
+          border-radius: 14px !important;
+          color: #fff !important;
           font-size: 13px !important;
-          box-shadow: 0 4px 14px rgba(94,114,228,0.35) !important;
-          transition: all 0.3s ease !important;
+          font-weight: 700 !important;
+          padding: 11px 20px !important;
+          cursor: pointer !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: space-between !important;
+          box-shadow: 0 4px 16px rgba(94,114,228,0.35) !important;
+          transition: all 0.25s ease !important;
+          letter-spacing: 0.2px;
         }
-        .cal-view-sessions-btn:hover {
+        .cw-sessions-btn:hover {
           transform: translateY(-2px) !important;
-          box-shadow: 0 6px 20px rgba(94,114,228,0.5) !important;
+          box-shadow: 0 8px 24px rgba(94,114,228,0.5) !important;
+          background: linear-gradient(135deg, #4a5fe8 0%, #6b80ed 50%, #9270e8 100%) !important;
         }
-        @media (max-width: 767.98px) {
-          .cal-day { min-height: 34px !important; font-size: 12px; }
-          .cal-picker-cell { padding: 8px 2px !important; font-size: 12px !important; }
+        .cw-btn-arrow {
+          font-size: 15px;
+          transition: transform 0.2s ease;
+        }
+        .cw-sessions-btn:hover .cw-btn-arrow {
+          transform: translateX(4px);
+        }
+
+        /* ── responsive ── */
+        @media (max-width: 768px) {
+          .cw-cell-inner { font-size: 11px; }
+          .cw-head { padding: 14px 14px 10px; }
+          .cw-body { padding: 12px 12px 6px; }
+          .cw-mo-btn { font-size: 1.1rem !important; }
         }
       `}</style>
-    </Card>
+    </div>
   );
 }
