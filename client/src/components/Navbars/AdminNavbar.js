@@ -1,11 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
 import {
-  Form,
-  FormGroup,
-  InputGroupAddon,
-  InputGroupText,
-  Input,
-  InputGroup,
   Navbar,
   Container,
   Nav,
@@ -15,6 +9,7 @@ import {
   DropdownItem,
   Media,
 } from "reactstrap";
+import SearchBar from "./SearchBar";
 
 const AdminNavbar = (props) => {
   const navigate = useNavigate();
@@ -49,18 +44,9 @@ const AdminNavbar = (props) => {
           </Link>
 
           <div className="d-flex align-items-center ml-md-auto mt-2 mt-md-0 w-100 w-md-auto justify-content-between justify-content-md-end">
-            <Form className="navbar-search navbar-search-dark form-inline d-none d-md-flex mr-3">
-              <FormGroup className="mb-0">
-                <InputGroup className="navbar-search-group">
-                  <InputGroupAddon addonType="prepend">
-                    <InputGroupText className="search-icon-wrapper">
-                      <i className="fas fa-search" />
-                    </InputGroupText>
-                  </InputGroupAddon>
-                  <Input placeholder="Search anything..." type="text" className="search-input" />
-                </InputGroup>
-              </FormGroup>
-            </Form>
+            <div className="d-none d-md-flex mr-3">
+              <SearchBar />
+            </div>
 
             <Nav className="align-items-center" navbar>
               <UncontrolledDropdown nav>
@@ -130,30 +116,6 @@ const AdminNavbar = (props) => {
           transform: translateY(-1px);
           text-decoration: none;
         }
-        .navbar-search-group {
-          background: rgba(255,255,255,0.1) !important;
-          border: 1px solid rgba(255,255,255,0.15) !important;
-          border-radius: 12px !important;
-          overflow: hidden;
-          transition: all 0.3s ease;
-        }
-        .navbar-search-group:focus-within {
-          background: rgba(255,255,255,0.18) !important;
-          border-color: rgba(255,255,255,0.3) !important;
-          box-shadow: 0 0 0 3px rgba(255,255,255,0.1) !important;
-        }
-        .search-icon-wrapper {
-          background: transparent !important;
-          border: none !important;
-          color: rgba(255,255,255,0.6) !important;
-        }
-        .search-input {
-          background: transparent !important;
-          border: none !important;
-          color: #fff !important;
-          font-size: 13px !important;
-        }
-        .search-input::placeholder { color: rgba(255,255,255,0.5) !important; }
         .avatar-gradient {
           width: 36px;
           height: 36px;
