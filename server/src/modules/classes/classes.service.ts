@@ -167,7 +167,9 @@ export async function getMyClasses(
   return [];
 }
 
-// ─── TEACHER: sessions for subjects they teach ─────────────────
+// ─── TEACHER: only sessions this teacher created ───────────────
+// T5: filter by teacher_id (not subject_teachers join) so teachers only
+// see their own sessions, not sessions created by admin or other teachers.
 
 export async function getSessionsByTeacher(
   teacherId: string
@@ -189,9 +191,8 @@ export async function getSessionsByTeacher(
        s.status
      FROM   sessions         s
      JOIN   subjects         sub ON sub.id = s.subject_id
-     JOIN   subject_teachers st  ON st.subject_id = sub.id
      LEFT JOIN topics        t   ON t.id = s.topic_id
-     WHERE  st.teacher_id = $1
+     WHERE  s.teacher_id = $1
      ORDER  BY s.session_date DESC, s.start_time DESC
      LIMIT  100`,
     [teacherId]
@@ -214,7 +215,10 @@ export async function getSessionsByTeacher(
   }));
 }
 
-// ─── STUDENT: sessions from enrolled subjects ──────────────────
+// ─── STUDENT: sessions from enrolled subjects (1-on-1 aware) ──
+// T1: A session with entries in session_students is targeted — student only
+// sees it if they are listed. Sessions with no session_students entries
+// are visible to all enrolled students (legacy / group sessions).
 
 export async function getSessionsByStudent(
   studentId: string
@@ -237,6 +241,13 @@ export async function getSessionsByStudent(
      LEFT JOIN topics            t   ON t.id = s.topic_id
      WHERE  se.student_id        = $1
        AND  se.enrollment_status = 'active'
+       AND (
+         -- no specific students targeted (open to all enrolled)
+         NOT EXISTS (SELECT 1 FROM session_students ss WHERE ss.session_id = s.id)
+         OR
+         -- this student is explicitly included
+         EXISTS (SELECT 1 FROM session_students ss WHERE ss.session_id = s.id AND ss.student_id = $1)
+       )
      ORDER  BY s.session_date DESC, s.start_time DESC
      LIMIT  100`,
     [studentId]
@@ -340,9 +351,17 @@ export async function startSessionById(
 
     if (!rows[0]) throw new Error('Session not found');
     const existing = rows[0];
+
+    // T5 fix: allow any teacher assigned to the subject, not just the session creator
     if (existing.teacher_id !== teacherId) {
-      throw new Error('FORBIDDEN');
+      const assigned = await queryWithClient<any>(
+        client,
+        `SELECT 1 FROM subject_teachers WHERE subject_id = $1 AND teacher_id = $2`,
+        [existing.subject_id, teacherId]
+      );
+      if (!assigned.length) throw new Error('FORBIDDEN');
     }
+
     if (existing.status === 'live') throw new Error('Session is already LIVE');
 
     const accessToken = await getZoomAccessToken();
@@ -403,8 +422,14 @@ export async function completeSessionById(
     );
 
     if (!rows[0]) throw new Error('Session not found');
+    // T5 fix: allow any assigned teacher for the subject
     if (rows[0].teacher_id !== teacherId) {
-      throw new Error('FORBIDDEN');
+      const assigned = await queryWithClient<any>(
+        client,
+        `SELECT 1 FROM subject_teachers WHERE subject_id = $1 AND teacher_id = $2`,
+        [rows[0].subject_id, teacherId]
+      );
+      if (!assigned.length) throw new Error('FORBIDDEN');
     }
 
     const updated = await queryWithClient<any>(
@@ -440,9 +465,11 @@ export interface CreateSessionInput {
   subjectId:   string;
   teacherId:   string;
   title:       string;
-  sessionDate: string;   // "YYYY-MM-DD"
-  startTime:   string;   // "HH:MM:00+05:30"
+  sessionDate: string;    // "YYYY-MM-DD"
+  startTime:   string;    // "HH:MM:00+05:30"
+  endTime?:    string;    // T6: optional end time; defaults to +90 min
   topicId?:    string;
+  studentIds?: string[];  // T1/T6: optional list for 1-on-1 targeting
 }
 
 export interface CreatedSession {
@@ -455,48 +482,112 @@ export interface CreatedSession {
 }
 
 export async function createSession(input: CreateSessionInput): Promise<CreatedSession> {
-  const { subjectId, teacherId, title, sessionDate, startTime, topicId } = input;
+  const { subjectId, teacherId, title, sessionDate, startTime, topicId, studentIds } = input;
 
-  // End time = start time + 90 minutes (prevents CHECK constraint violation)
-  const endTime = computeEndTime(startTime, 90);
+  // T6: use caller-provided end time or fall back to +90 min
+  const endTime = input.endTime ?? computeEndTime(startTime, 90);
 
-  const rows = await query<any>(
-    `INSERT INTO sessions (
-       subject_id, teacher_id, title,
-       session_date, start_time, end_time,
-       timezone, status, topic_id
-     )
-     VALUES ($1, $2, $3, $4, $5, $6, 'Asia/Kolkata', 'scheduled', $7)
-     RETURNING
-       id,
-       subject_id,
-       title,
-       session_date::text  AS session_date,
-       start_time::text    AS start_time,
-       status`,
-    [subjectId, teacherId, title, sessionDate, startTime, endTime, topicId ?? null]
-  );
+  return withTransaction(async (client) => {
+    const rows = await queryWithClient<any>(
+      client,
+      `INSERT INTO sessions (
+         subject_id, teacher_id, title,
+         session_date, start_time, end_time,
+         timezone, status, topic_id
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, 'Asia/Kolkata', 'scheduled', $7)
+       RETURNING
+         id,
+         subject_id,
+         title,
+         session_date::text  AS session_date,
+         start_time::text    AS start_time,
+         status`,
+      [subjectId, teacherId, title, sessionDate, startTime, endTime, topicId ?? null]
+    );
 
-  if (!rows[0]) throw new Error('Failed to create session');
+    if (!rows[0]) throw new Error('Failed to create session');
+    const r = rows[0];
 
-  const r = rows[0];
+    // T1/T6: insert targeted students if provided
+    if (studentIds && studentIds.length > 0) {
+      for (const sid of studentIds) {
+        await queryWithClient(
+          client,
+          `INSERT INTO session_students (session_id, student_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+          [r.id, sid]
+        );
+      }
+    }
 
-  // Fetch subject name for response
-  const subjectRows = await query<any>(
-    `SELECT name FROM subjects WHERE id = $1`,
+    // Fetch subject name for response
+    const subjectRows = await queryWithClient<any>(
+      client,
+      `SELECT name FROM subjects WHERE id = $1`,
+      [subjectId]
+    );
+
+    const timeStr = r.start_time.replace(/[+-]\d{2}:\d{2}$/, '');
+
+    return {
+      id:          r.id,
+      subject_id:  r.subject_id,
+      class_title: subjectRows[0]?.name ?? '',
+      title:       r.title,
+      scheduled_at: `${r.session_date}T${timeStr}`,
+      status:      'SCHEDULED',
+    };
+  });
+}
+
+// ─── GET enrolled students for a subject (teacher-visible) ─────
+// Used to populate student selectors for 1-on-1 session / assignment targeting.
+
+export async function getSubjectStudents(subjectId: string): Promise<Array<{
+  id: string; first_name: string; last_name: string; email: string;
+}>> {
+  return query<any>(
+    `SELECT u.id, u.first_name, u.last_name, u.email
+     FROM   subject_enrollments se
+     JOIN   users u ON u.id = se.student_id
+     WHERE  se.subject_id = $1 AND se.enrollment_status = 'active'
+     ORDER  BY u.first_name, u.last_name`,
     [subjectId]
   );
+}
 
-  const timeStr = r.start_time.replace(/[+-]\d{2}:\d{2}$/, '');
+// ─── T7: Teacher session history — per-student breakdown ───────
 
-  return {
-    id:          r.id,
-    subject_id:  r.subject_id,
-    class_title: subjectRows[0]?.name ?? '',
-    title:       r.title,
-    scheduled_at: `${r.session_date}T${timeStr}`,
-    status:      'SCHEDULED',
-  };
+export async function getMySessionStats(teacherId: string): Promise<Array<{
+  student_id: string;
+  student_name: string;
+  email: string;
+  sessions_count: number;
+  last_session: string | null;
+}>> {
+  const rows = await query<any>(
+    `SELECT
+       u.id         AS student_id,
+       u.first_name || ' ' || u.last_name AS student_name,
+       u.email,
+       COUNT(s.id)  AS sessions_count,
+       MAX(s.session_date::text) AS last_session
+     FROM   sessions s
+     JOIN   subject_enrollments se ON se.subject_id = s.subject_id
+     JOIN   users u ON u.id = se.student_id
+     WHERE  s.teacher_id = $1
+       AND  s.status = 'completed'
+     GROUP  BY u.id
+     ORDER  BY sessions_count DESC`,
+    [teacherId]
+  );
+  return rows.map((r: any) => ({
+    student_id:     r.student_id,
+    student_name:   r.student_name,
+    email:          r.email,
+    sessions_count: Number(r.sessions_count),
+    last_session:   r.last_session ?? null,
+  }));
 }
 
 // Add minutes to a TIMETZ string like "18:30:00+05:30"

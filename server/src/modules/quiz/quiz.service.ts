@@ -34,7 +34,8 @@ export interface Question {
 export interface Option {
   id: string;
   option_label: string;
-  option_text: string;
+  option_text: string | null;
+  option_image_url?: string | null; // T10
   is_correct?: boolean;
 }
 
@@ -103,7 +104,7 @@ export async function getQuizWithQuestions(quizId: string, role: string): Promis
   `, [quizId]);
 
   const optionRows = await query<any>(`
-    SELECT o.id, o.question_id, o.option_label, o.option_text
+    SELECT o.id, o.question_id, o.option_label, o.option_text, o.option_image_url
       ${role === 'teacher' || role === 'admin' ? ', o.is_correct' : ''}
     FROM options o
     JOIN questions q ON q.id = o.question_id
@@ -117,7 +118,8 @@ export async function getQuizWithQuestions(quizId: string, role: string): Promis
     optsByQuestion.get(o.question_id)!.push({
       id: o.id,
       option_label: o.option_label,
-      option_text: o.option_text,
+      option_text: o.option_text ?? null,
+      option_image_url: o.option_image_url ?? null,
       ...(role === 'teacher' || role === 'admin' ? { is_correct: o.is_correct } : {}),
     });
   }
@@ -163,7 +165,7 @@ export async function createQuiz(data: {
     marks: number;
     order_index: number;
     topic_id?: string;
-    options: Array<{ label: string; text: string; is_correct: boolean }>;
+    options: Array<{ label: string; text: string; imageUrl?: string; is_correct: boolean }>;
   }>;
 }): Promise<QuizSummary> {
   return withTransaction(async (client) => {
@@ -195,9 +197,9 @@ export async function createQuiz(data: {
 
       for (const opt of q.options) {
         await queryWithClient(client, `
-          INSERT INTO options (question_id, option_label, option_text, is_correct)
-          VALUES ($1,$2,$3,$4)
-        `, [questionId, opt.label, opt.text, opt.is_correct]);
+          INSERT INTO options (question_id, option_label, option_text, option_image_url, is_correct)
+          VALUES ($1,$2,$3,$4,$5)
+        `, [questionId, opt.label, opt.text || null, opt.imageUrl ?? null, opt.is_correct]);
       }
     }
 
@@ -563,7 +565,7 @@ export async function updateQuiz(data: {
     marks: number;
     order_index: number;
     topic_id?: string;
-    options: Array<{ label: string; text: string; is_correct: boolean }>;
+    options: Array<{ label: string; text: string; imageUrl?: string; is_correct: boolean }>;
   }>;
 }): Promise<QuizSummary> {
   return withTransaction(async (client) => {
@@ -600,9 +602,9 @@ export async function updateQuiz(data: {
 
       for (const opt of q.options) {
         await queryWithClient(client, `
-          INSERT INTO options (question_id, option_label, option_text, is_correct)
-          VALUES ($1,$2,$3,$4)
-        `, [questionId, opt.label, opt.text, opt.is_correct]);
+          INSERT INTO options (question_id, option_label, option_text, option_image_url, is_correct)
+          VALUES ($1,$2,$3,$4,$5)
+        `, [questionId, opt.label, opt.text || null, opt.imageUrl ?? null, opt.is_correct]);
       }
     }
 

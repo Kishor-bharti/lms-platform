@@ -42,15 +42,18 @@ export default function SubjectTeacher() {
 
   // Schedule session modal
   const [scheduleOpen,  setScheduleOpen]  = useState(false);
-  const [scheduleForm,  setScheduleForm]  = useState({ title: '', date: '', time: '', topicId: '' });
+  const [scheduleForm,  setScheduleForm]  = useState({ title: '', date: '', time: '', endTime: '', topicId: '', studentIds: [] });
   const [scheduling,    setScheduling]    = useState(false);
   const [scheduleError, setScheduleError] = useState('');
 
   // Create assignment modal
   const [assignOpen,   setAssignOpen]   = useState(false);
-  const [assignForm,   setAssignForm]   = useState({ title: '', description: '', due_date: '', max_marks: 100, attachment_url: '', topicId: '' });
+  const [assignForm,   setAssignForm]   = useState({ title: '', description: '', due_date: '', max_marks: 100, attachment_url: '', topicId: '', assignedTo: '' });
   const [assignSaving, setAssignSaving] = useState(false);
   const [assignError,  setAssignError]  = useState('');
+
+  // Subject students (for 1-on-1 session / assignment targeting)
+  const [subjectStudents, setSubjectStudents] = useState([]);
 
   // Materials
   const [materials,    setMaterials]    = useState([]);
@@ -90,13 +93,14 @@ export default function SubjectTeacher() {
 
   const fetchData = async () => {
     try {
-      const [sessRes, classRes, quizRes, assignRes, matRes, topicsRes] = await Promise.all([
+      const [sessRes, classRes, quizRes, assignRes, matRes, topicsRes, studentsRes] = await Promise.all([
         http.get('/api/classes/my-sessions-v2'),
         http.get('/api/classes/my-classes-v2'),
         http.get(`/api/quizzes/subject/${subjectId}`),
         http.get(`/api/assignments/subject/${subjectId}`),
         http.get(`/api/materials/subject/${subjectId}`),
         http.get(`/api/subjects/${subjectId}/topics`),
+        http.get(`/api/classes/subjects/${subjectId}/students`),
       ]);
       setSessions((sessRes.data || []).filter((s) => s.subject_id === subjectId));
       const found = (classRes.data || []).find((c) => c.id === subjectId);
@@ -105,6 +109,7 @@ export default function SubjectTeacher() {
       setAssignments(assignRes.data || []);
       setMaterials(matRes.data || []);
       setTopics(topicsRes.data || []);
+      setSubjectStudents(studentsRes.data || []);
       errorCount.current = 0;
     } catch (err) {
       console.error('[SubjectTeacher]', err);
@@ -142,17 +147,28 @@ export default function SubjectTeacher() {
   const handleSchedule = async (e) => {
     e.preventDefault(); setScheduleError('');
     if (!scheduleForm.title || !scheduleForm.date || !scheduleForm.time) {
-      setScheduleError('All fields are required'); return;
+      setScheduleError('Title, date, and start time are required'); return;
     }
     if (!scheduleForm.topicId) { setScheduleError('Topic is required'); return; }
     setScheduling(true);
     try {
-      await http.post('/api/classes/sessions/create', {
-        subjectId, title: scheduleForm.title,
-        sessionDate: scheduleForm.date, startTime: scheduleForm.time + ':00+05:30',
+      const payload = {
+        subjectId,
+        title: scheduleForm.title,
+        sessionDate: scheduleForm.date,
+        startTime: scheduleForm.time + ':00+05:30',
         topicId: scheduleForm.topicId || undefined,
-      });
-      setScheduleOpen(false); setScheduleForm({ title: '', date: '', time: '', topicId: '' }); fetchData();
+      };
+      if (scheduleForm.endTime) {
+        payload.endTime = scheduleForm.endTime + ':00+05:30';
+      }
+      if (scheduleForm.studentIds && scheduleForm.studentIds.length > 0) {
+        payload.studentIds = scheduleForm.studentIds;
+      }
+      await http.post('/api/classes/sessions/create', payload);
+      setScheduleOpen(false);
+      setScheduleForm({ title: '', date: '', time: '', endTime: '', topicId: '', studentIds: [] });
+      fetchData();
     } catch (err) {
       setScheduleError(err?.response?.data?.error || 'Failed to schedule');
     } finally { setScheduling(false); }
@@ -227,8 +243,16 @@ export default function SubjectTeacher() {
     if (!assignForm.topicId) { setAssignError('Topic is required'); return; }
     setAssignSaving(true);
     try {
-      await http.post('/api/assignments', { subjectId, ...assignForm, max_marks: Number(assignForm.max_marks), topicId: assignForm.topicId || undefined });
-      setAssignOpen(false); setAssignForm({ title: '', description: '', due_date: '', max_marks: 100, attachment_url: '', topicId: '' }); fetchData();
+      await http.post('/api/assignments', {
+        subjectId,
+        ...assignForm,
+        max_marks: Number(assignForm.max_marks),
+        topicId: assignForm.topicId || undefined,
+        assignedTo: assignForm.assignedTo || undefined,
+      });
+      setAssignOpen(false);
+      setAssignForm({ title: '', description: '', due_date: '', max_marks: 100, attachment_url: '', topicId: '', assignedTo: '' });
+      fetchData();
     } catch (err) {
       setAssignError(err?.response?.data?.error || 'Failed to create assignment');
     } finally { setAssignSaving(false); }
@@ -826,7 +850,10 @@ export default function SubjectTeacher() {
             <Form onSubmit={handleSchedule}>
               <FormGroup><Label>Title</Label><Input value={scheduleForm.title} onChange={(e) => setScheduleForm({ ...scheduleForm, title: e.target.value })} placeholder="e.g. Algebra Basics" /></FormGroup>
               <FormGroup><Label>Date</Label><Input type="date" value={scheduleForm.date} min={new Date().toISOString().split('T')[0]} onChange={(e) => setScheduleForm({ ...scheduleForm, date: e.target.value })} /></FormGroup>
-              <FormGroup><Label>Start Time</Label><Input type="time" value={scheduleForm.time} onChange={(e) => setScheduleForm({ ...scheduleForm, time: e.target.value })} /></FormGroup>
+              <Row>
+                <Col md="6"><FormGroup><Label>Start Time <span className="text-danger">*</span></Label><Input type="time" value={scheduleForm.time} onChange={(e) => setScheduleForm({ ...scheduleForm, time: e.target.value })} /></FormGroup></Col>
+                <Col md="6"><FormGroup><Label>End Time <span className="text-muted small">(optional)</span></Label><Input type="time" value={scheduleForm.endTime} onChange={(e) => setScheduleForm({ ...scheduleForm, endTime: e.target.value })} /></FormGroup></Col>
+              </Row>
               <FormGroup>
                 <Label>Topic <span className="text-danger">*</span></Label>
                 <Input type="select" value={scheduleForm.topicId} onChange={(e) => setScheduleForm({ ...scheduleForm, topicId: e.target.value })}>
@@ -834,6 +861,26 @@ export default function SubjectTeacher() {
                   {topics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </Input>
               </FormGroup>
+              {subjectStudents.length > 0 && (
+                <FormGroup>
+                  <Label>Students <span className="text-muted small">(leave empty = all enrolled students)</span></Label>
+                  <Input
+                    type="select"
+                    multiple
+                    value={scheduleForm.studentIds}
+                    onChange={(e) => {
+                      const selected = Array.from(e.target.selectedOptions, o => o.value);
+                      setScheduleForm({ ...scheduleForm, studentIds: selected });
+                    }}
+                    style={{ minHeight: 90 }}
+                  >
+                    {subjectStudents.map(s => (
+                      <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>
+                    ))}
+                  </Input>
+                  <small className="text-muted">Hold Ctrl / Cmd to select multiple students for 1-on-1 sessions</small>
+                </FormGroup>
+              )}
               {scheduleError && <p className="text-danger small">{scheduleError}</p>}
             </Form>
           </ModalBody>
@@ -860,6 +907,15 @@ export default function SubjectTeacher() {
                 <Input type="select" value={assignForm.topicId} onChange={(e) => setAssignForm({ ...assignForm, topicId: e.target.value })}>
                   <option value="">— Select topic —</option>
                   {topics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </Input>
+              </FormGroup>
+              <FormGroup>
+                <Label>Assign To <span className="text-muted small">(leave empty = all enrolled students)</span></Label>
+                <Input type="select" value={assignForm.assignedTo} onChange={(e) => setAssignForm({ ...assignForm, assignedTo: e.target.value })}>
+                  <option value="">— All students —</option>
+                  {subjectStudents.map(s => (
+                    <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>
+                  ))}
                 </Input>
               </FormGroup>
               {assignError && <p className="text-danger small">{assignError}</p>}

@@ -78,7 +78,9 @@ export async function getStudentAssignments(
     LEFT JOIN assignment_submissions sub
       ON sub.assignment_id = a.id AND sub.student_id = $2
     LEFT JOIN topics t ON t.id = a.topic_id
-    WHERE a.subject_id = $1 AND a.is_published = true
+    WHERE a.subject_id = $1
+      AND a.is_published = true
+      AND (a.assigned_to IS NULL OR a.assigned_to = $2)
     ORDER BY a.due_date ASC NULLS LAST
   `, [subjectId, studentId]);
 
@@ -120,18 +122,19 @@ export async function createAssignment(data: {
   max_marks?: number;
   attachment_url?: string;
   topicId?: string;
+  assignedTo?: string; // T2/T8: specific student, or null = all enrolled
 }): Promise<AssignmentSummary> {
   const rows = await query<any>(`
     INSERT INTO assignments
-      (subject_id, created_by, title, description, due_date, max_marks, attachment_url, topic_id, is_published)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,false)
+      (subject_id, created_by, title, description, due_date, max_marks, attachment_url, topic_id, assigned_to, is_published)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,false)
     RETURNING id, subject_id, topic_id, title, description, due_date, max_marks,
-              is_published, attachment_url, created_at
+              is_published, attachment_url, created_at, assigned_to
   `, [
     data.subjectId, data.createdBy, data.title,
     data.description ?? null, data.due_date ?? null,
     data.max_marks ?? 100, data.attachment_url ?? null,
-    data.topicId ?? null,
+    data.topicId ?? null, data.assignedTo ?? null,
   ]);
 
   return { ...rows[0], max_marks: Number(rows[0].max_marks), submission_count: 0 };

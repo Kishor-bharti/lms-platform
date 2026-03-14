@@ -3,7 +3,7 @@
 
 import { Request, Response } from 'express';
 import * as classesService from './classes.service';
-import { createSession } from './classes.service';
+import { createSession, getSubjectStudents, getMySessionStats } from './classes.service';
 import logger from '../../config/logger';
 
 // ─── GET /api/classes/my-classes-v2 ───────────────────────────
@@ -47,12 +47,14 @@ export async function createSessionHandler(req: Request, res: Response) {
       return res.status(403).json({ error: 'Only teachers can create sessions' });
     }
 
-    const { subjectId, title, sessionDate, startTime, topicId } = req.body as {
+    const { subjectId, title, sessionDate, startTime, endTime, topicId, studentIds } = req.body as {
       subjectId?:   string;
       title?:       string;
       sessionDate?: string;
       startTime?:   string;
+      endTime?:     string;
       topicId?:     string;
+      studentIds?:  string[];
     };
 
     if (!subjectId || !title || !sessionDate || !startTime) {
@@ -67,7 +69,9 @@ export async function createSessionHandler(req: Request, res: Response) {
       title,
       sessionDate,
       startTime,
-      ...(topicId ? { topicId } : {}),
+      ...(endTime     ? { endTime }     : {}),
+      ...(topicId     ? { topicId }     : {}),
+      ...(studentIds  ? { studentIds }  : {}),
     });
 
     return res.status(201).json(session);
@@ -119,6 +123,40 @@ export async function completeSessionById(req: Request, res: Response) {
     if (err.message === 'FORBIDDEN')         return res.status(403).json({ error: 'Not your session' });
     if (err.message === 'Session not found') return res.status(404).json({ error: 'Session not found' });
     return res.status(500).json({ error: 'Failed to complete session' });
+  }
+}
+
+// ─── GET /api/classes/subjects/:subjectId/students ─────────────
+// Returns enrolled students for a subject (teacher/admin only).
+export async function getSubjectStudentsHandler(req: Request, res: Response) {
+  try {
+    const subjectId = req.params.subjectId as string;
+    const role = req.user?.role;
+    if (role !== 'teacher' && role !== 'admin') {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    const students = await getSubjectStudents(subjectId);
+    return res.json(students);
+  } catch (err) {
+    logger.error('[classes] getSubjectStudents error:', err);
+    return res.status(500).json({ error: 'Failed to fetch students' });
+  }
+}
+
+// ─── GET /api/classes/my-session-stats ─────────────────────────
+// T7: Teacher session history — per-student breakdown.
+export async function getMySessionStatsHandler(req: Request, res: Response) {
+  try {
+    const teacherId = req.user?.id;
+    const role      = req.user?.role;
+    if (!teacherId || (role !== 'teacher' && role !== 'admin')) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    const stats = await getMySessionStats(teacherId);
+    return res.json(stats);
+  } catch (err) {
+    logger.error('[classes] getMySessionStats error:', err);
+    return res.status(500).json({ error: 'Failed to fetch session stats' });
   }
 }
 
