@@ -325,7 +325,8 @@ export async function getMySessionsV2(
 
 export async function startSessionById(
   sessionId: string,
-  teacherId: string
+  teacherId: string,
+  role?: string
 ): Promise<SessionWithDetails> {
   const ZOOM_HOST_EMAIL = process.env.ZOOM_HOST_EMAIL;
   if (!process.env.ZOOM_ACCOUNT_ID || !process.env.ZOOM_CLIENT_ID ||
@@ -352,8 +353,8 @@ export async function startSessionById(
     if (!rows[0]) throw new Error('Session not found');
     const existing = rows[0];
 
-    // T5 fix: allow any teacher assigned to the subject, not just the session creator
-    if (existing.teacher_id !== teacherId) {
+    // A5: admin bypasses ownership; T5: any assigned teacher can start
+    if (role !== 'admin' && existing.teacher_id !== teacherId) {
       const assigned = await queryWithClient<any>(
         client,
         `SELECT 1 FROM subject_teachers WHERE subject_id = $1 AND teacher_id = $2`,
@@ -405,7 +406,8 @@ export async function startSessionById(
 
 export async function completeSessionById(
   sessionId: string,
-  teacherId: string
+  teacherId: string,
+  role?: string
 ): Promise<SessionWithDetails> {
   return withTransaction(async (client) => {
     const rows = await queryWithClient<any>(
@@ -422,8 +424,8 @@ export async function completeSessionById(
     );
 
     if (!rows[0]) throw new Error('Session not found');
-    // T5 fix: allow any assigned teacher for the subject
-    if (rows[0].teacher_id !== teacherId) {
+    // A5: admin bypasses ownership; T5: any assigned teacher can complete
+    if (role !== 'admin' && rows[0].teacher_id !== teacherId) {
       const assigned = await queryWithClient<any>(
         client,
         `SELECT 1 FROM subject_teachers WHERE subject_id = $1 AND teacher_id = $2`,

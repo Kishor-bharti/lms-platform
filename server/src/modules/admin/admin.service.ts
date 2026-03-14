@@ -449,6 +449,130 @@ export async function deleteSubject(subjectId: string): Promise<void> {
   await query(`DELETE FROM subjects WHERE id = $1`, [subjectId]);
 }
 
+// ---- Admin session management (A6 / A7) ----
+
+export interface AdminCreateSessionInput {
+  teacherId:   string;
+  subjectId:   string;
+  title:       string;
+  sessionDate: string;   // 'YYYY-MM-DD'
+  startTime:   string;   // 'HH:MM'
+  endTime:     string;   // 'HH:MM'
+  topicId?:    string;
+  studentIds?: string[]; // optional 1-on-1 targeting
+  // recurring fields
+  isRecurring?:  boolean;
+  recurPattern?: 'daily' | 'weekly';
+  recurDays?:    number[]; // 0=Sun … 6=Sat (weekly only)
+  recurEndDate?: string;   // 'YYYY-MM-DD'
+}
+
+function generateRecurDates(
+  startDate: string,
+  endDate: string,
+  pattern: 'daily' | 'weekly',
+  days: number[],
+): string[] {
+  const dates: string[] = [];
+  const end = new Date(endDate + 'T00:00:00Z');
+  let   cur = new Date(startDate + 'T00:00:00Z');
+  const MAX = 365;
+
+  while (cur <= end && dates.length < MAX) {
+    const dow = cur.getUTCDay();
+    const iso = cur.toISOString().slice(0, 10);
+    if (pattern === 'daily') {
+      dates.push(iso);
+    } else if (days.length === 0 || days.includes(dow)) {
+      dates.push(iso);
+    }
+    cur = new Date(cur.getTime() + 86400000);
+  }
+  return dates;
+}
+
+export async function createAdminSession(input: AdminCreateSessionInput): Promise<{ sessions: any[] }> {
+  const {
+    teacherId, subjectId, title, sessionDate, startTime, endTime,
+    topicId, studentIds,
+    isRecurring, recurPattern, recurDays, recurEndDate,
+  } = input;
+
+  return withTransaction(async (client) => {
+    let recurrenceId: string | null = null;
+    let sessionDates: string[]      = [sessionDate];
+
+    if (isRecurring && recurEndDate) {
+      const pattern = recurPattern || 'weekly';
+      const days    = recurDays    || [];
+
+      const recRows = await queryWithClient<any>(client, `
+        INSERT INTO session_recurrence
+          (pattern, interval_value, days_of_week, recur_until)
+        VALUES ($1, $2, $3, $4)
+        RETURNING id
+      `, [pattern, 1, days.length ? days : null, recurEndDate]);
+
+      recurrenceId = recRows[0].id;
+      sessionDates = generateRecurDates(sessionDate, recurEndDate, pattern, days);
+    }
+
+    const created: any[] = [];
+    for (const date of sessionDates) {
+      const rows = await queryWithClient<any>(client, `
+        INSERT INTO sessions
+          (subject_id, teacher_id, title, session_date, start_time, end_time,
+           topic_id, is_recurring, recurrence_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        RETURNING id, title, session_date::text, start_time::text, status
+      `, [
+        subjectId, teacherId, title, date, startTime, endTime,
+        topicId || null,
+        Boolean(isRecurring && recurrenceId),
+        recurrenceId,
+      ]);
+
+      const session = rows[0];
+      created.push(session);
+
+      if (studentIds && studentIds.length > 0) {
+        for (const sid of studentIds) {
+          await queryWithClient(client, `
+            INSERT INTO session_students (session_id, student_id)
+            VALUES ($1, $2)
+            ON CONFLICT DO NOTHING
+          `, [session.id, sid]);
+        }
+      }
+    }
+
+    return { sessions: created };
+  });
+}
+
+export async function updateAdminSession(
+  sessionId: string,
+  data: { title?: string; sessionDate?: string; startTime?: string; endTime?: string; topicId?: string | null }
+): Promise<void> {
+  const sets:   string[] = [];
+  const params: any[]    = [];
+  let idx = 1;
+
+  if (data.title       !== undefined) { sets.push(`title        = $${idx++}`); params.push(data.title); }
+  if (data.sessionDate !== undefined) { sets.push(`session_date = $${idx++}`); params.push(data.sessionDate); }
+  if (data.startTime   !== undefined) { sets.push(`start_time   = $${idx++}`); params.push(data.startTime); }
+  if (data.endTime     !== undefined) { sets.push(`end_time     = $${idx++}`); params.push(data.endTime); }
+  if (data.topicId     !== undefined) { sets.push(`topic_id     = $${idx++}`); params.push(data.topicId); }
+
+  if (sets.length === 0) return;
+  params.push(sessionId);
+  await query(`UPDATE sessions SET ${sets.join(', ')}, updated_at = now() WHERE id = $${idx}`, params);
+}
+
+export async function deleteAdminSession(sessionId: string): Promise<void> {
+  await query(`DELETE FROM sessions WHERE id = $1`, [sessionId]);
+}
+
 // ---- All sessions (admin view) ----
 
 export async function getAllSessionsAdmin() {

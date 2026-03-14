@@ -93,7 +93,7 @@ export async function startSessionById(req: Request, res: Response) {
       return res.status(403).json({ error: 'Only teachers can start sessions' });
     }
 
-    const session = await classesService.startSessionById(sessionId, req.user!.id);
+    const session = await classesService.startSessionById(sessionId, req.user!.id, userRole);
     return res.json(session);
   } catch (err: any) {
     logger.error('[classes] startSession error:', err);
@@ -116,7 +116,7 @@ export async function completeSessionById(req: Request, res: Response) {
       return res.status(403).json({ error: 'Only teachers can end sessions' });
     }
 
-    const session = await classesService.completeSessionById(sessionId, req.user!.id);
+    const session = await classesService.completeSessionById(sessionId, req.user!.id, userRole);
     return res.json(session);
   } catch (err: any) {
     logger.error('[classes] completeSession error:', err);
