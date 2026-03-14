@@ -439,6 +439,7 @@ const Sidebar = (props) => {
           }
         `}</style>
       </Container>
+      
       <div style={{ position: "absolute", right: -14, top: "50%", transform: "translateY(-50%)", zIndex: 1040 }}>
         <button
           ref={toggleBtnRef}
