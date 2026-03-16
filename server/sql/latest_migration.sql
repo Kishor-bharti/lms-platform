@@ -24,3 +24,31 @@ ALTER TABLE options
 -- option_text is now optional (either text or image required at app level)
 ALTER TABLE options
   ALTER COLUMN option_text DROP NOT NULL;
+
+
+
+-- ================================================================
+-- after creating a new bucket "assignment-uploads" in S3, run the following to update the default value for the "assignment_image_url" column:
+-- ================================================================
+
+-- read SETUP_DATABASE_AND_STORAGE.md for instructions on how to create the bucket and get the URL
+
+
+-- Allow authenticated users to upload
+CREATE POLICY "Allow authenticated uploads to assignment-files"
+ON storage.objects
+FOR INSERT TO authenticated
+WITH CHECK (bucket_id = 'assignment-files');
+
+-- Allow public reads (so uploaded files are accessible)
+CREATE POLICY "Allow public reads from assignment-files"
+ON storage.objects
+FOR SELECT TO public
+USING (bucket_id = 'assignment-files');
+
+
+-- update policy on supabase
+CREATE POLICY "Allow anon uploads to assignment-files"
+ON storage.objects
+FOR INSERT TO anon
+WITH CHECK (bucket_id = 'assignment-files');
