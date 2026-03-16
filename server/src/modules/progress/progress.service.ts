@@ -18,7 +18,7 @@ export async function getActivityForRange(
 ): Promise<DayActivity[]> {
   const rows = await query<any>(`
     SELECT
-      DATE(qa.submitted_at AT TIME ZONE 'UTC') AS day,
+      DATE(qa.submitted_at AT TIME ZONE 'Asia/Kolkata') AS day,
       COUNT(DISTINCT qa.id) FILTER (WHERE qz.quiz_type = 'test')     AS quizzes,
       COUNT(DISTINCT qa.id) FILTER (WHERE qz.quiz_type = 'practice') AS practices,
       COALESCE(SUM(aa.is_correct::int), 0)                           AS correct,
@@ -29,8 +29,8 @@ export async function getActivityForRange(
     LEFT JOIN attempt_answers aa ON aa.attempt_id = qa.id
     WHERE qa.student_id = $1
       AND qa.status = 'submitted'
-      AND DATE(qa.submitted_at AT TIME ZONE 'UTC') >= $2::date
-      AND DATE(qa.submitted_at AT TIME ZONE 'UTC') <= $3::date
+      AND DATE(qa.submitted_at AT TIME ZONE 'Asia/Kolkata') >= $2::date
+      AND DATE(qa.submitted_at AT TIME ZONE 'Asia/Kolkata') <= $3::date
     GROUP BY day
     ORDER BY day
   `, [studentId, startDate, endDate]);
@@ -57,15 +57,21 @@ export async function getActivityForRange(
   return result;
 }
 
-// Backwards-compatible: last 7 days
+// Backwards-compatible: last 7 days (IST-aware)
+function toISTDateStr(date: Date): string {
+  // Convert to IST (UTC+5:30) and return YYYY-MM-DD
+  const ist = new Date(date.getTime() + (5 * 60 + 30) * 60 * 1000);
+  return ist.toISOString().slice(0, 10);
+}
+
 export async function getWeeklyActivity(studentId: string): Promise<DayActivity[]> {
   const end = new Date();
   const start = new Date();
-  start.setUTCDate(start.getUTCDate() - 6);
+  start.setDate(start.getDate() - 6);
   return getActivityForRange(
     studentId,
-    start.toISOString().slice(0, 10),
-    end.toISOString().slice(0, 10),
+    toISTDateStr(start),
+    toISTDateStr(end),
   );
 }
 
