@@ -3,7 +3,7 @@
 
 import { Request, Response } from 'express';
 import * as classesService from './classes.service';
-import { createSession, getSubjectStudents, getMySessionStats } from './classes.service';
+import { createSession, getSubjectStudents, getSubjectTeachers, getMySessionStats } from './classes.service';
 import logger from '../../config/logger';
 
 // ─── GET /api/classes/my-classes-v2 ───────────────────────────
@@ -47,15 +47,10 @@ export async function createSessionHandler(req: Request, res: Response) {
       return res.status(403).json({ error: 'Only teachers can create sessions' });
     }
 
-    const { subjectId, title, sessionDate, startTime, endTime, topicId, studentIds } = req.body as {
-      subjectId?:   string;
-      title?:       string;
-      sessionDate?: string;
-      startTime?:   string;
-      endTime?:     string;
-      topicId?:     string;
-      studentIds?:  string[];
-    };
+    const {
+      subjectId, title, sessionDate, startTime, endTime, topicId, studentIds,
+      isRecurring, recurPattern, recurDays, recurEndDate,
+    } = req.body;
 
     if (!subjectId || !title || !sessionDate || !startTime) {
       return res.status(400).json({
@@ -63,18 +58,19 @@ export async function createSessionHandler(req: Request, res: Response) {
       });
     }
 
-    const session = await createSession({
+    const result = await createSession({
       subjectId,
       teacherId: userId,
       title,
       sessionDate,
       startTime,
-      ...(endTime     ? { endTime }     : {}),
-      ...(topicId     ? { topicId }     : {}),
-      ...(studentIds  ? { studentIds }  : {}),
+      ...(endTime      ? { endTime }      : {}),
+      ...(topicId      ? { topicId }      : {}),
+      ...(studentIds   ? { studentIds }   : {}),
+      ...(isRecurring  ? { isRecurring, recurPattern, recurDays, recurEndDate } : {}),
     });
 
-    return res.status(201).json(session);
+    return res.status(201).json(result);
   } catch (err: any) {
     logger.error('[classes] createSession error:', err);
     return res.status(500).json({ error: err.message || 'Failed to create session' });
@@ -123,6 +119,22 @@ export async function completeSessionById(req: Request, res: Response) {
     if (err.message === 'FORBIDDEN')         return res.status(403).json({ error: 'Not your session' });
     if (err.message === 'Session not found') return res.status(404).json({ error: 'Session not found' });
     return res.status(500).json({ error: 'Failed to complete session' });
+  }
+}
+
+// ─── GET /api/classes/subjects/:subjectId/teachers ─────────────
+export async function getSubjectTeachersHandler(req: Request, res: Response) {
+  try {
+    const subjectId = req.params.subjectId as string;
+    const role = req.user?.role;
+    if (role !== 'teacher' && role !== 'admin') {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    const teachers = await classesService.getSubjectTeachers(subjectId);
+    return res.json(teachers);
+  } catch (err) {
+    logger.error('[classes] getSubjectTeachers error:', err);
+    return res.status(500).json({ error: 'Failed to fetch teachers' });
   }
 }
 

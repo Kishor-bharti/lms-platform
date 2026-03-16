@@ -464,14 +464,35 @@ export async function completeSessionById(
 // ─── CREATE session (teacher/admin) ────────────────────────────
 
 export interface CreateSessionInput {
-  subjectId:   string;
-  teacherId:   string;
-  title:       string;
-  sessionDate: string;    // "YYYY-MM-DD"
-  startTime:   string;    // "HH:MM:00+05:30"
-  endTime?:    string;    // T6: optional end time; defaults to +90 min
-  topicId?:    string;
-  studentIds?: string[];  // T1/T6: optional list for 1-on-1 targeting
+  subjectId:    string;
+  teacherId:    string;
+  title:        string;
+  sessionDate:  string;   // "YYYY-MM-DD"
+  startTime:    string;   // "HH:MM:00+05:30"
+  endTime?:     string;   // T6: optional end time; defaults to +90 min
+  topicId?:     string;
+  studentIds?:  string[]; // T1/T6: optional list for 1-on-1 targeting
+  // A6: recurring session support
+  isRecurring?:  boolean;
+  recurPattern?: 'daily' | 'weekly';
+  recurDays?:    number[]; // 0=Sun … 6=Sat (weekly only)
+  recurEndDate?: string;   // "YYYY-MM-DD"
+}
+
+function generateDates(
+  startDate: string, endDate: string,
+  pattern: 'daily' | 'weekly', days: number[],
+): string[] {
+  const dates: string[] = [];
+  const end = new Date(endDate + 'T00:00:00Z');
+  let   cur = new Date(startDate + 'T00:00:00Z');
+  while (cur <= end && dates.length < 365) {
+    const dow = cur.getUTCDay();
+    const iso = cur.toISOString().slice(0, 10);
+    if (pattern === 'daily' || days.length === 0 || days.includes(dow)) dates.push(iso);
+    cur = new Date(cur.getTime() + 86400000);
+  }
+  return dates;
 }
 
 export interface CreatedSession {
@@ -483,63 +504,88 @@ export interface CreatedSession {
   status:      string;
 }
 
-export async function createSession(input: CreateSessionInput): Promise<CreatedSession> {
-  const { subjectId, teacherId, title, sessionDate, startTime, topicId, studentIds } = input;
+export async function createSession(input: CreateSessionInput): Promise<{ sessions: CreatedSession[]; count: number }> {
+  const {
+    subjectId, teacherId, title, sessionDate, startTime, topicId, studentIds,
+    isRecurring, recurPattern, recurDays, recurEndDate,
+  } = input;
 
-  // T6: use caller-provided end time or fall back to +90 min
   const endTime = input.endTime ?? computeEndTime(startTime, 90);
 
   return withTransaction(async (client) => {
-    const rows = await queryWithClient<any>(
-      client,
-      `INSERT INTO sessions (
-         subject_id, teacher_id, title,
-         session_date, start_time, end_time,
-         timezone, status, topic_id
-       )
-       VALUES ($1, $2, $3, $4, $5, $6, 'Asia/Kolkata', 'scheduled', $7)
-       RETURNING
-         id,
-         subject_id,
-         title,
-         session_date::text  AS session_date,
-         start_time::text    AS start_time,
-         status`,
-      [subjectId, teacherId, title, sessionDate, startTime, endTime, topicId ?? null]
-    );
+    // Fetch subject name once
+    const subjectRows = await queryWithClient<any>(client, `SELECT name FROM subjects WHERE id = $1`, [subjectId]);
+    const class_title = subjectRows[0]?.name ?? '';
 
-    if (!rows[0]) throw new Error('Failed to create session');
-    const r = rows[0];
+    let recurrenceId: string | null = null;
+    let sessionDates: string[]      = [sessionDate];
 
-    // T1/T6: insert targeted students if provided
-    if (studentIds && studentIds.length > 0) {
-      for (const sid of studentIds) {
-        await queryWithClient(
-          client,
-          `INSERT INTO session_students (session_id, student_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-          [r.id, sid]
-        );
-      }
+    if (isRecurring && recurEndDate) {
+      const pattern = recurPattern || 'weekly';
+      const days    = recurDays    || [];
+      const recRows = await queryWithClient<any>(client, `
+        INSERT INTO session_recurrence (pattern, interval_value, days_of_week, recur_until)
+        VALUES ($1, $2, $3, $4) RETURNING id
+      `, [pattern, 1, days.length ? days : null, recurEndDate]);
+      recurrenceId = recRows[0].id;
+      sessionDates = generateDates(sessionDate, recurEndDate, pattern, days);
     }
 
-    // Fetch subject name for response
-    const subjectRows = await queryWithClient<any>(
-      client,
-      `SELECT name FROM subjects WHERE id = $1`,
-      [subjectId]
-    );
+    const created: CreatedSession[] = [];
+    for (const date of sessionDates) {
+      const rows = await queryWithClient<any>(
+        client,
+        `INSERT INTO sessions (
+           subject_id, teacher_id, title,
+           session_date, start_time, end_time,
+           timezone, status, topic_id, is_recurring, recurrence_id
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, 'Asia/Kolkata', 'scheduled', $7, $8, $9)
+         RETURNING id, subject_id, title, session_date::text, start_time::text, status`,
+        [subjectId, teacherId, title, date, startTime, endTime,
+         topicId ?? null, Boolean(isRecurring && recurrenceId), recurrenceId]
+      );
 
-    const timeStr = r.start_time.replace(/[+-]\d{2}:\d{2}$/, '');
+      if (!rows[0]) throw new Error('Failed to create session');
+      const r = rows[0];
 
-    return {
-      id:          r.id,
-      subject_id:  r.subject_id,
-      class_title: subjectRows[0]?.name ?? '',
-      title:       r.title,
-      scheduled_at: `${r.session_date}T${timeStr}`,
-      status:      'SCHEDULED',
-    };
+      if (studentIds && studentIds.length > 0) {
+        for (const sid of studentIds) {
+          await queryWithClient(client,
+            `INSERT INTO session_students (session_id, student_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+            [r.id, sid]
+          );
+        }
+      }
+
+      const timeStr = r.start_time.replace(/[+-]\d{2}:\d{2}$/, '');
+      created.push({
+        id:           r.id,
+        subject_id:   r.subject_id,
+        class_title,
+        title:        r.title,
+        scheduled_at: `${r.session_date}T${timeStr}`,
+        status:       'SCHEDULED',
+      });
+    }
+
+    return { sessions: created, count: created.length };
   });
+}
+
+// ─── GET teachers assigned to a subject ────────────────────────
+
+export async function getSubjectTeachers(subjectId: string): Promise<Array<{
+  id: string; first_name: string; last_name: string; email: string;
+}>> {
+  return query<any>(
+    `SELECT u.id, u.first_name, u.last_name, u.email
+     FROM   subject_teachers st
+     JOIN   users u ON u.id = st.teacher_id
+     WHERE  st.subject_id = $1
+     ORDER  BY u.first_name, u.last_name`,
+    [subjectId]
+  );
 }
 
 // ─── GET enrolled students for a subject (teacher-visible) ─────
