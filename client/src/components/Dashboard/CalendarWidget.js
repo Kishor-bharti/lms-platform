@@ -75,7 +75,7 @@ export default function CalendarWidget() {
   /* fetch all sessions once */
   useEffect(() => {
     setSessionsLoading(true);
-    http.get('/classes/my-sessions-v2')
+    http.get('/api/classes/my-sessions-v2')
       .then(res => setSessions(Array.isArray(res.data) ? res.data : []))
       .catch(() => setSessions([]))
       .finally(() => setSessionsLoading(false));
