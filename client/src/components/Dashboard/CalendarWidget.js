@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import http from "../../utils/http";
 
 /* ── helpers ─────────────────────────────────────────── */
 function monthMatrix(date) {
@@ -26,6 +27,35 @@ function fmt(y, m, d) {
   return `${DAY_HDRS[new Date(y,m,d).getDay()]}, ${MO_SHORT[m]} ${d}`;
 }
 
+function pad2(n) { return String(n).padStart(2, '0'); }
+
+function toDateStr(y, m, d) {
+  return `${y}-${pad2(m + 1)}-${pad2(d)}`;
+}
+
+function fmtTime(scheduledAt) {
+  // scheduledAt = "2026-03-16T18:30:00"
+  const t = scheduledAt?.slice(11, 16);
+  if (!t) return '';
+  const [hh, mm] = t.split(':').map(Number);
+  const ampm = hh >= 12 ? 'PM' : 'AM';
+  const h12  = hh % 12 || 12;
+  return `${h12}:${pad2(mm)} ${ampm}`;
+}
+
+const STATUS_COLORS = {
+  live:      { bg: 'rgba(45,206,137,0.18)', color: '#2dce89', label: 'LIVE' },
+  today:     { bg: 'rgba(251,99,64,0.18)',  color: '#fb6340', label: 'TODAY' },
+  tomorrow:  { bg: 'rgba(94,114,228,0.18)', color: '#5e72e4', label: 'TMRW' },
+  scheduled: { bg: 'rgba(130,94,228,0.18)', color: '#825ee4', label: 'UPCOMING' },
+  completed: { bg: 'rgba(255,255,255,0.08)',color: '#718096', label: 'DONE' },
+};
+
+function statusStyle(status) {
+  const key = (status || '').toLowerCase();
+  return STATUS_COLORS[key] || STATUS_COLORS.scheduled;
+}
+
 /* ── component ───────────────────────────────────────── */
 export default function CalendarWidget() {
   const today     = useMemo(() => new Date(), []);
@@ -33,11 +63,41 @@ export default function CalendarWidget() {
   const [sel,     setSel]     = useState(null);          // {y,m,d}
   const [view,    setView]    = useState("cal");          // "cal"|"month"|"year"
   const [yrBase,  setYrBase]  = useState(() => Math.floor(today.getFullYear() / 12) * 12);
+  const [sessions,       setSessions]       = useState([]);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
+
   const cells = useMemo(() => monthMatrix(cur), [cur]);
   const navigate = useNavigate();
 
   const role = typeof window !== "undefined" ? window.localStorage.getItem("role") : null;
   const sessionsPath = role === "student" ? "/admin/classes" : "/admin/sessions";
+
+  /* fetch all sessions once */
+  useEffect(() => {
+    setSessionsLoading(true);
+    http.get('/api/classes/my-sessions-v2')
+      .then(res => setSessions(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setSessions([]))
+      .finally(() => setSessionsLoading(false));
+  }, []);
+
+  /* set of date strings that have sessions — for dot indicators */
+  const sessionDateSet = useMemo(() => {
+    const s = new Set();
+    sessions.forEach(sess => {
+      if (sess.scheduled_at) s.add(sess.scheduled_at.slice(0, 10));
+    });
+    return s;
+  }, [sessions]);
+
+  /* sessions for the selected day */
+  const daySessions = useMemo(() => {
+    if (!sel) return [];
+    const dateStr = toDateStr(sel.y, sel.m, sel.d);
+    return sessions
+      .filter(s => s.scheduled_at?.startsWith(dateStr))
+      .sort((a, b) => (a.scheduled_at || '').localeCompare(b.scheduled_at || ''));
+  }, [sel, sessions]);
 
   const isToday = c =>
     c.type === "curr" &&
@@ -62,7 +122,7 @@ export default function CalendarWidget() {
   };
 
   const navMonth = delta => setCur(new Date(cur.getFullYear(), cur.getMonth() + delta, 1));
-  const goToday  = () => { setCur(new Date()); setView("cal"); };
+  const goToday  = () => { setCur(new Date()); setSel(null); setView("cal"); };
 
   const selLabel = sel ? fmt(sel.y, sel.m, sel.d)
     : fmt(today.getFullYear(), today.getMonth(), today.getDate());
@@ -161,6 +221,10 @@ export default function CalendarWidget() {
               const isWknd = col === 0 || col === 6;
               const td     = isToday(c);
               const sc     = isSel(c);
+              const cellDateStr = c.type === "curr"
+                ? toDateStr(cur.getFullYear(), cur.getMonth(), c.day)
+                : null;
+              const hasDot = cellDateStr && sessionDateSet.has(cellDateStr) && !td && !sc;
               return (
                 <div
                   key={i}
@@ -176,9 +240,48 @@ export default function CalendarWidget() {
                 >
                   <span className="cw-cell-inner">{c.day}</span>
                   {td && <span className="cw-today-ring" />}
+                  {hasDot && <span className="cw-session-dot" />}
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* SESSIONS PANEL — shown when a date is selected */}
+        {view === "cal" && sel && (
+          <div className="cw-sp">
+            <div className="cw-sp-hdr">
+              <span className="cw-sp-title">{selLabel}</span>
+              {!sessionsLoading && (
+                <span className="cw-sp-count">
+                  {daySessions.length} session{daySessions.length !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+
+            {sessionsLoading ? (
+              <div className="cw-sp-empty">Loading…</div>
+            ) : daySessions.length === 0 ? (
+              <div className="cw-sp-empty">No sessions scheduled</div>
+            ) : (
+              <div className="cw-sp-list">
+                {daySessions.map(s => {
+                  const st = statusStyle(s.status);
+                  return (
+                    <div key={s.id} className="cw-sp-item">
+                      <div className="cw-sp-time">{fmtTime(s.scheduled_at)}</div>
+                      <div className="cw-sp-info">
+                        <div className="cw-sp-name">{s.title}</div>
+                        <div className="cw-sp-sub">{s.class_title}</div>
+                      </div>
+                      <span className="cw-sp-badge" style={{ background: st.bg, color: st.color }}>
+                        {st.label}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -186,7 +289,7 @@ export default function CalendarWidget() {
       {/* ══ FOOTER ══════════════════════════════════════ */}
       <div className="cw-footer">
         <button className="cw-sessions-btn" onClick={() => navigate(sessionsPath)}>
-          <span>View Sessions</span>
+          <span>View All Sessions</span>
           <span className="cw-btn-arrow">→</span>
         </button>
       </div>
@@ -391,8 +494,10 @@ export default function CalendarWidget() {
         .cw-faded:hover { background: rgba(255,255,255,0.04) !important; }
         .cw-faded:hover .cw-cell-inner { color: rgba(255,255,255,0.3) !important; }
 
-        /* weekend tint */
-        .cw-wkend-cell:not(.cw-faded) .cw-cell-inner { color: rgba(130,94,228,0.9); }
+        /* weekend tint — only when NOT today or selected */
+        .cw-wkend-cell:not(.cw-faded):not(.cw-today):not(.cw-selected) .cw-cell-inner {
+          color: rgba(130,94,228,0.9);
+        }
 
         /* today */
         .cw-today {
@@ -415,6 +520,18 @@ export default function CalendarWidget() {
           outline-offset: -2px;
         }
         .cw-selected .cw-cell-inner { color: #fff; font-weight: 700; }
+
+        /* session dot indicator */
+        .cw-session-dot {
+          position: absolute;
+          bottom: 3px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 4px; height: 4px;
+          border-radius: 50%;
+          background: #5e72e4;
+          pointer-events: none;
+        }
 
         /* ── picker overlay ── */
         .cw-picker-overlay {
@@ -489,6 +606,95 @@ export default function CalendarWidget() {
         .cw-yr-nav-btn:hover {
           background: rgba(94,114,228,0.25) !important;
           color: #fff !important;
+        }
+
+        /* ── sessions panel ── */
+        .cw-sp {
+          margin-top: 12px;
+          border-top: 1px solid rgba(255,255,255,0.07);
+          padding-top: 10px;
+          animation: cwFadeIn 0.18s ease;
+        }
+        .cw-sp-hdr {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 8px;
+        }
+        .cw-sp-title {
+          font-size: 12px;
+          font-weight: 700;
+          color: rgba(255,255,255,0.7);
+          letter-spacing: 0.2px;
+        }
+        .cw-sp-count {
+          font-size: 11px;
+          font-weight: 600;
+          color: rgba(94,114,228,0.9);
+          background: rgba(94,114,228,0.12);
+          padding: 2px 8px;
+          border-radius: 10px;
+        }
+        .cw-sp-empty {
+          font-size: 12px;
+          color: rgba(255,255,255,0.25);
+          text-align: center;
+          padding: 10px 0;
+          font-style: italic;
+        }
+        .cw-sp-list {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          max-height: 180px;
+          overflow-y: auto;
+        }
+        .cw-sp-list::-webkit-scrollbar { width: 3px; }
+        .cw-sp-list::-webkit-scrollbar-track { background: transparent; }
+        .cw-sp-list::-webkit-scrollbar-thumb { background: rgba(94,114,228,0.4); border-radius: 3px; }
+        .cw-sp-item {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          background: rgba(255,255,255,0.04);
+          border: 1px solid rgba(255,255,255,0.06);
+          border-radius: 10px;
+          padding: 7px 10px;
+        }
+        .cw-sp-time {
+          font-size: 11px;
+          font-weight: 700;
+          color: rgba(255,255,255,0.45);
+          min-width: 52px;
+          flex-shrink: 0;
+        }
+        .cw-sp-info {
+          flex: 1;
+          min-width: 0;
+        }
+        .cw-sp-name {
+          font-size: 12px;
+          font-weight: 600;
+          color: rgba(255,255,255,0.85);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .cw-sp-sub {
+          font-size: 10.5px;
+          color: rgba(255,255,255,0.35);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          margin-top: 1px;
+        }
+        .cw-sp-badge {
+          font-size: 9.5px;
+          font-weight: 800;
+          padding: 2px 7px;
+          border-radius: 8px;
+          letter-spacing: 0.3px;
+          flex-shrink: 0;
         }
 
         /* ── footer ── */
