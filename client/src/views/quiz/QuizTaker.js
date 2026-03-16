@@ -5,6 +5,7 @@ import {
 import Header from 'components/Headers/Header.js';
 import LatexRenderer from 'components/LatexRenderer.js';
 import { useNavigate, useParams } from 'react-router-dom';
+import { PageCardSkeleton } from 'components/Skeleton.js';
 import http from 'utils/http';
 import { API_BASE } from 'utils/api';
 
@@ -267,9 +268,9 @@ export default function QuizTaker() {
   if (phase === 'loading') {
     return (
       <>
-        <Header />
+        <Header hideSubtitle />
         <Container className="mt--7" fluid style={{ backgroundColor: 'rgb(196,214,226)', minHeight: '100vh', paddingTop: 30 }}>
-          <Row><Col><Card><CardBody className="text-center py-5"><p>Loading...</p></CardBody></Card></Col></Row>
+          <PageCardSkeleton />
         </Container>
       </>
     );
@@ -278,7 +279,7 @@ export default function QuizTaker() {
   if (phase === 'error') {
     return (
       <>
-        <Header />
+        <Header hideSubtitle />
         <Container className="mt--7" fluid style={{ backgroundColor: 'rgb(196,214,226)', minHeight: '100vh', paddingTop: 30 }}>
           <Row><Col><Card><CardBody className="text-center py-5">
             <p className="text-danger">{error}</p>
@@ -300,7 +301,7 @@ export default function QuizTaker() {
 
     return (
       <>
-        <Header />
+        <Header hideSubtitle />
         <Container className="mt--7" fluid style={{ backgroundColor: 'rgb(196,214,226)', minHeight: '100vh', paddingTop: 30, paddingBottom: 30 }}>
           <Row className="justify-content-center">
             <Col lg="7">
@@ -395,7 +396,7 @@ export default function QuizTaker() {
 
     return (
       <>
-        <Header />
+        <Header hideSubtitle />
         <Container className="mt--7" fluid style={{ backgroundColor: 'rgb(196,214,226)', minHeight: '100vh', paddingTop: 30, paddingBottom: 30 }}>
           <Row>
             {/* Main question */}
@@ -416,7 +417,7 @@ export default function QuizTaker() {
                         style={{ fontWeight: 600, textTransform: 'capitalize' }}>
                         {q?.difficulty}
                       </Badge>
-                      <Badge color="info">{q?.marks} {q?.marks === 1 ? 'mark' : 'marks'}</Badge>
+                      <Badge color="info">{q?.marks} {q?.marks === 1 ? 'point' : 'points'}</Badge>
                     </div>
                   </div>
                 </CardHeader>
@@ -465,7 +466,11 @@ export default function QuizTaker() {
                           }}>
                             {opt.option_label}
                           </span>
-                          <span style={{ color: '#32325d' }}><LatexRenderer text={opt.option_text || ''} /></span>
+                          {opt.option_image_url ? (
+                            <img src={opt.option_image_url} alt={`Option ${opt.option_label}`} style={{ maxWidth: '100%', maxHeight: 120, borderRadius: 6, objectFit: 'contain' }} />
+                          ) : (
+                            <span style={{ color: '#32325d' }}><LatexRenderer text={opt.option_text || ''} /></span>
+                          )}
                         </button>
                       );
                     })}
@@ -597,7 +602,7 @@ export default function QuizTaker() {
     const incorrectCount = answeredCount - correctCount;
     return (
       <>
-        <Header />
+        <Header hideSubtitle />
         <Container className="mt--7" fluid style={{ backgroundColor: 'rgb(196,214,226)', minHeight: '100vh', paddingTop: 30, paddingBottom: 30 }}>
           <Row className="justify-content-center mb-4">
             <Col lg="8">
@@ -642,7 +647,7 @@ export default function QuizTaker() {
                         <span>{idx + 1}. </span><LatexRenderer text={a.question_text || ''} />
                       </div>
                       <Badge color={a.is_correct ? 'success' : 'danger'} style={{ marginLeft: 12, flexShrink: 0 }}>
-                        {a.is_correct ? `+${Number(a.marks_awarded).toFixed(1)}` : '0'} marks
+                        {a.is_correct ? `+${Number(a.marks_awarded).toFixed(1)}` : '0'} points
                       </Badge>
                     </div>
                     {a.image_url && (
@@ -653,12 +658,22 @@ export default function QuizTaker() {
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                       <div style={{ background: a.is_correct ? '#eafaf1' : '#fde8ec', border: `1px solid ${a.is_correct ? '#2dce89' : '#f5365c'}`, borderRadius: 8, padding: '6px 14px', fontSize: 13 }}>
                         <span style={{ fontWeight: 700 }}>Your answer: </span>
-                        {a.selected_label ? <><span>{a.selected_label}. </span><LatexRenderer text={a.selected_text || ''} /></> : 'Not answered'}
+                        {a.selected_label ? (
+                          <>
+                            <span>{a.selected_label}. </span>
+                            {a.selected_image_url
+                              ? <img src={a.selected_image_url} alt={`Option ${a.selected_label}`} style={{ maxHeight: 80, maxWidth: 160, borderRadius: 6, objectFit: 'contain', verticalAlign: 'middle', marginLeft: 4 }} />
+                              : <LatexRenderer text={a.selected_text || ''} />}
+                          </>
+                        ) : 'Not answered'}
                       </div>
                       {!a.is_correct && (
                         <div style={{ background: '#eafaf1', border: '1px solid #2dce89', borderRadius: 8, padding: '6px 14px', fontSize: 13 }}>
                           <span style={{ fontWeight: 700 }}>Correct: </span>
-                          <span>{a.correct_label}. </span><LatexRenderer text={a.correct_text || ''} />
+                          <span>{a.correct_label}. </span>
+                          {a.correct_image_url
+                            ? <img src={a.correct_image_url} alt={`Option ${a.correct_label}`} style={{ maxHeight: 80, maxWidth: 160, borderRadius: 6, objectFit: 'contain', verticalAlign: 'middle', marginLeft: 4 }} />
+                            : <LatexRenderer text={a.correct_text || ''} />}
                         </div>
                       )}
                     </div>
@@ -692,7 +707,7 @@ export default function QuizTaker() {
 
     return (
       <>
-        <Header />
+        <Header hideSubtitle />
         <Container className="mt--7" fluid style={{ backgroundColor: 'rgb(196,214,226)', minHeight: '100vh', paddingTop: 30, paddingBottom: 30 }}>
           <Row className="justify-content-center mb-4">
             <Col lg="8">
@@ -701,7 +716,7 @@ export default function QuizTaker() {
               <div style={{ background: 'linear-gradient(135deg, #5e72e4, #825ee4)', padding: '36px 24px' }}>
                 <div style={{ fontSize: 72, fontWeight: 900, color: '#fff', lineHeight: 1 }}>{scorePct}%</div>
                 <div style={{ color: 'rgba(255,255,255,0.75)', marginTop: 8 }}>
-                    {Number(attempt.marks_obtained).toFixed(1)} / {Number(attempt.total_marks).toFixed(1)} marks
+                    {Number(attempt.marks_obtained).toFixed(1)} / {Number(attempt.total_marks).toFixed(1)} points
                   </div>
                 </div>
                 <CardBody>
@@ -726,6 +741,47 @@ export default function QuizTaker() {
             </Col>
           </Row>
 
+          {/* Topic breakdown */}
+          {reviewAnswers && (() => {
+            const topicMap = {};
+            for (const a of reviewAnswers) {
+              const key = a.topic_name || 'Uncategorised';
+              if (!topicMap[key]) topicMap[key] = { correct: 0, wrong: 0, total: 0 };
+              topicMap[key].total += 1;
+              if (a.is_correct) topicMap[key].correct += 1;
+              else topicMap[key].wrong += 1;
+            }
+            const topics = Object.entries(topicMap);
+            if (topics.length === 0) return null;
+            return (
+              <Row className="justify-content-center mb-4">
+                <Col lg="8">
+                  <Card className="shadow" style={{ borderRadius: 16 }}>
+                    <CardBody>
+                      <h5 style={{ color: '#32325d', marginBottom: 16, fontWeight: 700 }}>Topic-wise Breakdown</h5>
+                      <div style={{ display: 'grid', gap: 10 }}>
+                        {topics.map(([topicName, stats]) => {
+                          const pct = Math.round((stats.correct / stats.total) * 100);
+                          return (
+                            <div key={topicName} style={{ background: '#f8f9fa', borderRadius: 10, padding: '10px 14px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                <span style={{ fontWeight: 600, color: '#32325d', fontSize: 14 }}>{topicName}</span>
+                                <span style={{ fontSize: 13, color: '#525f7f' }}>{stats.correct}/{stats.total} correct</span>
+                              </div>
+                              <div style={{ background: '#dee2e6', borderRadius: 6, height: 8, overflow: 'hidden' }}>
+                                <div style={{ width: `${pct}%`, height: '100%', background: pct >= 70 ? '#2dce89' : pct >= 40 ? '#fb6340' : '#f5365c', borderRadius: 6, transition: 'width 0.4s' }} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </CardBody>
+                  </Card>
+                </Col>
+              </Row>
+            );
+          })()}
+
           {/* Review answers */}
           <Row className="justify-content-center">
             <Col lg="8">
@@ -738,7 +794,7 @@ export default function QuizTaker() {
                         <span>{idx + 1}. </span><LatexRenderer text={a.question_text || ''} />
                       </div>
                       <Badge color={a.is_correct ? 'success' : 'danger'} style={{ marginLeft: 12, flexShrink: 0 }}>
-                        {a.is_correct ? `+${Number(a.marks_awarded).toFixed(1)}` : '0'} marks
+                        {a.is_correct ? `+${Number(a.marks_awarded).toFixed(1)}` : '0'} points
                       </Badge>
                     </div>
                     {a.image_url && (
@@ -761,12 +817,22 @@ export default function QuizTaker() {
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                       <div style={{ background: a.is_correct ? '#eafaf1' : '#fde8ec', border: `1px solid ${a.is_correct ? '#2dce89' : '#f5365c'}`, borderRadius: 8, padding: '6px 14px', fontSize: 13 }}>
                         <span style={{ fontWeight: 700 }}>Your answer: </span>
-                        {a.selected_label ? <><span>{a.selected_label}. </span><LatexRenderer text={a.selected_text || ''} /></> : 'Not answered'}
+                        {a.selected_label ? (
+                          <>
+                            <span>{a.selected_label}. </span>
+                            {a.selected_image_url
+                              ? <img src={a.selected_image_url} alt={`Option ${a.selected_label}`} style={{ maxHeight: 80, maxWidth: 160, borderRadius: 6, objectFit: 'contain', verticalAlign: 'middle', marginLeft: 4 }} />
+                              : <LatexRenderer text={a.selected_text || ''} />}
+                          </>
+                        ) : 'Not answered'}
                       </div>
                       {!a.is_correct && (
                         <div style={{ background: '#eafaf1', border: '1px solid #2dce89', borderRadius: 8, padding: '6px 14px', fontSize: 13 }}>
                           <span style={{ fontWeight: 700 }}>Correct: </span>
-                          <span>{a.correct_label}. </span><LatexRenderer text={a.correct_text || ''} />
+                          <span>{a.correct_label}. </span>
+                          {a.correct_image_url
+                            ? <img src={a.correct_image_url} alt={`Option ${a.correct_label}`} style={{ maxHeight: 80, maxWidth: 160, borderRadius: 6, objectFit: 'contain', verticalAlign: 'middle', marginLeft: 4 }} />
+                            : <LatexRenderer text={a.correct_text || ''} />}
                         </div>
                       )}
                     </div>

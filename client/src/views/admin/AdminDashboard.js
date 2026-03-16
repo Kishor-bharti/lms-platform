@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Container, Row, Col, Card, CardHeader, CardBody, CardTitle, Button } from 'reactstrap';
 import Header from 'components/Headers/Header.js';
 import http from 'utils/http';
+import { TableSkeleton, StatValueSkeleton } from 'components/Skeleton.js';
 
 export default function AdminDashboard() {
   const [stats,    setStats]    = useState(null);
@@ -57,7 +58,7 @@ export default function AdminDashboard() {
                     <div>
                       <div className="text-muted small" style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase' }}>{c.label}</div>
                       <div style={{ fontSize: 28, fontWeight: 800, color: '#32325d', lineHeight: 1.2 }}>
-                        {loading ? '...' : c.value}
+                        {loading ? <StatValueSkeleton /> : c.value}
                       </div>
                     </div>
                     <div style={{ width: 44, height: 44, borderRadius: 12, background: c.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -103,9 +104,7 @@ export default function AdminDashboard() {
                 <Button size="sm" color="primary" outline onClick={() => navigate('/admin/admin-sessions')}>View All</Button>
               </CardHeader>
               <CardBody style={{ overflowX: 'auto' }}>
-                {loading ? (
-                  <p className="text-muted text-center py-3">Loading...</p>
-                ) : sessions.length === 0 ? (
+                {sessions.length === 0 && !loading ? (
                   <p className="text-muted text-center py-3">No sessions yet</p>
                 ) : (
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -116,7 +115,7 @@ export default function AdminDashboard() {
                         ))}
                       </tr>
                     </thead>
-                    <tbody>
+                    {loading ? <TableSkeleton cols={6} rows={5} /> : <tbody>
                       {sessions.map((s) => (
                         <tr key={s.id} style={{ borderBottom: '1px solid #f0f4f8' }}>
                           <td style={{ padding: '12px 14px', fontWeight: 600, color: '#32325d' }}>{s.title}</td>
@@ -131,7 +130,7 @@ export default function AdminDashboard() {
                           </td>
                         </tr>
                       ))}
-                    </tbody>
+                    </tbody>}
                   </table>
                 )}
               </CardBody>

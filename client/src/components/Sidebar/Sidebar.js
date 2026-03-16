@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import { createPortal } from "react-dom";
 import { NavLink as NavLinkRRD, Link, useNavigate } from "react-router-dom";
 import { PropTypes } from "prop-types";
 import {
@@ -7,7 +8,6 @@ import {
 } from "reactstrap";
 import http from "utils/http";
 
-// Course icon map — falls back to a default
 const COURSE_ICONS = {
   ACT: { icon: "ni ni-book-bookmark", color: "#11cdef" },
   AP:  { icon: "ni ni-trophy",       color: "#fb6340" },
@@ -15,10 +15,15 @@ const COURSE_ICONS = {
 const DEFAULT_COURSE = { icon: "ni ni-collection",  color: "#2dce89" };
 
 const Sidebar = (props) => {
-  const [collapseOpen, setCollapseOpen] = useState(false);
-  const [mini, setMini] = useState(false);
-  const [courses, setCourses] = useState([]);          // dynamic courses from API
-  const [expandedCourse, setExpandedCourse] = useState(null); // which course is open
+  const [collapseOpen,   setCollapseOpen]   = useState(false);
+  const [mini,           setMini]           = useState(false);
+  const [courses,        setCourses]        = useState([]);
+  const [expandedCourse, setExpandedCourse] = useState(null);
+  const [logoutOpen,     setLogoutOpen]     = useState(false);
+  const [toggleHovered,  setToggleHovered]  = useState(false);
+  const [showHint,       setShowHint]       = useState(false);
+  const [tooltipPos,     setTooltipPos]     = useState({ top: 0, left: 0 });
+  const toggleBtnRef = useRef(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -26,10 +31,47 @@ const Sidebar = (props) => {
     if (saved === "true") setMini(true);
   }, []);
 
-  // Fetch courses on mount
+  /* ── one-time onboarding hint ── */
   useEffect(() => {
-    fetchCourses();
+    if (!localStorage.getItem("sidebar-shortcut-seen")) {
+      const t = setTimeout(() => {
+        if (toggleBtnRef.current) {
+          const r = toggleBtnRef.current.getBoundingClientRect();
+          setTooltipPos({ top: r.top + r.height / 2, left: r.right + 16 });
+        }
+        setShowHint(true);
+      }, 1200);
+      return () => clearTimeout(t);
+    }
   }, []);
+  useEffect(() => {
+    if (!showHint) return;
+    const t = setTimeout(() => {
+      setShowHint(false);
+      localStorage.setItem("sidebar-shortcut-seen", "1");
+    }, 5000);
+    return () => clearTimeout(t);
+  }, [showHint]);
+
+  /* ── Ctrl+B global keyboard shortcut ── */
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.ctrlKey && e.key === "b" && !e.shiftKey && !e.altKey) {
+        const tag = document.activeElement?.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+        e.preventDefault();
+        setMini((v) => {
+          const n = !v;
+          localStorage.setItem("sidebar-mini", String(n));
+          return n;
+        });
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  useEffect(() => { fetchCourses(); }, []);
 
   const fetchCourses = async () => {
     try {
@@ -52,37 +94,29 @@ const Sidebar = (props) => {
 
   const closeCollapse = () => setCollapseOpen(false);
 
-  // Static nav links — role-filtered
   const createLinks = (routes) => {
     const userRole = typeof window !== "undefined" ? window.localStorage.getItem("role") : null;
     const userRoleUpper = (userRole ?? "").toUpperCase();
     return routes
       .filter((prop) => {
         if (prop.layout !== "/admin") return false;
-        if (prop.hidden) return false;          // skip hidden routes (e.g. /subject/:id)
+        if (prop.hidden) return false;
         if (!prop.roles) return true;
         return prop.roles.map((r) => r.toUpperCase()).includes(userRoleUpper);
       })
       .map((prop, key) => (
-        <NavItem key={key}>
+        <NavItem key={key} className="sidebar-nav-item">
           <NavLink
             to={prop.layout + prop.path}
             tag={NavLinkRRD}
             onClick={(e) => {
               if (prop.name === "Logout") {
                 e.preventDefault();
-                const confirmed = window.confirm('Are you sure you want to logout?');
-                if (!confirmed) return;
-                window.localStorage.removeItem("accessToken");
-                window.localStorage.removeItem("refreshToken");
-                window.localStorage.removeItem("role");
-                window.localStorage.removeItem("user");
-                navigate("/auth/login");
-              } else {
-                closeCollapse();
-              }
+                setLogoutOpen(true);
+              } else { closeCollapse(); }
             }}
             title={prop.name}
+            className="sidebar-link"
           >
             <i className={prop.icon} />
             <span className="nav-link-text" style={mini ? { display: "none" } : undefined}>
@@ -93,77 +127,47 @@ const Sidebar = (props) => {
       ));
   };
 
-  // Dynamic course sections — each course expands to show subjects
   const createCourseLinks = () => {
     if (!courses.length) return null;
     return courses.map((course) => {
       const { icon, color } = COURSE_ICONS[course.code] ?? DEFAULT_COURSE;
       const isOpen = expandedCourse === course.id;
-
       return (
-        <div key={course.id}>
-          {/* Course header row — click to expand/collapse */}
-          <NavItem>
+        <div key={course.id} className="course-section">
+          <NavItem className="sidebar-nav-item">
             <NavLink
               href="#"
-              onClick={(e) => {
-                e.preventDefault();
-                setExpandedCourse(isOpen ? null : course.id);
-              }}
+              onClick={(e) => { e.preventDefault(); setExpandedCourse(isOpen ? null : course.id); }}
               title={course.name}
+              className="sidebar-link course-header"
               style={{ cursor: "pointer" }}
             >
               <i className={icon} style={{ color }} />
-              <span
-                className="nav-link-text"
-                style={{
-                  ...(mini ? { display: "none" } : {}),
-                  fontWeight: 600,
-                  color: "#32325d",
-                }}
-              >
+              <span className="nav-link-text" style={{ ...(mini ? { display: "none" } : {}), fontWeight: 600, color: "#32325d" }}>
                 {course.name}
               </span>
               {!mini && (
-                <i
-                  className={`ni ${isOpen ? "ni-bold-up" : "ni-bold-down"} ml-auto`}
-                  style={{ fontSize: "10px", color: "#8898aa" }}
-                />
+                <i className={`ni ${isOpen ? "ni-bold-up" : "ni-bold-down"} ml-auto`}
+                   style={{ fontSize: "10px", color: "#8898aa", transition: "transform 0.3s ease" }} />
               )}
             </NavLink>
           </NavItem>
-
-          {/* Subject list — shown when course expanded */}
           {isOpen && !mini && (
-            <div style={{ paddingLeft: "20px", borderLeft: "2px solid #e9ecef", marginLeft: "22px", marginBottom: "4px" }}>
+            <div className="subject-list" style={{ paddingLeft: "20px", borderLeft: "2px solid rgba(94,114,228,0.15)", marginLeft: "22px", marginBottom: "4px" }}>
               {course.subjects.map((subject) => (
-                <NavItem key={subject.id}>
-                  <NavLink
-                    to={`/admin/subject/${subject.id}`}
-                    tag={NavLinkRRD}
-                    onClick={closeCollapse}
-                    title={subject.name}
-                    style={{ padding: "6px 12px", fontSize: "13px" }}
-                  >
-                    <i
-                      className="ni ni-circle-08"
-                      style={{ fontSize: "8px", color: "#8898aa", marginRight: "8px" }}
-                    />
+                <NavItem key={subject.id} className="sidebar-nav-item subject-item">
+                  <NavLink to={`/admin/subject/${subject.id}`} tag={NavLinkRRD} onClick={closeCollapse}
+                    title={subject.name} className="sidebar-link" style={{ padding: "6px 12px", fontSize: "13px" }}>
+                    <i className="ni ni-circle-08" style={{ fontSize: "8px", color: "#8898aa", marginRight: "8px" }} />
                     <span style={{ color: "#525f7f" }}>{subject.name}</span>
                   </NavLink>
                 </NavItem>
               ))}
-              <NavItem key={`quiz-${course.id}`}>
-                <NavLink
-                  to={`/admin/course-quiz/${course.id}`}
-                  tag={NavLinkRRD}
-                  onClick={closeCollapse}
-                  title={`${course.name} — Test Sets`}
-                  style={{ padding: "6px 12px", fontSize: "13px" }}
-                >
-                  <i className="ni ni-paper-diploma"
-                     style={{ fontSize: "9px", color: "#5e72e4", marginRight: "8px" }} />
-                  <span style={{ color: "#5e72e4", fontWeight: 700 }}>Quiz</span>
+              <NavItem key={`quiz-${course.id}`} className="sidebar-nav-item">
+                <NavLink to={`/admin/course-quiz/${course.id}`} tag={NavLinkRRD} onClick={closeCollapse}
+                  title={`${course.name} — Test Sets`} className="sidebar-link quiz-link" style={{ padding: "6px 12px", fontSize: "13px" }}>
+                  <i className="ni ni-paper-diploma nav-link-icon" style={{ fontSize: "9px", marginRight: "8px" }} />
+                  <span className="nav-link-text" style={{ fontWeight: 700 }}>Quiz</span>
                 </NavLink>
               </NavItem>
             </div>
@@ -175,90 +179,63 @@ const Sidebar = (props) => {
 
   const { routes, logo } = props;
   let navbarBrandProps;
-  if (logo?.innerLink) {
-    navbarBrandProps = { to: logo.innerLink, tag: Link };
-  } else if (logo?.outterLink) {
-    navbarBrandProps = { href: logo.outterLink, target: "_blank" };
-  }
+  if (logo?.innerLink) navbarBrandProps = { to: logo.innerLink, tag: Link };
+  else if (logo?.outterLink) navbarBrandProps = { href: logo.outterLink, target: "_blank" };
 
   return (
+    <>
     <Navbar
-      className={`navbar-vertical fixed-left navbar-light bg-white ${mini ? "sidebar-mini" : ""} ${collapseOpen ? "sidebar-open" : ""}`}
-      expand="md"
-      id="sidenav-main"
+      className={`navbar-vertical fixed-left navbar-light ${mini ? "sidebar-mini" : ""} ${collapseOpen ? "sidebar-open" : ""}`}
+      expand="md" id="sidenav-main"
     >
       <Container fluid>
-        {/* Mobile toggler */}
         <button className="navbar-toggler" type="button" onClick={toggleCollapse}>
           <span className="navbar-toggler-icon" />
         </button>
-
-        {/* Brand logo */}
         {logo && (
           <NavbarBrand className="pt-0" {...navbarBrandProps}>
-            <img alt={logo.imgAlt} className="navbar-brand-img" src={logo.imgSrc} />
+            <img alt={logo.imgAlt} className="navbar-brand-img" src={logo.imgSrc} style={{ maxHeight: '64px', width: 'auto' }} />
           </NavbarBrand>
         )}
-
         <Collapse navbar isOpen={collapseOpen}>
-          {/* Mobile collapse header */}
           <div className="navbar-collapse-header d-md-none">
             <Row>
               {logo && (
                 <Col className="collapse-brand" xs="6">
-                  {logo.innerLink ? (
-                    <Link to={logo.innerLink}><img alt={logo.imgAlt} src={logo.imgSrc} /></Link>
-                  ) : (
-                    <a href={logo.outterLink}><img alt={logo.imgAlt} src={logo.imgSrc} /></a>
-                  )}
+                  {logo.innerLink
+                    ? <Link to={logo.innerLink}><img alt={logo.imgAlt} src={logo.imgSrc} /></Link>
+                    : <a href={logo.outterLink}><img alt={logo.imgAlt} src={logo.imgSrc} /></a>}
                 </Col>
               )}
               <Col className="collapse-close" xs="6">
-                <button className="navbar-toggler" type="button" onClick={toggleCollapse}>
-                  <span /><span />
-                </button>
+                <button className="navbar-toggler" type="button" onClick={toggleCollapse}><span /><span /></button>
               </Col>
             </Row>
           </div>
-
-          {/* Search (mobile only) */}
           <Form className="mt-4 mb-3 d-md-none">
             <InputGroup className="input-group-rounded input-group-merge">
-              <Input
-                aria-label="Search"
-                className="form-control-rounded form-control-prepended"
-                placeholder="Search"
-                type="search"
-              />
-              <InputGroupAddon addonType="prepend">
-                <InputGroupText><span className="fa fa-search" /></InputGroupText>
-              </InputGroupAddon>
+              <Input aria-label="Search" className="form-control-rounded form-control-prepended" placeholder="Search" type="search" />
+              <InputGroupAddon addonType="prepend"><InputGroupText><span className="fa fa-search" /></InputGroupText></InputGroupAddon>
             </InputGroup>
           </Form>
 
-          {/* ── Static nav links (Dashboard, Sessions, Classes, etc.) ── */}
           <Nav navbar>{createLinks(routes)}</Nav>
 
-          {/* ── Dynamic courses section ── */}
           {courses.length > 0 && (
             <>
               <hr className="my-3" />
-              <h6
-                className="navbar-heading text-muted"
-                style={mini ? { display: "none" } : undefined}
-              >
-                My Courses
+              <h6 className="navbar-heading text-muted sidebar-section-title" style={mini ? { display: "none" } : undefined}>
+                <span className="section-dot" style={{ background: "#5e72e4" }} />My Courses
               </h6>
               <Nav navbar>{createCourseLinks()}</Nav>
             </>
           )}
 
-          {/* ── Admin Panel section (admin only) ── */}
           {(typeof window !== "undefined" && (window.localStorage.getItem("role") || "").toLowerCase() === "admin") && (
             <>
               <hr className="my-3" />
-              <h6 className="navbar-heading text-muted" style={mini ? { display: "none" } : undefined}>
-                Admin Panel
+              <h6 className="navbar-heading text-muted sidebar-section-title" style={mini ? { display: "none" } : undefined}>
+                <span className="section-dot" style={{ background: "#f5365c" }} />Admin Panel
               </h6>
               <Nav navbar>
                 {[
@@ -268,13 +245,9 @@ const Sidebar = (props) => {
                   { path: "/admin-subjects", label: "Subjects",     icon: "ni ni-collection" },
                   { path: "/admin-sessions", label: "All Sessions", icon: "ni ni-calendar-grid-58" },
                 ].map((item) => (
-                  <NavItem key={item.path}>
-                    <NavLink
-                      to={"/admin" + item.path}
-                      tag={NavLinkRRD}
-                      onClick={closeCollapse}
-                      title={item.label}
-                    >
+                  <NavItem key={item.path} className="sidebar-nav-item admin-item">
+                    <NavLink to={"/admin" + item.path} tag={NavLinkRRD} onClick={closeCollapse}
+                      title={item.label} className="sidebar-link">
                       <i className={item.icon} style={{ color: "#f5365c" }} />
                       <span className="nav-link-text" style={mini ? { display: "none" } : { color: "#f5365c", fontWeight: 600 }}>
                         {item.label}
@@ -286,70 +259,322 @@ const Sidebar = (props) => {
             </>
           )}
 
-
-          {/* ── Resources section ── */}
-          <hr className="my-3" />
-          <h6
-            className="navbar-heading text-muted"
-            style={mini ? { display: "none" } : undefined}
-          >
-            Resources
-          </h6>
-          <Nav className="mb-md-3" navbar>
-            <NavItem>
-              <NavLink href="#" title="Course Guide">
-                <i className="ni ni-spaceship" />
-                <span className="nav-link-text" style={mini ? { display: "none" } : undefined}>Course Guide</span>
-              </NavLink>
-            </NavItem>
-            <NavItem>
-              <NavLink href="#" title="Student Support">
-                <i className="ni ni-palette" />
-                <span className="nav-link-text" style={mini ? { display: "none" } : undefined}>Student Support</span>
-              </NavLink>
-            </NavItem>
-            <NavItem>
-              <NavLink href="#" title="Help Center">
-                <i className="ni ni-ui-04" />
-                <span className="nav-link-text" style={mini ? { display: "none" } : undefined}>Help Center</span>
-              </NavLink>
-            </NavItem>
-          </Nav>
         </Collapse>
 
         <style>{`
-          #sidenav-main { width: 250px; transition: width 0.2s ease; }
-          #sidenav-main.sidebar-mini { width: 90px; }
-          .main-content { margin-left: 250px; transition: margin-left 0.2s ease; }
-          #sidenav-main.sidebar-mini ~ .main-content { margin-left: 90px; }
-          #sidenav-main .sidebar-edge-toggle {
-            position: absolute; right: -12px; top: 50%; transform: translateY(-50%);
-            width: 36px; height: 36px; border-radius: 50%; background: #fff;
-            border: 1px solid #e9ecef; box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-            display: flex; align-items: center; justify-content: center; z-index: 1040;
+          #sidenav-main {
+            width: 260px;
+            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%) !important;
+            border-right: 1px solid rgba(94, 114, 228, 0.08);
+            box-shadow: 4px 0 24px rgba(94, 114, 228, 0.06);
           }
-          #sidenav-main .sidebar-edge-toggle:hover { background: #f8f9fa; }
+          #sidenav-main.sidebar-mini { width: 90px; }
+          .main-content { margin-left: 260px; transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+          #sidenav-main.sidebar-mini ~ .main-content { margin-left: 90px; }
+          .sidebar-section-title {
+            display: flex; align-items: center; gap: 8px;
+            font-size: 11px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase;
+          }
+          .section-dot {
+            width: 6px; height: 6px; border-radius: 50%; display: inline-block; flex-shrink: 0;
+            animation: dotPulse 2s ease-in-out infinite;
+          }
+          @keyframes dotPulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.4); }
+          }
+          .sidebar-nav-item { margin: 1px 8px; }
+          .sidebar-link {
+            border-radius: 10px !important;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+            position: relative;
+          }
+          .sidebar-link:hover {
+            background: linear-gradient(135deg, rgba(94,114,228,0.08) 0%, rgba(130,94,228,0.06) 100%) !important;
+            transform: translateX(4px);
+          }
+          .sidebar-link.active {
+            background: linear-gradient(135deg, #5e72e4 0%, #825ee4 100%) !important;
+            color: #fff !important;
+            box-shadow: 0 4px 16px rgba(94,114,228,0.3);
+          }
+          .sidebar-link.active i,
+          .sidebar-link.active span,
+          .sidebar-link.active .nav-link-text { color: #fff !important; }
+          .quiz-link:not(.active) .nav-link-icon,
+          .quiz-link:not(.active) .nav-link-text { color: #5e72e4; }
+          .subject-list { animation: slideDown 0.3s ease; }
+          @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-8px); }
+            to   { opacity: 1; transform: translateY(0); }
+          }
+          #sidenav-main .sidebar-edge-toggle {
+            width: 28px; height: 28px; border-radius: 50%;
+            background: linear-gradient(135deg, #5e72e4 0%, #825ee4 100%);
+            border: 2px solid #fff;
+            box-shadow: 0 4px 12px rgba(94,114,228,0.3);
+            display: flex; align-items: center; justify-content: center;
+            color: #fff; transition: all 0.3s ease; padding: 0 !important;
+          }
+          #sidenav-main .sidebar-edge-toggle:hover {
+            transform: scale(1.15);
+            box-shadow: 0 6px 20px rgba(94,114,228,0.4);
+          }
+          #sidenav-main .sidebar-edge-toggle i { font-size: 10px; }
+
+          /* ── hover tooltip ── */
+          .st-tooltip {
+            position: fixed;
+            transform: translateY(-50%);
+            background: #1a1d2e;
+            border-radius: 10px;
+            padding: 8px 12px;
+            white-space: nowrap;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.22);
+            pointer-events: none;
+            animation: stFadeIn 0.15s ease;
+            z-index: 9999;
+          }
+          .st-tooltip::before {
+            content: "";
+            position: absolute;
+            right: 100%; top: 50%; transform: translateY(-50%);
+            border: 6px solid transparent;
+            border-right-color: #1a1d2e;
+          }
+          @keyframes stFadeIn {
+            from { opacity: 0; transform: translateY(-50%) translateX(-4px); }
+            to   { opacity: 1; transform: translateY(-50%) translateX(0); }
+          }
+          .st-tooltip-title {
+            font-size: 12px; font-weight: 600; color: #fff;
+            margin-bottom: 5px;
+          }
+          .st-tooltip-shortcut {
+            display: flex; align-items: center; gap: 4px;
+          }
+          .st-tooltip-shortcut span { color: rgba(255,255,255,0.4); font-size: 11px; }
+          .st-tooltip kbd {
+            background: rgba(255,255,255,0.12);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 5px;
+            padding: 2px 7px;
+            font-size: 11px;
+            color: #fff;
+            font-family: inherit;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+          }
+
+          /* ── onboarding hint ── */
+          .st-hint {
+            position: fixed;
+            transform: translateY(-50%);
+            background: #fff;
+            border-radius: 14px;
+            padding: 14px 16px 14px 14px;
+            width: 240px;
+            box-shadow: 0 16px 48px rgba(0,0,0,0.16), 0 0 0 1px rgba(94,114,228,0.15);
+            display: flex; align-items: flex-start; gap: 10px;
+            z-index: 9999;
+            animation: stHintIn 0.3s cubic-bezier(0.22,1,0.36,1);
+          }
+          .st-hint::before {
+            content: "";
+            position: absolute;
+            right: 100%; top: 50%; transform: translateY(-50%);
+            border: 7px solid transparent;
+            border-right-color: #fff;
+          }
+          @keyframes stHintIn {
+            from { opacity: 0; transform: translateY(-50%) translateX(-8px) scale(0.95); }
+            to   { opacity: 1; transform: translateY(-50%) scale(1); }
+          }
+          .st-hint-icon { font-size: 20px; flex-shrink: 0; line-height: 1.3; }
+          .st-hint-body {
+            flex: 1; display: flex; flex-direction: column; gap: 4px;
+          }
+          .st-hint-body strong {
+            font-size: 13px; font-weight: 800; color: #1a1d2e;
+          }
+          .st-hint-body span {
+            font-size: 12px; color: #718096; line-height: 1.45;
+          }
+          .st-hint-body kbd {
+            display: inline-block;
+            background: #edf2f7;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            padding: 0px 5px;
+            font-size: 11px;
+            color: #5e72e4;
+            font-weight: 700;
+            font-family: inherit;
+          }
+          .st-hint-close {
+            background: none; border: none;
+            color: #a0aec0; font-size: 16px; line-height: 1;
+            cursor: pointer; padding: 0; flex-shrink: 0;
+            transition: color 0.15s;
+          }
+          .st-hint-close:hover { color: #4a5568; }
+          .admin-item .sidebar-link:hover {
+            background: linear-gradient(135deg, rgba(245,54,92,0.08) 0%, rgba(245,54,92,0.04) 100%) !important;
+          }
+          #sidenav-main .navbar-collapse {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(94,114,228,0.15) transparent;
+          }
+          #sidenav-main .navbar-collapse::-webkit-scrollbar { width: 4px; }
+          #sidenav-main .navbar-collapse::-webkit-scrollbar-track { background: transparent; }
+          #sidenav-main .navbar-collapse::-webkit-scrollbar-thumb { background: rgba(94,114,228,0.15); border-radius: 4px; }
           @media (max-width: 767.98px) {
             #sidenav-main { width: 70px; }
             #sidenav-main.sidebar-mini { width: 70px; }
-            #sidenav-main.sidebar-open { width: 250px; }
+            #sidenav-main.sidebar-open { width: 260px; }
             .main-content { margin-left: 0; }
             #sidenav-main.sidebar-mini ~ .main-content { margin-left: 0; }
             #sidenav-main .sidebar-edge-toggle { display: none; }
           }
         `}</style>
       </Container>
+      
+      <div style={{ position: "absolute", right: -14, top: "50%", transform: "translateY(-50%)", zIndex: 1040 }}>
+        <button
+          ref={toggleBtnRef}
+          type="button"
+          className="sidebar-edge-toggle btn"
+          aria-label="Toggle sidebar"
+          onClick={() => setMini((v) => { const n = !v; localStorage.setItem("sidebar-mini", String(n)); return n; })}
+          onMouseEnter={() => {
+            if (toggleBtnRef.current) {
+              const r = toggleBtnRef.current.getBoundingClientRect();
+              setTooltipPos({ top: r.top + r.height / 2, left: r.right + 12 });
+            }
+            setToggleHovered(true);
+          }}
+          onMouseLeave={() => setToggleHovered(false)}
+        >
+          <i className={mini ? "ni ni-bold-right" : "ni ni-bold-left"} />
+        </button>
 
-      {/* Edge mini-toggle button */}
-      <button
-        type="button"
-        className="sidebar-edge-toggle btn"
-        aria-label="Toggle sidebar"
-        onClick={() => setMini((v) => { const n = !v; localStorage.setItem("sidebar-mini", String(n)); return n; })}
-      >
-        <i className={mini ? "ni ni-bold-right" : "ni ni-bold-left"} />
-      </button>
+        {/* hover tooltip — rendered via portal to escape sidebar overflow clipping */}
+        {toggleHovered && !showHint && createPortal(
+          <div className="st-tooltip" style={{ top: tooltipPos.top, left: tooltipPos.left }}>
+            <div className="st-tooltip-title">{mini ? "Expand sidebar" : "Collapse sidebar"}</div>
+            <div className="st-tooltip-shortcut">
+              <kbd>Ctrl</kbd>
+              <span>+</span>
+              <kbd>B</kbd>
+            </div>
+          </div>,
+          document.body
+        )}
+
+        {/* one-time onboarding hint — rendered via portal */}
+        {showHint && createPortal(
+          <div className="st-hint" style={{ top: tooltipPos.top, left: tooltipPos.left }}>
+            <div className="st-hint-icon">✨</div>
+            <div className="st-hint-body">
+              <strong>Keyboard shortcut</strong>
+              <span>Press <kbd>Ctrl</kbd> + <kbd>B</kbd> to collapse or expand the sidebar anytime!</span>
+            </div>
+            <button className="st-hint-close" onClick={() => { setShowHint(false); localStorage.setItem("sidebar-shortcut-seen", "1"); }}>×</button>
+          </div>,
+          document.body
+        )}
+      </div>
+
     </Navbar>
+
+      {/* ── Logout confirmation dialog — rendered via portal to escape Navbar stacking context ── */}
+      {logoutOpen && createPortal(
+        <div className="logout-overlay" onClick={() => setLogoutOpen(false)}>
+          <div className="logout-dialog" onClick={e => e.stopPropagation()}>
+            <div className="logout-icon-wrap">
+              <i className="ni ni-user-run" />
+            </div>
+            <h5 className="logout-title">Sign out?</h5>
+            <p className="logout-desc">You'll need to sign back in to access your account.</p>
+            <div className="logout-actions">
+              <button className="logout-btn-cancel" onClick={() => setLogoutOpen(false)}>
+                Stay signed in
+              </button>
+              <button className="logout-btn-confirm" onClick={() => {
+                window.localStorage.removeItem("accessToken");
+                window.localStorage.removeItem("refreshToken");
+                window.localStorage.removeItem("role");
+                window.localStorage.removeItem("user");
+                setLogoutOpen(false);
+                navigate("/auth/login");
+              }}>
+                Sign out
+              </button>
+            </div>
+          </div>
+          <style>{`
+            .logout-overlay {
+              position: fixed; inset: 0; z-index: 9999;
+              background: rgba(15,20,40,0.55);
+              backdrop-filter: blur(4px);
+              display: flex; align-items: center; justify-content: center;
+              animation: loFadeIn 0.2s ease;
+            }
+            @keyframes loFadeIn { from { opacity: 0; } to { opacity: 1; } }
+            .logout-dialog {
+              background: #fff;
+              border-radius: 20px;
+              padding: 36px 32px 28px;
+              width: 100%; max-width: 360px;
+              text-align: center;
+              box-shadow: 0 24px 64px rgba(0,0,0,0.18);
+              animation: loSlideUp 0.25s cubic-bezier(0.22,1,0.36,1);
+            }
+            @keyframes loSlideUp {
+              from { opacity: 0; transform: translateY(20px) scale(0.97); }
+              to   { opacity: 1; transform: translateY(0) scale(1); }
+            }
+            .logout-icon-wrap {
+              width: 64px; height: 64px; border-radius: 50%;
+              background: linear-gradient(135deg, #fff1f3, #ffe4e8);
+              border: 1.5px solid #ffd0d7;
+              display: flex; align-items: center; justify-content: center;
+              margin: 0 auto 18px;
+            }
+            .logout-icon-wrap i { font-size: 26px; color: #f5365c; }
+            .logout-title {
+              font-size: 18px; font-weight: 800; color: #1a1d2e;
+              margin-bottom: 8px; letter-spacing: -0.2px;
+            }
+            .logout-desc {
+              font-size: 13.5px; color: #8898aa; margin-bottom: 28px; line-height: 1.5;
+            }
+            .logout-actions { display: flex; gap: 10px; }
+            .logout-btn-cancel {
+              flex: 1; padding: 11px 16px; border-radius: 12px;
+              border: 1.5px solid #e3e8f0; background: #f7f8fc;
+              color: #525f7f; font-weight: 700; font-size: 14px;
+              cursor: pointer; transition: all 0.2s ease;
+            }
+            .logout-btn-cancel:hover { background: #eef1f8; border-color: #d0d7e6; }
+            .logout-btn-confirm {
+              flex: 1; padding: 11px 16px; border-radius: 12px;
+              border: none;
+              background: linear-gradient(135deg, #f5365c, #f53680);
+              color: #fff; font-weight: 700; font-size: 14px;
+              cursor: pointer; transition: all 0.2s ease;
+              box-shadow: 0 4px 14px rgba(245,54,92,0.35);
+            }
+            .logout-btn-confirm:hover {
+              transform: translateY(-1px);
+              box-shadow: 0 6px 20px rgba(245,54,92,0.45);
+            }
+          `}</style>
+        </div>,
+        document.body
+      )}
+    </>
   );
 };
 

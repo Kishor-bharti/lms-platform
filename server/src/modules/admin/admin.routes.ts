@@ -33,7 +33,10 @@ router.get('/subjects/:subjectId/enrollments', adminController.getEnrolledStuden
 router.post('/subjects/:subjectId/enrollments', adminController.enrollStudent);
 router.delete('/subjects/:subjectId/enrollments/:studentId', adminController.unenrollStudent);
 
-// Sessions (read-only for admin overview)
-router.get('/sessions', adminController.getAllSessions);
+// Sessions — admin CRUD + A5 join
+router.get('/sessions',              adminController.getAllSessions);
+router.post('/sessions',             adminController.createSession);
+router.patch('/sessions/:sessionId', adminController.updateSession);
+router.delete('/sessions/:sessionId', adminController.deleteSession);
 
 export default router;

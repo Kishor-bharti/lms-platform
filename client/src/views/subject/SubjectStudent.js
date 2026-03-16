@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Container, Row, Col, Card, CardHeader, CardBody, CardTitle,
@@ -7,6 +7,7 @@ import {
 } from 'reactstrap';
 import Header from 'components/Headers/Header.js';
 import http from 'utils/http';
+import { TopicCardSkeleton } from 'components/Skeleton.js';
 
 function statusBadge(status) {
   switch (status) {
@@ -45,12 +46,15 @@ export default function SubjectStudent() {
   const [topicView,   setTopicView]   = useState(null);
 
   // Assignment submit modal
-  const [submitOpen,    setSubmitOpen]    = useState(false);
-  const [submitTarget,  setSubmitTarget]  = useState(null);
-  const [submitForm,    setSubmitForm]    = useState({ submission_url: '', notes: '' });
-  const [submitting,    setSubmitting]    = useState(false);
-  const [submitError,   setSubmitError]   = useState('');
-  const [submitSuccess, setSubmitSuccess] = useState('');
+  const [submitOpen,       setSubmitOpen]       = useState(false);
+  const [submitTarget,     setSubmitTarget]      = useState(null);
+  const [submitForm,       setSubmitForm]        = useState({ submission_url: '', notes: '' });
+  const [submitting,       setSubmitting]        = useState(false);
+  const [submitError,      setSubmitError]       = useState('');
+  const [submitSuccess,    setSubmitSuccess]     = useState('');
+  const [submitUploading,  setSubmitUploading]   = useState(false);
+  const [submitFileName,   setSubmitFileName]    = useState('');
+  const submitFileRef = useRef(null);
 
   useEffect(() => {
     fetchData();
@@ -94,16 +98,35 @@ export default function SubjectStudent() {
       submission_url: existing?.submission_url || '',
       notes:          existing?.notes || '',
     });
+    setSubmitFileName(existing?.submission_url ? '(previously uploaded)' : '');
     setSubmitError('');
     setSubmitSuccess('');
     setSubmitOpen(true);
+  };
+
+  const handleSubmitFileUpload = async (file) => {
+    if (!file) return;
+    setSubmitUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await http.post('/api/upload/assignment', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setSubmitForm(f => ({ ...f, submission_url: res.data.url }));
+      setSubmitFileName(res.data.name || file.name);
+    } catch (err) {
+      setSubmitError(err?.response?.data?.error || 'File upload failed');
+    } finally {
+      setSubmitUploading(false);
+    }
   };
 
   const handleSubmitAssignment = async (e) => {
     e.preventDefault();
     setSubmitError('');
     if (!submitForm.submission_url && !submitForm.notes) {
-      setSubmitError('Please provide a submission URL or notes');
+      setSubmitError('Please upload a file or add notes');
       return;
     }
     setSubmitting(true);
@@ -138,7 +161,7 @@ export default function SubjectStudent() {
     <>
       <Header />
       <Container className="mt--7" fluid style={{ backgroundColor: 'rgb(196,214,226)', minHeight: '100vh', paddingTop: 30 }}>
-        <Row><Col><Card><CardBody className="text-center py-5"><p>Loading...</p></CardBody></Card></Col></Row>
+        <Row><Col><Card><CardBody className="py-4"><TopicCardSkeleton count={6} /></CardBody></Card></Col></Row>
       </Container>
     </>
   );
@@ -388,7 +411,7 @@ export default function SubjectStudent() {
                               {[
                                 { icon: '❓', val: `${q.question_count} questions` },
                                 { icon: '⏱', val: `${q.duration_minutes} mins` },
-                                { icon: '✅', val: q.passing_score ? `${q.passing_score}% to pass` : 'No pass mark' },
+                                { icon: '✅', val: q.passing_score ? `${q.passing_score}% to pass` : 'No pass points' },
                                 { icon: '🔄', val: q.max_attempts ? `${q.max_attempts} attempts` : 'Unlimited' },
                               ].map((item) => (
                                 <div key={item.icon} style={{ background: '#f8f9fa', borderRadius: 8, padding: '8px 10px', fontSize: 12, color: '#525f7f' }}>
@@ -443,7 +466,7 @@ export default function SubjectStudent() {
                             {a.description && <p className="text-muted small mb-2">{a.description}</p>}
 
                             <div className="d-flex align-items-center" style={{ gap: 16, flexWrap: 'wrap' }}>
-                              <span className="small text-muted">Max marks: <strong>{a.max_marks}</strong></span>
+                              <span className="small text-muted">Max points: <strong>{a.max_marks}</strong></span>
                               {a.attachment_url && (
                                 <a href={a.attachment_url} target="_blank" rel="noreferrer" className="small" style={{ color: '#5e72e4' }}>
                                   View Materials
@@ -457,7 +480,7 @@ export default function SubjectStudent() {
                                 {isGraded ? (
                                   <div>
                                     <span style={{ fontWeight: 700, color: '#2dce89' }}>
-                                      Graded: {sub.marks_awarded} / {a.max_marks}
+                                      Points: {sub.marks_awarded} / {a.max_marks}
                                     </span>
                                     {sub.feedback && <p className="small text-muted mb-0 mt-1">Feedback: {sub.feedback}</p>}
                                   </div>
@@ -547,15 +570,24 @@ export default function SubjectStudent() {
             <p style={{ fontWeight: 600, color: '#32325d', marginBottom: 16 }}>{submitTarget?.title}</p>
             <Form onSubmit={handleSubmitAssignment}>
               <FormGroup>
-                <Label>Submission URL</Label>
-                <Input
-                  value={submitForm.submission_url}
-                  onChange={(e) => setSubmitForm({ ...submitForm, submission_url: e.target.value })}
-                  placeholder="https://docs.google.com/... or GitHub link"
-                />
+                <Label><strong>Upload File</strong></Label>
+                <input type="file" ref={submitFileRef} style={{ display: 'none' }}
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.txt"
+                  onChange={e => e.target.files?.[0] && handleSubmitFileUpload(e.target.files[0])} />
+                <div className="d-flex align-items-center" style={{ gap: 10, marginBottom: 4 }}>
+                  <button type="button" onClick={() => submitFileRef.current?.click()}
+                    disabled={submitUploading}
+                    style={{ background: '#fb6340', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 16px', fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>
+                    {submitUploading ? 'Uploading…' : '📎 Choose File'}
+                  </button>
+                  {submitFileName && (
+                    <span style={{ fontSize: 13, color: '#2dce89', fontWeight: 600 }}>✓ {submitFileName}</span>
+                  )}
+                </div>
+                <small className="text-muted">PDF, Word, Excel, image (max 10 MB)</small>
               </FormGroup>
               <FormGroup>
-                <Label>Notes</Label>
+                <Label>Notes <span className="text-muted small">(optional)</span></Label>
                 <Input
                   type="textarea"
                   rows={3}

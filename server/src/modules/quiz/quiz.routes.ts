@@ -9,7 +9,8 @@ router.use(authMiddleware);
 
 const optionSchema = z.object({
   label:      z.string().min(1).max(5),
-  text:       z.string().min(1),
+  text:       z.string().optional().default(''),   // optional when imageUrl is set
+  imageUrl:   z.string().url().optional().or(z.literal('')),
   is_correct: z.boolean(),
 });
 
@@ -19,7 +20,7 @@ const questionSchema = z.object({
   explanation:   z.string().optional(),
   explanation_image_url: z.string().url().optional().or(z.literal('')),
   difficulty:    z.enum(['easy', 'medium', 'hard']),
-  marks:         z.number().int().min(1).max(100),
+  marks:         z.number().min(0.5).max(100),
   order_index:   z.number().int().min(0),
   topic_id:      z.string().uuid().optional().or(z.literal('')),
   options:       z.array(optionSchema).min(2).max(6).refine(

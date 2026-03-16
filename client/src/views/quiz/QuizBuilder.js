@@ -6,9 +6,10 @@ import {
 import Header from 'components/Headers/Header.js';
 import LatexRenderer from 'components/LatexRenderer.js';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { PageCardSkeleton } from 'components/Skeleton.js';
 import http from 'utils/http';
 
-const BLANK_OPTION = (label) => ({ label, text: '', is_correct: false });
+const BLANK_OPTION = (label) => ({ label, text: '', imageUrl: '', is_correct: false });
 const BLANK_QUESTION = (idx) => ({
   question_text: '',
   explanation: '',
@@ -49,8 +50,11 @@ export default function QuizBuilder() {
   const [topics,    setTopics]    = useState([]);
   const [uploading, setUploading] = useState(null); // qi of uploading question (question image)
   const [uploadingExpl, setUploadingExpl] = useState(null); // qi of uploading explanation image
+  const [uploadingOpt, setUploadingOpt] = useState(null); // "qi-oi" of uploading option image
+  const [enableOptionImages, setEnableOptionImages] = useState(false); // T10 toggle
   const fileInputRefs = useRef({});
   const explImageRefs = useRef({});
+  const optImageRefs  = useRef({});
 
   useEffect(() => {
     if (!subjectId) return;
@@ -93,11 +97,17 @@ export default function QuizBuilder() {
             topic_id:      qItem.topic_id  || '',
             options: (qItem.options || []).map(o => ({
               label:      o.option_label,
-              text:       o.option_text,
+              text:       o.option_text || '',
+              imageUrl:   o.option_image_url || '',
               is_correct: Boolean(o.is_correct),
             })),
           }))
         );
+        // Auto-enable option images toggle if any existing option has an image
+        const hasOptionImages = (q.questions || []).some(qItem =>
+          (qItem.options || []).some(o => o.option_image_url)
+        );
+        if (hasOptionImages) setEnableOptionImages(true);
       })
       .catch(() => setError('Failed to load quiz for editing'))
       .finally(() => setLoadingQuiz(false));
@@ -149,6 +159,29 @@ export default function QuizBuilder() {
       setError(`Explanation image upload failed for Q${qi + 1}`);
     } finally {
       setUploadingExpl(null);
+    }
+  };
+
+  const handleOptionImageUpload = async (qi, oi, file) => {
+    if (!file) return;
+    const MAX_SIZE = 2 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      setError(`Option image too large (Q${qi + 1} Opt ${oi + 1}): max 2MB`);
+      return;
+    }
+    const key = `${qi}-${oi}`;
+    setUploadingOpt(key);
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const res = await http.post('/api/upload/quiz-image', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      updateOption(qi, oi, 'imageUrl', res.data.url);
+    } catch {
+      setError(`Option image upload failed (Q${qi + 1} Opt ${oi + 1})`);
+    } finally {
+      setUploadingOpt(null);
     }
   };
 
@@ -210,6 +243,10 @@ export default function QuizBuilder() {
           questions,
         });
         savedId = res.data.id;
+        // Teachers: auto-unpublish after edit — admin must review before re-publishing
+        if (!isAdmin) {
+          await http.patch(`/api/quizzes/${savedId}/publish`, { is_published: false });
+        }
       } else {
         // Create mode — POST
         const payload = {
@@ -246,7 +283,7 @@ export default function QuizBuilder() {
     <>
       <Header />
       <Container className="mt--7" fluid style={{ backgroundColor: 'rgb(196,214,226)', minHeight: '100vh', paddingTop: 30 }}>
-        <Row><Col><div className="text-center py-5"><p>Loading quiz...</p></div></Col></Row>
+        <PageCardSkeleton />
       </Container>
     </>
   );
@@ -352,6 +389,24 @@ export default function QuizBuilder() {
                     </Col>
                   )}
                 </Row>
+                <Row>
+                  <Col>
+                    {/* T10: Enable image options toggle */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: enableOptionImages ? '#eafaf1' : '#f8f9fa', borderRadius: 8, border: `1px solid ${enableOptionImages ? '#2dce89' : '#e9ecef'}` }}>
+                      <input
+                        type="checkbox"
+                        id="enableOptionImages"
+                        checked={enableOptionImages}
+                        onChange={(e) => setEnableOptionImages(e.target.checked)}
+                        style={{ width: 16, height: 16, cursor: 'pointer' }}
+                      />
+                      <label htmlFor="enableOptionImages" style={{ margin: 0, cursor: 'pointer', fontSize: 13, fontWeight: 600, color: enableOptionImages ? '#1a7a49' : '#525f7f' }}>
+                        Enable image options for answers
+                      </label>
+                      <small style={{ color: '#8898aa', marginLeft: 4 }}>When ON, each answer option shows an image upload button</small>
+                    </div>
+                  </Col>
+                </Row>
               </CardBody>
             </Card>
           </Col>
@@ -374,7 +429,7 @@ export default function QuizBuilder() {
                       </Input>
                       <Input type="number" bsSize="sm" value={q.marks} min={0.5} step={0.5} style={{ width: 70 }}
                         onChange={(e) => updateQuestion(qi, 'marks', Number(e.target.value))}
-                        title="Marks" />
+                        title="Points" />
                       {questions.length > 1 && (
                         <Button size="sm" color="danger" outline style={{ borderRadius: 20, padding: '2px 10px' }}
                           onClick={() => removeQuestion(qi)}>Remove</Button>
@@ -458,31 +513,62 @@ export default function QuizBuilder() {
 
                   {/* Options */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-                    {q.options.map((opt, oi) => (
-                      <div key={oi} style={{
-                        display: 'flex', alignItems: 'center', gap: 8,
-                        background: opt.is_correct ? '#eafaf1' : '#f8f9fa',
-                        border: `2px solid ${opt.is_correct ? '#2dce89' : '#e9ecef'}`,
-                        borderRadius: 8, padding: '8px 12px',
-                      }}>
-                        <input
-                          type="radio"
-                          name={`correct-${qi}`}
-                          checked={opt.is_correct}
-                          onChange={() => updateOption(qi, oi, 'is_correct', true)}
-                          style={{ cursor: 'pointer', width: 16, height: 16, flexShrink: 0 }}
-                          title="Mark as correct answer"
-                        />
-                        <span style={{ fontWeight: 700, color: '#5e72e4', minWidth: 20 }}>{opt.label}.</span>
-                        <Input
-                          bsSize="sm"
-                          value={opt.text}
-                          placeholder={`Option ${opt.label}...`}
-                          onChange={(e) => updateOption(qi, oi, 'text', e.target.value)}
-                          style={{ border: 'none', background: 'transparent', padding: 0, boxShadow: 'none' }}
-                        />
-                      </div>
-                    ))}
+                    {q.options.map((opt, oi) => {
+                      const optKey = `${qi}-${oi}`;
+                      return (
+                        <div key={oi} style={{
+                          display: 'flex', flexDirection: 'column', gap: 6,
+                          background: opt.is_correct ? '#eafaf1' : '#f8f9fa',
+                          border: `2px solid ${opt.is_correct ? '#2dce89' : '#e9ecef'}`,
+                          borderRadius: 8, padding: '8px 12px',
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <input
+                              type="radio"
+                              name={`correct-${qi}`}
+                              checked={opt.is_correct}
+                              onChange={() => updateOption(qi, oi, 'is_correct', true)}
+                              style={{ cursor: 'pointer', width: 16, height: 16, flexShrink: 0 }}
+                              title="Mark as correct answer"
+                            />
+                            <span style={{ fontWeight: 700, color: '#5e72e4', minWidth: 20 }}>{opt.label}.</span>
+                            <Input
+                              bsSize="sm"
+                              value={opt.text}
+                              placeholder={enableOptionImages ? `Option ${opt.label} (optional with image)` : `Option ${opt.label}...`}
+                              onChange={(e) => updateOption(qi, oi, 'text', e.target.value)}
+                              style={{ border: 'none', background: 'transparent', padding: 0, boxShadow: 'none' }}
+                            />
+                          </div>
+                          {/* T10: Option image upload (shown only when toggle is ON) */}
+                          {enableOptionImages && (
+                            <div>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                style={{ display: 'none' }}
+                                ref={el => { optImageRefs.current[optKey] = el; }}
+                                onChange={(e) => { handleOptionImageUpload(qi, oi, e.target.files?.[0]); e.target.value = ''; }}
+                              />
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <Button size="sm" color="info" outline style={{ borderRadius: 6, fontSize: 10, padding: '2px 8px' }}
+                                  disabled={uploadingOpt === optKey}
+                                  onClick={() => optImageRefs.current[optKey]?.click()}>
+                                  {uploadingOpt === optKey ? <Spinner size="sm" /> : '📷'}
+                                </Button>
+                                {opt.imageUrl && (
+                                  <>
+                                    <img src={opt.imageUrl} alt={`Option ${opt.label}`} style={{ height: 30, borderRadius: 4, objectFit: 'contain', border: '1px solid #e9ecef' }} />
+                                    <Button size="sm" color="danger" outline style={{ borderRadius: 6, fontSize: 10, padding: '2px 6px' }}
+                                      onClick={() => updateOption(qi, oi, 'imageUrl', '')}>✕</Button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
 
                   {/* Explanation section */}

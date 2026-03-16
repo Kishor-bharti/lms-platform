@@ -6,6 +6,7 @@ import {
 } from 'reactstrap';
 import Header from 'components/Headers/Header.js';
 import http from 'utils/http';
+import { CourseCardSkeleton } from 'components/Skeleton.js';
 
 export default function AdminCourses() {
   const [courses,    setCourses]    = useState([]);
@@ -66,7 +67,7 @@ export default function AdminCourses() {
               </CardHeader>
               <CardBody>
                 {loading ? (
-                  <p className="text-center text-muted py-4">Loading...</p>
+                  <CourseCardSkeleton count={6} />
                 ) : courses.length === 0 ? (
                   <div className="text-center py-5">
                     <p className="text-muted">No courses yet</p>

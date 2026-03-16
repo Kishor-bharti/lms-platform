@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Container, Row, Col, Card, CardBody, Button, Badge, Modal, ModalHeader, ModalBody, ModalFooter } from 'reactstrap';
 import Header from 'components/Headers/Header.js';
 import http from 'utils/http';
+import { QuizCardSkeleton } from 'components/Skeleton.js';
 
 export default function CourseQuiz() {
   const { courseId } = useParams();
@@ -13,7 +14,7 @@ export default function CourseQuiz() {
   const [deleteModal, setDeleteModal] = useState({ open: false, quiz: null });
 
   const userRole = (window.localStorage.getItem('role') || '').toLowerCase();
-  const userId = window.localStorage.getItem('userId');
+  const userId = (() => { try { return JSON.parse(window.localStorage.getItem('user') || '{}').id || null; } catch { return null; } })();
   const isAdmin = userRole === 'admin';
   const isTeacher = userRole === 'teacher';
   const isStaff = isAdmin || isTeacher;
@@ -62,7 +63,7 @@ export default function CourseQuiz() {
 
   return (
     <>
-      <Header />
+      <Header hideSubtitle />
       <Container className="mt--7" fluid
         style={{ backgroundColor: 'rgb(196,214,226)', minHeight: '100vh', paddingTop: 30, paddingBottom: 30 }}>
 
@@ -70,8 +71,8 @@ export default function CourseQuiz() {
           <Col>
             <div className="d-flex justify-content-between align-items-center flex-wrap" style={{ gap: 10 }}>
               <div>
-                <h2 style={{ color: '#32325d', margin: 0 }}>📝 {courseName} — Test Sets</h2>
-                <p className="text-muted small mt-1 mb-0">Full-length course tests. Complete each in one sitting.</p>
+                <h2 style={{ color: '#fff', margin: 0 }}>📝 {courseName} — Test Sets</h2>
+                <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.875rem', marginTop: 4, marginBottom: 0 }}>Full-length course tests. Complete each in one sitting.</p>
               </div>
               {isStaff && (
                 <Button color="primary" style={{ borderRadius: 8, fontWeight: 700 }}
@@ -84,9 +85,7 @@ export default function CourseQuiz() {
         </Row>
 
         {loading ? (
-          <Row><Col><Card className="shadow" style={{ borderRadius: 12 }}>
-            <CardBody className="text-center py-5"><p>Loading...</p></CardBody>
-          </Card></Col></Row>
+          <QuizCardSkeleton count={6} />
         ) : quizzes.length === 0 ? (
           <Row><Col><Card className="shadow" style={{ borderRadius: 12 }}>
             <CardBody className="text-center py-5">

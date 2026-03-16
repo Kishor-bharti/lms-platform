@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { TableSkeleton } from 'components/Skeleton.js';
 import {
   Container, Row, Col, Card, CardHeader, CardBody, CardTitle,
   Button, Badge, Modal, ModalHeader, ModalBody, ModalFooter,
@@ -253,9 +254,7 @@ export default function AdminSubjects() {
                     <p className="text-danger mb-3">{fetchError}</p>
                     <Button color="primary" onClick={fetchAll}>Retry</Button>
                   </div>
-                ) : loading ? (
-                  <p className="text-center text-muted py-4">Loading...</p>
-                ) : filtered.length === 0 ? (
+                ) : filtered.length === 0 && !loading ? (
                   <div className="text-center py-5">
                     <p className="text-muted">No subjects yet</p>
                     <Button color="success" onClick={() => { setForm({ course_id: '', name: '', code: '', description: '' }); setSubjectModal({ open: true, editing: null }); }}>Create First Subject</Button>
@@ -269,7 +268,7 @@ export default function AdminSubjects() {
                         ))}
                       </tr>
                     </thead>
-                    <tbody>
+                    {loading ? <TableSkeleton cols={6} rows={6} /> : <tbody>
                       {filtered.map((s) => (
                         <tr key={s.id} style={{ borderBottom: '1px solid #f0f4f8' }}>
                           <td style={{ padding: '12px 14px' }}>
@@ -330,7 +329,7 @@ export default function AdminSubjects() {
                           </td>
                         </tr>
                       ))}
-                    </tbody>
+                    </tbody>}
                   </table>
                 )}
               </CardBody>

@@ -14,10 +14,11 @@ export async function getStats(req: Request, res: Response) {
 
 export async function getUsers(req: Request, res: Response) {
   try {
-    const role  = req.query.role  as string | undefined;
-    const page  = Math.max(1, parseInt(req.query.page  as string) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
-    const result = await adminService.getUsers(role, page, limit);
+    const role   = req.query.role   as string | undefined;
+    const active = req.query.active as string | undefined;
+    const page   = Math.max(1, parseInt(req.query.page  as string) || 1);
+    const limit  = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
+    const result = await adminService.getUsers(role, page, limit, active);
     return res.json(result);
   } catch (err) {
     logger.error('[admin] getUsers:', err);
@@ -261,5 +262,54 @@ export async function getAllSessions(req: Request, res: Response) {
   } catch (err) {
     logger.error('[admin] getAllSessions:', err);
     return res.status(500).json({ error: 'Failed to fetch sessions' });
+  }
+}
+
+export async function createSession(req: Request, res: Response) {
+  try {
+    const {
+      teacherId, subjectId, title, sessionDate, startTime, endTime,
+      topicId, studentIds,
+      isRecurring, recurPattern, recurDays, recurEndDate,
+    } = req.body;
+
+    if (!teacherId || !subjectId || !title || !sessionDate || !startTime || !endTime) {
+      return res.status(400).json({ error: 'teacherId, subjectId, title, sessionDate, startTime, endTime are required' });
+    }
+
+    const result = await adminService.createAdminSession({
+      teacherId, subjectId, title, sessionDate, startTime, endTime,
+      topicId, studentIds,
+      isRecurring, recurPattern, recurDays, recurEndDate,
+    });
+    return res.status(201).json(result);
+  } catch (err: any) {
+    logger.error('[admin] createSession:', err);
+    return res.status(500).json({ error: err.message || 'Failed to create session' });
+  }
+}
+
+export async function updateSession(req: Request, res: Response) {
+  try {
+    const { sessionId } = req.params;
+    const { title, sessionDate, startTime, endTime, topicId } = req.body;
+    if (!sessionId) return res.status(400).json({ error: 'sessionId is required' });
+    await adminService.updateAdminSession(sessionId, { title, sessionDate, startTime, endTime, topicId });
+    return res.json({ success: true });
+  } catch (err: any) {
+    logger.error('[admin] updateSession:', err);
+    return res.status(500).json({ error: 'Failed to update session' });
+  }
+}
+
+export async function deleteSession(req: Request, res: Response) {
+  try {
+    const { sessionId } = req.params;
+    if (!sessionId) return res.status(400).json({ error: 'sessionId is required' });
+    await adminService.deleteAdminSession(sessionId);
+    return res.json({ success: true });
+  } catch (err: any) {
+    logger.error('[admin] deleteSession:', err);
+    return res.status(500).json({ error: 'Failed to delete session' });
   }
 }

@@ -2,32 +2,35 @@ import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, CardHeader, CardBody, CardTitle, Button, Badge, Modal, ModalHeader, ModalBody, ModalFooter, Form, FormGroup, Label, Input } from 'reactstrap';
 import Header from 'components/Headers/Header.js';
 import http from 'utils/http';
+import { TableSkeleton } from 'components/Skeleton.js';
 
 const ROLE_COLORS = { admin: 'danger', teacher: 'warning', student: 'info' };
 
 export default function AdminUsers() {
-  const [users,       setUsers]       = useState([]);
-  const [loading,     setLoading]     = useState(true);
-  const [roleFilter,  setRoleFilter]  = useState('all');
-  const [search,      setSearch]      = useState('');
-  const [modalOpen,   setModalOpen]   = useState(false);
-  const [submitting,  setSubmitting]  = useState(false);
-  const [formError,   setFormError]   = useState('');
+  const [users,        setUsers]        = useState([]);
+  const [loading,      setLoading]      = useState(true);
+  const [roleFilter,   setRoleFilter]   = useState('all');
+  const [activeFilter, setActiveFilter] = useState('all');
+  const [search,       setSearch]       = useState('');
+  const [modalOpen,    setModalOpen]    = useState(false);
+  const [submitting,   setSubmitting]   = useState(false);
+  const [formError,    setFormError]    = useState('');
   const [form, setForm] = useState({ email: '', password: '', first_name: '', last_name: '', phone: '', role: 'student' });
   const [page,       setPage]       = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total,      setTotal]      = useState(0);
 
-  useEffect(() => { setPage(1); }, [roleFilter]);
+  useEffect(() => { setPage(1); }, [roleFilter, activeFilter]);
 
-  useEffect(() => { fetchUsers(); }, [roleFilter, page]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchUsers(); }, [roleFilter, activeFilter, page]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const res = await http.get(
-        `/api/admin/users?page=${page}${roleFilter !== 'all' ? `&role=${roleFilter}` : ''}`
-      );
+      const params = new URLSearchParams({ page: String(page) });
+      if (roleFilter !== 'all') params.set('role', roleFilter);
+      if (activeFilter !== 'all') params.set('active', activeFilter);
+      const res = await http.get(`/api/admin/users?${params.toString()}`);
       setUsers(res.data.users || []);
       setTotalPages(res.data.totalPages || 1);
       setTotal(res.data.total || 0);
@@ -97,6 +100,14 @@ export default function AdminUsers() {
                         {r}
                       </Button>
                     ))}
+                    <span style={{ width: 1, background: '#dee2e6', alignSelf: 'stretch', display: 'inline-block', margin: '0 4px' }} />
+                    {/* Active/Inactive filter */}
+                    {[{ key: 'all', label: 'All Status' }, { key: 'active', label: '✅ Active' }, { key: 'inactive', label: '🚫 Inactive' }].map(({ key, label }) => (
+                      <Button key={key} size="sm" color={key === 'inactive' ? 'danger' : 'success'} outline={activeFilter !== key}
+                        onClick={() => setActiveFilter(key)} style={{ borderRadius: 20 }}>
+                        {label}
+                      </Button>
+                    ))}
                     <Button color="success" size="sm" style={{ borderRadius: 8 }} onClick={() => setModalOpen(true)}>
                       + New User
                     </Button>
@@ -104,9 +115,7 @@ export default function AdminUsers() {
                 </div>
               </CardHeader>
               <CardBody style={{ overflowX: 'auto' }}>
-                {loading ? (
-                  <p className="text-center text-muted py-4">Loading...</p>
-                ) : filtered.length === 0 ? (
+                {filtered.length === 0 && !loading ? (
                   <p className="text-center text-muted py-4">No users found</p>
                 ) : (
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -117,7 +126,7 @@ export default function AdminUsers() {
                         ))}
                       </tr>
                     </thead>
-                    <tbody>
+                    {loading ? <TableSkeleton cols={6} rows={7} /> : <tbody>
                       {filtered.map((u) => (
                         <tr key={u.id} style={{ borderBottom: '1px solid #f0f4f8' }}>
                           <td style={{ padding: '12px 14px', fontWeight: 600, color: '#32325d' }}>
@@ -152,7 +161,7 @@ export default function AdminUsers() {
                           </td>
                         </tr>
                       ))}
-                    </tbody>
+                    </tbody>}
                   </table>
                 )}
                 <div className="d-flex justify-content-between align-items-center mt-3">

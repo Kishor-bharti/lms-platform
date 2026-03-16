@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Container, Row, Col, Card, CardHeader, CardBody, CardTitle,
@@ -7,6 +7,7 @@ import {
 } from 'reactstrap';
 import Header from 'components/Headers/Header.js';
 import http from 'utils/http';
+import { TopicCardSkeleton } from 'components/Skeleton.js';
 
 function statusBadge(status) {
   switch (status) {
@@ -40,16 +41,29 @@ export default function SubjectTeacher() {
   const [deleteMatModal,      setDeleteMatModal]      = useState({ open: false, mat: null });
 
   // Schedule session modal
-  const [scheduleOpen,  setScheduleOpen]  = useState(false);
-  const [scheduleForm,  setScheduleForm]  = useState({ title: '', date: '', time: '', topicId: '' });
-  const [scheduling,    setScheduling]    = useState(false);
-  const [scheduleError, setScheduleError] = useState('');
+  const [scheduleOpen,    setScheduleOpen]    = useState(false);
+  const [scheduleForm,    setScheduleForm]    = useState({
+    teacherId: '', title: '', date: '', time: '', endTime: '', topicId: '', studentIds: [],
+    isRecurring: false, recurPattern: 'weekly', recurDays: [], recurEndDate: '',
+  });
+  const [scheduling,      setScheduling]      = useState(false);
+  const [scheduleError,   setScheduleError]   = useState('');
+  const [schedulePreview, setSchedulePreview] = useState([]);
 
   // Create assignment modal
-  const [assignOpen,   setAssignOpen]   = useState(false);
-  const [assignForm,   setAssignForm]   = useState({ title: '', description: '', due_date: '', max_marks: 100, attachment_url: '', topicId: '' });
-  const [assignSaving, setAssignSaving] = useState(false);
-  const [assignError,  setAssignError]  = useState('');
+  const [assignOpen,      setAssignOpen]      = useState(false);
+  const [assignForm,      setAssignForm]      = useState({ title: '', description: '', due_date: '', max_marks: 100, attachment_url: '', topicId: '', assignedTo: '' });
+  const [assignSaving,    setAssignSaving]    = useState(false);
+  const [assignError,     setAssignError]     = useState('');
+  const [assignUploading, setAssignUploading] = useState(false);
+  const [assignFileName,  setAssignFileName]  = useState('');
+  const assignFileRef = useRef(null);
+
+  // Subject students + teachers (for 1-on-1 session / assignment targeting)
+  const [subjectStudents,  setSubjectStudents]  = useState([]);
+  const [subjectTeachers,  setSubjectTeachers]  = useState([]);
+
+  const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   // Materials
   const [materials,    setMaterials]    = useState([]);
@@ -78,24 +92,42 @@ export default function SubjectTeacher() {
   useEffect(() => {
     fetchData();
     const iv = setInterval(() => {
-      if (errorCount.current >= 3) {
-        clearInterval(iv);
-        return;
-      }
+      if (errorCount.current >= 3) { clearInterval(iv); return; }
       fetchData();
     }, 60000);
     return () => clearInterval(iv);
   }, [subjectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Recurrence preview
+  useEffect(() => {
+    if (!scheduleForm.isRecurring || !scheduleForm.date || !scheduleForm.recurEndDate) {
+      setSchedulePreview([]); return;
+    }
+    const dates = [];
+    const end   = new Date(scheduleForm.recurEndDate + 'T00:00:00Z');
+    let   cur   = new Date(scheduleForm.date         + 'T00:00:00Z');
+    const days  = scheduleForm.recurDays;
+    while (cur <= end && dates.length < 60) {
+      const dow = cur.getUTCDay();
+      const iso = cur.toISOString().slice(0, 10);
+      if (scheduleForm.recurPattern === 'daily' || days.length === 0 || days.includes(dow))
+        dates.push(iso);
+      cur = new Date(cur.getTime() + 86400000);
+    }
+    setSchedulePreview(dates);
+  }, [scheduleForm.isRecurring, scheduleForm.date, scheduleForm.recurEndDate, scheduleForm.recurPattern, scheduleForm.recurDays]);
+
   const fetchData = async () => {
     try {
-      const [sessRes, classRes, quizRes, assignRes, matRes, topicsRes] = await Promise.all([
+      const [sessRes, classRes, quizRes, assignRes, matRes, topicsRes, studentsRes, teachersRes] = await Promise.all([
         http.get('/api/classes/my-sessions-v2'),
         http.get('/api/classes/my-classes-v2'),
         http.get(`/api/quizzes/subject/${subjectId}`),
         http.get(`/api/assignments/subject/${subjectId}`),
         http.get(`/api/materials/subject/${subjectId}`),
         http.get(`/api/subjects/${subjectId}/topics`),
+        http.get(`/api/classes/subjects/${subjectId}/students`),
+        http.get(`/api/classes/subjects/${subjectId}/teachers`),
       ]);
       setSessions((sessRes.data || []).filter((s) => s.subject_id === subjectId));
       const found = (classRes.data || []).find((c) => c.id === subjectId);
@@ -104,6 +136,8 @@ export default function SubjectTeacher() {
       setAssignments(assignRes.data || []);
       setMaterials(matRes.data || []);
       setTopics(topicsRes.data || []);
+      setSubjectStudents(studentsRes.data || []);
+      setSubjectTeachers(teachersRes.data || []);
       errorCount.current = 0;
     } catch (err) {
       console.error('[SubjectTeacher]', err);
@@ -141,17 +175,46 @@ export default function SubjectTeacher() {
   const handleSchedule = async (e) => {
     e.preventDefault(); setScheduleError('');
     if (!scheduleForm.title || !scheduleForm.date || !scheduleForm.time) {
-      setScheduleError('All fields are required'); return;
+      setScheduleError('Title, date, and start time are required'); return;
     }
-    if (!scheduleForm.topicId) { setScheduleError('Topic is required'); return; }
+    if (isAdmin && !scheduleForm.teacherId) { setScheduleError('Please select a teacher'); return; }
     setScheduling(true);
     try {
-      await http.post('/api/classes/sessions/create', {
-        subjectId, title: scheduleForm.title,
-        sessionDate: scheduleForm.date, startTime: scheduleForm.time + ':00+05:30',
-        topicId: scheduleForm.topicId || undefined,
-      });
-      setScheduleOpen(false); setScheduleForm({ title: '', date: '', time: '', topicId: '' }); fetchData();
+      if (isAdmin) {
+        // Admin uses admin session endpoint with teacher selection
+        await http.post('/api/admin/sessions', {
+          subjectId,
+          teacherId:    scheduleForm.teacherId,
+          title:        scheduleForm.title,
+          sessionDate:  scheduleForm.date,
+          startTime:    scheduleForm.time,
+          endTime:      scheduleForm.endTime || undefined,
+          topicId:      scheduleForm.topicId || undefined,
+          studentIds:   scheduleForm.studentIds.length ? scheduleForm.studentIds : undefined,
+          isRecurring:  scheduleForm.isRecurring,
+          recurPattern: scheduleForm.recurPattern,
+          recurDays:    scheduleForm.recurDays,
+          recurEndDate: scheduleForm.recurEndDate || undefined,
+        });
+      } else {
+        // Teacher creates session under their own ID
+        await http.post('/api/classes/sessions/create', {
+          subjectId,
+          title:        scheduleForm.title,
+          sessionDate:  scheduleForm.date,
+          startTime:    scheduleForm.time + ':00+05:30',
+          endTime:      scheduleForm.endTime ? scheduleForm.endTime + ':00+05:30' : undefined,
+          topicId:      scheduleForm.topicId || undefined,
+          studentIds:   scheduleForm.studentIds.length ? scheduleForm.studentIds : undefined,
+          isRecurring:  scheduleForm.isRecurring,
+          recurPattern: scheduleForm.recurPattern,
+          recurDays:    scheduleForm.recurDays,
+          recurEndDate: scheduleForm.recurEndDate || undefined,
+        });
+      }
+      setScheduleOpen(false);
+      setScheduleForm({ teacherId: '', title: '', date: '', time: '', endTime: '', topicId: '', studentIds: [], isRecurring: false, recurPattern: 'weekly', recurDays: [], recurEndDate: '' });
+      fetchData();
     } catch (err) {
       setScheduleError(err?.response?.data?.error || 'Failed to schedule');
     } finally { setScheduling(false); }
@@ -220,14 +283,41 @@ export default function SubjectTeacher() {
     } catch (err) { console.error(err); }
   };
 
+  const handleAssignFileUpload = useCallback(async (file) => {
+    if (!file) return;
+    setAssignUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await http.post('/api/upload/assignment', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setAssignForm(f => ({ ...f, attachment_url: res.data.url }));
+      setAssignFileName(res.data.name || file.name);
+    } catch (err) {
+      setAssignError(err?.response?.data?.error || 'File upload failed');
+    } finally {
+      setAssignUploading(false);
+    }
+  }, []);
+
   const handleCreateAssignment = async (e) => {
     e.preventDefault(); setAssignError('');
     if (!assignForm.title) { setAssignError('Title is required'); return; }
     if (!assignForm.topicId) { setAssignError('Topic is required'); return; }
     setAssignSaving(true);
     try {
-      await http.post('/api/assignments', { subjectId, ...assignForm, max_marks: Number(assignForm.max_marks), topicId: assignForm.topicId || undefined });
-      setAssignOpen(false); setAssignForm({ title: '', description: '', due_date: '', max_marks: 100, attachment_url: '', topicId: '' }); fetchData();
+      await http.post('/api/assignments', {
+        subjectId,
+        ...assignForm,
+        max_marks: Number(assignForm.max_marks),
+        topicId: assignForm.topicId || undefined,
+        assignedTo: assignForm.assignedTo || undefined,
+      });
+      setAssignOpen(false);
+      setAssignForm({ title: '', description: '', due_date: '', max_marks: 100, attachment_url: '', topicId: '', assignedTo: '' });
+      setAssignFileName('');
+      fetchData();
     } catch (err) {
       setAssignError(err?.response?.data?.error || 'Failed to create assignment');
     } finally { setAssignSaving(false); }
@@ -319,7 +409,7 @@ export default function SubjectTeacher() {
     <>
       <Header />
       <Container className="mt--7" fluid style={{ backgroundColor: 'rgb(196,214,226)', minHeight: '100vh', paddingTop: 30 }}>
-        <Row><Col><Card><CardBody className="text-center py-5"><p>Loading...</p></CardBody></Card></Col></Row>
+        <Row><Col><Card><CardBody className="py-4"><TopicCardSkeleton count={6} /></CardBody></Card></Col></Row>
       </Container>
     </>
   );
@@ -665,7 +755,7 @@ export default function SubjectTeacher() {
                               )}
                               {a.description && <p className="small text-muted mb-1 mt-1">{a.description}</p>}
                               <div className="small text-muted">
-                                <span className="mr-3">Max marks: {a.max_marks}</span>
+                                <span className="mr-3">Max points: {a.max_marks}</span>
                                 {a.due_date && <span>Due: {new Date(a.due_date).toLocaleDateString()}</span>}
                                 <span className="ml-3">Submissions: {a.submission_count || 0}</span>
                               </div>
@@ -718,7 +808,7 @@ export default function SubjectTeacher() {
                             {sub.notes && <p className="small text-muted mt-1 mb-0">{sub.notes}</p>}
                             {sub.marks_awarded != null && (
                               <div className="small mt-1">
-                                <strong>Marks: {sub.marks_awarded}</strong>
+                                <strong>Points: {sub.marks_awarded}</strong>
                                 {sub.feedback && <span className="text-muted ml-2">— {sub.feedback}</span>}
                               </div>
                             )}
@@ -742,7 +832,7 @@ export default function SubjectTeacher() {
                             <Row>
                               <Col md="4">
                                 <FormGroup className="mb-2">
-                                  <Label className="small">Marks Awarded</Label>
+                                  <Label className="small">Points Awarded</Label>
                                   <Input type="number" bsSize="sm" value={gradeForm.marks}
                                     onChange={(e) => setGradeForm({ ...gradeForm, marks: e.target.value })} />
                                 </FormGroup>
@@ -818,26 +908,165 @@ export default function SubjectTeacher() {
           </Row>
         )}
 
-        {/* Schedule Session Modal */}
-        <Modal isOpen={scheduleOpen} toggle={() => setScheduleOpen(false)} centered>
-          <ModalHeader toggle={() => setScheduleOpen(false)}>Schedule New Session</ModalHeader>
-          <ModalBody>
+        {/* Schedule Session Modal — upgraded with recurring + student checkboxes + teacher selector for admin */}
+        <Modal isOpen={scheduleOpen} toggle={() => setScheduleOpen(false)} centered size="lg">
+          <ModalHeader toggle={() => setScheduleOpen(false)}
+            style={{ background: 'linear-gradient(135deg,#3b4a67,#6286c3)', color: '#fff', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
+            Schedule Session
+          </ModalHeader>
+          <ModalBody style={{ background: '#f8fbff', maxHeight: '75vh', overflowY: 'auto' }}>
             <Form onSubmit={handleSchedule}>
-              <FormGroup><Label>Title</Label><Input value={scheduleForm.title} onChange={(e) => setScheduleForm({ ...scheduleForm, title: e.target.value })} placeholder="e.g. Algebra Basics" /></FormGroup>
-              <FormGroup><Label>Date</Label><Input type="date" value={scheduleForm.date} min={new Date().toISOString().split('T')[0]} onChange={(e) => setScheduleForm({ ...scheduleForm, date: e.target.value })} /></FormGroup>
-              <FormGroup><Label>Start Time</Label><Input type="time" value={scheduleForm.time} onChange={(e) => setScheduleForm({ ...scheduleForm, time: e.target.value })} /></FormGroup>
+              {/* Teacher selector — admin only */}
+              {isAdmin && (
+                <FormGroup>
+                  <Label><strong>Teacher *</strong></Label>
+                  <Input type="select" value={scheduleForm.teacherId} onChange={e => setScheduleForm(f => ({ ...f, teacherId: e.target.value }))}>
+                    <option value="">— Select teacher —</option>
+                    {subjectTeachers.map(t => <option key={t.id} value={t.id}>{t.first_name} {t.last_name}</option>)}
+                  </Input>
+                </FormGroup>
+              )}
+
               <FormGroup>
-                <Label>Topic <span className="text-danger">*</span></Label>
-                <Input type="select" value={scheduleForm.topicId} onChange={(e) => setScheduleForm({ ...scheduleForm, topicId: e.target.value })}>
-                  <option value="">— Select topic —</option>
+                <Label><strong>Title *</strong></Label>
+                <Input value={scheduleForm.title} onChange={e => setScheduleForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Algebra Basics" />
+              </FormGroup>
+
+              <Row form>
+                <Col md={4}>
+                  <FormGroup>
+                    <Label><strong>Date *</strong></Label>
+                    <Input type="date" value={scheduleForm.date} min={new Date().toISOString().split('T')[0]}
+                      onChange={e => setScheduleForm(f => ({ ...f, date: e.target.value }))} />
+                  </FormGroup>
+                </Col>
+                <Col md={4}>
+                  <FormGroup>
+                    <Label><strong>Start Time *</strong></Label>
+                    <Input type="time" value={scheduleForm.time} onChange={e => setScheduleForm(f => ({ ...f, time: e.target.value }))} />
+                  </FormGroup>
+                </Col>
+                <Col md={4}>
+                  <FormGroup>
+                    <Label>End Time</Label>
+                    <Input type="time" value={scheduleForm.endTime} onChange={e => setScheduleForm(f => ({ ...f, endTime: e.target.value }))} />
+                  </FormGroup>
+                </Col>
+              </Row>
+
+              <FormGroup>
+                <Label>Topic</Label>
+                <Input type="select" value={scheduleForm.topicId} onChange={e => setScheduleForm(f => ({ ...f, topicId: e.target.value }))}>
+                  <option value="">— Select topic (optional) —</option>
                   {topics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </Input>
               </FormGroup>
+
+              {/* Student checkboxes */}
+              {subjectStudents.length > 0 && (
+                <FormGroup>
+                  <Label>
+                    <strong>Target Students</strong>{' '}
+                    <span style={{ fontWeight: 400, color: '#8898aa', fontSize: 13 }}>(leave blank = all enrolled)</span>
+                  </Label>
+                  <div style={{ maxHeight: 130, overflowY: 'auto', border: '1px solid #e9ecef', borderRadius: 8, padding: 8, background: '#fff' }}>
+                    {subjectStudents.map(s => (
+                      <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
+                        <input type="checkbox" id={`ss-${s.id}`}
+                          checked={scheduleForm.studentIds.includes(s.id)}
+                          onChange={() => setScheduleForm(f => ({
+                            ...f,
+                            studentIds: f.studentIds.includes(s.id)
+                              ? f.studentIds.filter(x => x !== s.id)
+                              : [...f.studentIds, s.id],
+                          }))} />
+                        <label htmlFor={`ss-${s.id}`} style={{ margin: 0, cursor: 'pointer', fontSize: 13 }}>
+                          {s.first_name} {s.last_name} <span style={{ color: '#8898aa' }}>({s.email})</span>
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </FormGroup>
+              )}
+
+              {/* Recurring toggle */}
+              <FormGroup check className="mb-3">
+                <Input type="checkbox" id="sf-recurring" checked={scheduleForm.isRecurring}
+                  onChange={e => setScheduleForm(f => ({ ...f, isRecurring: e.target.checked }))} />
+                <Label check htmlFor="sf-recurring"><strong>Recurring session</strong></Label>
+              </FormGroup>
+
+              {scheduleForm.isRecurring && (
+                <>
+                  <FormGroup>
+                    <Label>Repeat pattern</Label>
+                    <div className="d-flex" style={{ gap: 16 }}>
+                      {['daily', 'weekly'].map(p => (
+                        <label key={p} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                          <input type="radio" name="sfPattern" value={p} checked={scheduleForm.recurPattern === p}
+                            onChange={() => setScheduleForm(f => ({ ...f, recurPattern: p }))} />
+                          {p.charAt(0).toUpperCase() + p.slice(1)}
+                        </label>
+                      ))}
+                    </div>
+                  </FormGroup>
+
+                  {scheduleForm.recurPattern === 'weekly' && (
+                    <FormGroup>
+                      <Label>Days of week <span style={{ color: '#8898aa', fontWeight: 400, fontSize: 13 }}>(blank = every day)</span></Label>
+                      <div className="d-flex flex-wrap" style={{ gap: 8 }}>
+                        {DAY_LABELS.map((label, i) => (
+                          <button key={i} type="button"
+                            onClick={() => setScheduleForm(f => ({
+                              ...f,
+                              recurDays: f.recurDays.includes(i)
+                                ? f.recurDays.filter(d => d !== i)
+                                : [...f.recurDays, i],
+                            }))}
+                            style={{
+                              width: 40, height: 40, borderRadius: 20, border: '2px solid',
+                              borderColor: scheduleForm.recurDays.includes(i) ? '#5e72e4' : '#dee2e6',
+                              background:  scheduleForm.recurDays.includes(i) ? '#5e72e4' : '#fff',
+                              color:       scheduleForm.recurDays.includes(i) ? '#fff'    : '#525f7f',
+                              fontWeight: 700, fontSize: 12, cursor: 'pointer',
+                            }}>
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </FormGroup>
+                  )}
+
+                  <FormGroup>
+                    <Label><strong>Repeat until *</strong></Label>
+                    <Input type="date" value={scheduleForm.recurEndDate}
+                      onChange={e => setScheduleForm(f => ({ ...f, recurEndDate: e.target.value }))} />
+                  </FormGroup>
+
+                  {schedulePreview.length > 0 && (
+                    <div style={{ background: '#eef0fd', borderRadius: 10, padding: '10px 14px', marginBottom: 12 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#5e72e4', marginBottom: 6 }}>
+                        Preview — {schedulePreview.length} session{schedulePreview.length !== 1 ? 's' : ''} will be created:
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 90, overflowY: 'auto' }}>
+                        {schedulePreview.map(d => (
+                          <span key={d} style={{ background: '#fff', border: '1px solid #c5cae9', borderRadius: 8, padding: '2px 8px', fontSize: 12, color: '#3b4a67' }}>
+                            {new Date(d + 'T00:00:00Z').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
               {scheduleError && <p className="text-danger small">{scheduleError}</p>}
             </Form>
           </ModalBody>
-          <ModalFooter>
-            <Button color="success" disabled={scheduling} onClick={handleSchedule}>{scheduling ? 'Scheduling...' : 'Schedule'}</Button>
+          <ModalFooter style={{ background: '#f8fbff' }}>
+            <Button color="success" disabled={scheduling} onClick={handleSchedule}>
+              {scheduling ? 'Scheduling…' : scheduleForm.isRecurring && schedulePreview.length > 1 ? `Create ${schedulePreview.length} Sessions` : 'Schedule'}
+            </Button>
             <Button color="link" onClick={() => setScheduleOpen(false)}>Cancel</Button>
           </ModalFooter>
         </Modal>
@@ -851,14 +1080,41 @@ export default function SubjectTeacher() {
               <FormGroup><Label>Description</Label><Input type="textarea" rows={2} value={assignForm.description} onChange={(e) => setAssignForm({ ...assignForm, description: e.target.value })} /></FormGroup>
               <Row>
                 <Col md="6"><FormGroup><Label>Due Date</Label><Input type="datetime-local" value={assignForm.due_date} onChange={(e) => setAssignForm({ ...assignForm, due_date: e.target.value })} /></FormGroup></Col>
-                <Col md="6"><FormGroup><Label>Max Marks</Label><Input type="number" value={assignForm.max_marks} onChange={(e) => setAssignForm({ ...assignForm, max_marks: e.target.value })} /></FormGroup></Col>
+                <Col md="6"><FormGroup><Label>Max Points</Label><Input type="number" value={assignForm.max_marks} onChange={(e) => setAssignForm({ ...assignForm, max_marks: e.target.value })} /></FormGroup></Col>
               </Row>
-              <FormGroup><Label>Attachment URL</Label><Input value={assignForm.attachment_url} onChange={(e) => setAssignForm({ ...assignForm, attachment_url: e.target.value })} placeholder="https://..." /></FormGroup>
+              <FormGroup>
+                <Label>Attachment File</Label>
+                <div>
+                  <input type="file" ref={assignFileRef} style={{ display: 'none' }}
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.txt"
+                    onChange={e => e.target.files?.[0] && handleAssignFileUpload(e.target.files[0])} />
+                  <div className="d-flex align-items-center" style={{ gap: 10 }}>
+                    <button type="button" onClick={() => assignFileRef.current?.click()}
+                      disabled={assignUploading}
+                      style={{ background: '#5e72e4', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 14px', fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>
+                      {assignUploading ? 'Uploading…' : '📎 Upload File'}
+                    </button>
+                    {assignFileName && (
+                      <span style={{ fontSize: 13, color: '#2dce89', fontWeight: 600 }}>✓ {assignFileName}</span>
+                    )}
+                  </div>
+                  <small className="text-muted mt-1 d-block">PDF, Word, Excel, image (max 10 MB)</small>
+                </div>
+              </FormGroup>
               <FormGroup>
                 <Label>Topic <span className="text-danger">*</span></Label>
                 <Input type="select" value={assignForm.topicId} onChange={(e) => setAssignForm({ ...assignForm, topicId: e.target.value })}>
                   <option value="">— Select topic —</option>
                   {topics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </Input>
+              </FormGroup>
+              <FormGroup>
+                <Label>Assign To <span className="text-muted small">(leave empty = all enrolled students)</span></Label>
+                <Input type="select" value={assignForm.assignedTo} onChange={(e) => setAssignForm({ ...assignForm, assignedTo: e.target.value })}>
+                  <option value="">— All students —</option>
+                  {subjectStudents.map(s => (
+                    <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>
+                  ))}
                 </Input>
               </FormGroup>
               {assignError && <p className="text-danger small">{assignError}</p>}

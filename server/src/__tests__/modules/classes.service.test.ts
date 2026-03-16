@@ -102,18 +102,19 @@ describe('classes.service', () => {
         id: 'new-sess-uuid', subject_id: 'sub-uuid', title: 'Lesson 1',
         session_date: '2099-06-01', start_time: '10:00:00+05:30', status: 'scheduled',
       };
-      mockQuery
-        .mockResolvedValueOnce([insertedRow])       // INSERT session
-        .mockResolvedValueOnce([{ name: 'Math' }]); // SELECT subject name
+      mockQueryWithClient
+        .mockResolvedValueOnce([{ name: 'Math' }]) // SELECT subject name (first)
+        .mockResolvedValueOnce([insertedRow]);       // INSERT session (second)
 
       const result = await createSession({
         subjectId: 'sub-uuid', teacherId: 'teacher-uuid',
         title: 'Lesson 1', sessionDate: '2099-06-01', startTime: '10:00:00+05:30',
       });
 
-      expect(result.id).toBe('new-sess-uuid');
-      expect(result.status).toBe('SCHEDULED');
-      expect(result.class_title).toBe('Math');
+      expect(result.sessions[0]!.id).toBe('new-sess-uuid');
+      expect(result.sessions[0]!.status).toBe('SCHEDULED');
+      expect(result.sessions[0]!.class_title).toBe('Math');
+      expect(result.count).toBe(1);
     });
 
     it('computes end_time as start_time + 90 minutes', async () => {
@@ -121,17 +122,18 @@ describe('classes.service', () => {
         id: 'uuid', subject_id: 'sub-uuid', title: 'T',
         session_date: '2099-01-01', start_time: '10:00:00+05:30', status: 'scheduled',
       };
-      mockQuery
-        .mockResolvedValueOnce([insertedRow])
-        .mockResolvedValueOnce([{ name: 'Math' }]);
+      mockQueryWithClient
+        .mockResolvedValueOnce([{ name: 'Math' }]) // SELECT subject name (first)
+        .mockResolvedValueOnce([insertedRow]);       // INSERT session (second)
 
       await createSession({
         subjectId: 'sub-uuid', teacherId: 't-uuid',
         title: 'T', sessionDate: '2099-01-01', startTime: '10:00:00+05:30',
       });
 
-      // The end_time arg (index 5) should be '11:30:00+05:30' (10:00 + 90 min)
-      const callArgs = (mockQuery.mock.calls[0] as any[])[1] as any[];
+      // The end_time arg is at params index 5 of the second queryWithClient call
+      // queryWithClient(client, sql, params) → mock.calls[1][2][5]
+      const callArgs = (mockQueryWithClient.mock.calls[1] as any[])[2] as any[];
       expect(callArgs[5]).toBe('11:30:00+05:30');
     });
   });
@@ -180,7 +182,9 @@ describe('classes.service', () => {
     });
 
     it('throws FORBIDDEN when teacher_id does not match', async () => {
-      mockQueryWithClient.mockResolvedValueOnce([{ ...sessionRow, teacher_id: 'other-teacher' }]);
+      mockQueryWithClient
+        .mockResolvedValueOnce([{ ...sessionRow, teacher_id: 'other-teacher' }]) // SELECT FOR UPDATE
+        .mockResolvedValueOnce([]); // subject_teachers check → not assigned → FORBIDDEN
 
       await expect(completeSessionById('sess-uuid', 'teacher-uuid'))
         .rejects.toThrow('FORBIDDEN');

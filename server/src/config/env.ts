@@ -26,8 +26,9 @@ export const env = {
     .filter(Boolean),
 
   // Supabase Storage
-  SUPABASE_URL_PUBLIC:  process.env.SUPABASE_URL_PUBLIC  || '',
-  SUPABASE_ANON_KEY:    process.env.SUPABASE_ANON_KEY    || '',
+  SUPABASE_URL_PUBLIC:        process.env.SUPABASE_URL_PUBLIC        || '',
+  SUPABASE_ANON_KEY:          process.env.SUPABASE_ANON_KEY          || '',
+  SUPABASE_ASSIGNMENT_BUCKET: process.env.SUPABASE_ASSIGNMENT_BUCKET || 'assignment-files',
 
   // Zoom
   ZOOM_ACCOUNT_ID:    process.env.ZOOM_ACCOUNT_ID || '',
