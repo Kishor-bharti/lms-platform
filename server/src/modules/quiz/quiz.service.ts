@@ -295,9 +295,11 @@ export async function partialSubmitPractice(data: {
     selected_option_id: string | null;
     selected_label: string | null;
     selected_text: string | null;
+    selected_image_url: string | null;
     correct_option_id: string;
     correct_label: string;
     correct_text: string;
+    correct_image_url: string | null;
     is_correct: boolean;
     marks_awarded: number;
     total_marks: number;
@@ -321,7 +323,8 @@ export async function partialSubmitPractice(data: {
     const correctRows = await queryWithClient<any>(client, `
       SELECT q.id AS question_id, q.question_text, q.image_url, q.explanation,
              q.explanation_image_url, q.difficulty, q.marks, t.name AS topic_name,
-             o.id AS correct_option_id, o.option_label AS correct_label, o.option_text AS correct_text
+             o.id AS correct_option_id, o.option_label AS correct_label, o.option_text AS correct_text,
+             o.option_image_url AS correct_image_url
       FROM questions q
       LEFT JOIN topics t ON t.id = q.topic_id
       JOIN options o ON o.question_id = q.id AND o.is_correct = true
@@ -361,10 +364,10 @@ export async function partialSubmitPractice(data: {
 
     // Fetch selected option labels for review display
     const selectedIds = data.answers.map(a => a.selected_option_id).filter(Boolean) as string[];
-    const selMap = new Map<string, { option_label: string; option_text: string }>();
+    const selMap = new Map<string, { option_label: string; option_text: string; option_image_url: string | null }>();
     if (selectedIds.length > 0) {
       const selRows = await queryWithClient<any>(client, `
-        SELECT id, option_label, option_text FROM options WHERE id = ANY($1)
+        SELECT id, option_label, option_text, option_image_url FROM options WHERE id = ANY($1)
       `, [selectedIds]);
       for (const s of selRows) selMap.set(s.id, s);
     }
@@ -385,9 +388,11 @@ export async function partialSubmitPractice(data: {
         selected_option_id: ans.selected_option_id,
         selected_label: sel?.option_label ?? null,
         selected_text: sel?.option_text ?? null,
+        selected_image_url: sel?.option_image_url ?? null,
         correct_option_id: correct.correct_option_id,
         correct_label: correct.correct_label,
         correct_text: correct.correct_text,
+        correct_image_url: correct.correct_image_url ?? null,
         is_correct: isCorrect,
         marks_awarded: isCorrect ? Number(correct.marks) : 0,
         total_marks: Number(correct.marks),
@@ -528,8 +533,8 @@ export async function getAttemptResult(attemptId: string, studentId: string) {
       aa.question_id, aa.selected_option_id, aa.is_correct, aa.marks_awarded,
       q.question_text, q.image_url, q.explanation, q.explanation_image_url,
       q.difficulty, q.marks AS total_marks, t.name AS topic_name,
-      sel.option_label AS selected_label, sel.option_text AS selected_text,
-      cor.id AS correct_option_id, cor.option_label AS correct_label, cor.option_text AS correct_text
+      sel.option_label AS selected_label, sel.option_text AS selected_text, sel.option_image_url AS selected_image_url,
+      cor.id AS correct_option_id, cor.option_label AS correct_label, cor.option_text AS correct_text, cor.option_image_url AS correct_image_url
     FROM attempt_answers aa
     JOIN questions q ON q.id = aa.question_id
     LEFT JOIN topics t ON t.id = q.topic_id

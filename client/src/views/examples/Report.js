@@ -34,6 +34,14 @@ function fmtSecs(secs) {
 const DAY_LABELS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
+function toLocalDateStr(date) {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-');
+}
+
 function getWeekRange(offset = 0) {
   const now = new Date();
   const dayOfWeek = now.getDay();
@@ -42,8 +50,8 @@ function getWeekRange(offset = 0) {
   const end = new Date(start);
   end.setDate(start.getDate() + 6);
   return {
-    start: start.toISOString().slice(0, 10),
-    end: end.toISOString().slice(0, 10),
+    start: toLocalDateStr(start),
+    end: toLocalDateStr(end),
     label: `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
   };
 }
@@ -53,8 +61,8 @@ function getMonthRange(offset = 0) {
   const start = new Date(now.getFullYear(), now.getMonth() - offset, 1);
   const end = new Date(now.getFullYear(), now.getMonth() - offset + 1, 0);
   return {
-    start: start.toISOString().slice(0, 10),
-    end: end.toISOString().slice(0, 10),
+    start: toLocalDateStr(start),
+    end: toLocalDateStr(end),
     label: `${MONTH_LABELS[start.getMonth()]} ${start.getFullYear()}`,
   };
 }
@@ -108,12 +116,8 @@ function ActivityChart({ data: initialData, studentId, isTeacherView }) {
   }, [studentId, isTeacherView]);
 
   useEffect(() => {
-    if (offset === 0 && mode === 'week' && initialData && initialData.length > 0) {
-      setData(initialData);
-    } else {
-      fetchData(mode, offset);
-    }
-  }, [mode, offset, fetchData, initialData]);
+    fetchData(mode, offset);
+  }, [mode, offset, fetchData]);
 
   const handleModeChange = (m) => { setMode(m); setOffset(0); };
 
@@ -165,7 +169,7 @@ function ActivityChart({ data: initialData, studentId, isTeacherView }) {
                 const total = qVal + pVal;
                 const qH = maxVal > 0 ? (qVal / maxVal) * 80 : 0;
                 const pH = maxVal > 0 ? (pVal / maxVal) * 80 : 0;
-                const isToday = offset === 0 && i === data.length - 1;
+                const isToday = offset === 0 && day.date === toLocalDateStr(new Date());
                 const dayLabel = mode === 'week'
                   ? DAY_LABELS[new Date(day.date + 'T12:00:00').getDay()]
                   : (i + 1).toString();
