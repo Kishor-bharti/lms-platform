@@ -28,7 +28,7 @@ ALTER TABLE options
 
 
 -- ================================================================
--- after creating a new bucket "assignment-uploads" in S3, run the following to update the default value for the "assignment_image_url" column:
+-- after creating a new bucket "assignment-files" in S3, run the following to update the default value for the "assignment_image_url" column:
 -- ================================================================
 
 -- read SETUP_DATABASE_AND_STORAGE.md for instructions on how to create the bucket and get the URL
