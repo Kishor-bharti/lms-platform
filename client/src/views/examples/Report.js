@@ -2,6 +2,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Container, Row, Col, Card, CardHeader, CardBody, CardTitle, Badge, Button, Input,
 } from 'reactstrap';
+import {
+  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, Legend, ReferenceLine,
+} from 'recharts';
 import Header from 'components/Headers/Header.js';
 import LatexRenderer from 'components/LatexRenderer.js';
 import http from 'utils/http';
@@ -123,7 +127,6 @@ function ActivityChart({ data: initialData, studentId, isTeacherView }) {
 
   if (!data || data.length === 0) return null;
 
-  const maxVal = Math.max(...data.map(d => d.quizzes + (d.practices || 0)), 1);
   const totalQ   = data.reduce((s, d) => s + d.quizzes, 0);
   const totalP   = data.reduce((s, d) => s + (d.practices || 0), 0);
   const totalC   = data.reduce((s, d) => s + d.correct, 0);
@@ -131,6 +134,31 @@ function ActivityChart({ data: initialData, studentId, isTeacherView }) {
   const totalMin = data.reduce((s, d) => s + d.time_mins, 0);
 
   const rangeInfo = mode === 'week' ? getWeekRange(offset) : getMonthRange(offset);
+
+  const chartData = data.map((day, i) => ({
+    ...day,
+    practices: day.practices || 0,
+    label: mode === 'week'
+      ? DAY_LABELS[new Date(day.date + 'T12:00:00').getDay()]
+      : (i % 5 === 0 ? (i + 1).toString() : ''),
+    isToday: offset === 0 && day.date === toLocalDateStr(new Date()),
+  }));
+
+  const CustomTooltip = ({ active, payload }) => {
+    if (!active || !payload?.length) return null;
+    const day = payload[0]?.payload;
+    return (
+      <div style={{ background: '#fff', border: '1px solid #e9ecef', borderRadius: 8, padding: '8px 12px', fontSize: 12 }}>
+        <div style={{ fontWeight: 700, color: '#32325d', marginBottom: 4 }}>{day?.date}</div>
+        {payload.map(p => (
+          <div key={p.name} style={{ color: p.color }}>
+            {p.name}: <strong>{p.value}</strong>
+          </div>
+        ))}
+        {day && <div style={{ color: '#8898aa', marginTop: 4 }}>{day.correct}✓ {day.incorrect}✗</div>}
+      </div>
+    );
+  };
 
   return (
     <Card className="shadow mb-4" style={{ borderRadius: 12 }}>
@@ -162,48 +190,22 @@ function ActivityChart({ data: initialData, studentId, isTeacherView }) {
           <ChartSkeleton />
         ) : (
           <>
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: mode === 'month' ? 2 : 8, height: 130, paddingBottom: 4, overflowX: 'auto' }}>
-              {data.map((day, i) => {
-                const qVal = day.quizzes;
-                const pVal = day.practices || 0;
-                const total = qVal + pVal;
-                const qH = maxVal > 0 ? (qVal / maxVal) * 80 : 0;
-                const pH = maxVal > 0 ? (pVal / maxVal) * 80 : 0;
-                const isToday = offset === 0 && day.date === toLocalDateStr(new Date());
-                const dayLabel = mode === 'week'
-                  ? DAY_LABELS[new Date(day.date + 'T12:00:00').getDay()]
-                  : (i + 1).toString();
-                const tooltip = `${day.date}: ${qVal} quiz, ${pVal} practice, ${day.correct}✓ ${day.incorrect}✗`;
-                return (
-                  <div key={day.date} title={tooltip} style={{ flex: mode === 'month' ? '1 0 auto' : 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, minWidth: mode === 'month' ? 12 : 'auto' }}>
-                    <div style={{ fontSize: 9, color: '#8898aa', fontWeight: 700, minHeight: 12 }}>
-                      {total > 0 ? total : ''}
-                    </div>
-                    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                      {pVal > 0 && (
-                        <div style={{ width: '80%', height: `${Math.max(pH, 4)}px`, background: '#2dce89', borderRadius: '3px 3px 0 0', transition: 'height 0.4s ease' }} />
-                      )}
-                      <div style={{
-                        width: '80%',
-                        height: total > 0 ? `${Math.max(qH, 4)}px` : '3px',
-                        background: isToday ? '#5e72e4' : qVal > 0 ? '#a8b8f8' : '#e9ecef',
-                        borderRadius: pVal > 0 ? '0 0 3px 3px' : '3px',
-                        transition: 'height 0.4s ease',
-                      }} />
-                    </div>
-                    <div style={{ fontSize: mode === 'month' ? 8 : 10, color: isToday ? '#5e72e4' : '#8898aa', fontWeight: isToday ? 700 : 400 }}>
-                      {mode === 'month' ? (i % 5 === 0 ? dayLabel : '') : dayLabel}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <div style={{ display: 'flex', gap: 16, marginTop: 16, flexWrap: 'wrap' }}>
+            <ResponsiveContainer width="100%" height={160}>
+              <BarChart data={chartData} margin={{ top: 4, right: 8, left: -28, bottom: 0 }} barCategoryGap={mode === 'month' ? '10%' : '30%'}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f4f8" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: mode === 'month' ? 9 : 11, fill: '#8898aa' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: '#8898aa' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                <Tooltip content={<CustomTooltip />} />
+                <Bar dataKey="quizzes" name="Quizzes" stackId="a" fill="#a8b8f8" radius={[0, 0, 2, 2]} />
+                <Bar dataKey="practices" name="Practice" stackId="a" fill="#2dce89" radius={[2, 2, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+            <div style={{ display: 'flex', gap: 16, marginTop: 8, flexWrap: 'wrap' }}>
               {[
-                { label: 'Quizzes',   value: totalQ,          color: '#5e72e4' },
-                { label: 'Practice',  value: totalP,          color: '#2dce89' },
-                { label: 'Correct',   value: totalC,          color: '#11cdef' },
-                { label: 'Incorrect', value: totalI,          color: '#f5365c' },
+                { label: 'Quizzes',   value: totalQ,            color: '#5e72e4' },
+                { label: 'Practice',  value: totalP,            color: '#2dce89' },
+                { label: 'Correct',   value: totalC,            color: '#11cdef' },
+                { label: 'Incorrect', value: totalI,            color: '#f5365c' },
                 { label: 'Time',      value: fmtTime(totalMin), color: '#fb6340' },
               ].map(item => (
                 <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -216,6 +218,145 @@ function ActivityChart({ data: initialData, studentId, isTeacherView }) {
             </div>
           </>
         )}
+      </CardBody>
+    </Card>
+  );
+}
+
+// ─── Score Trend Chart ────────────────────────────────────────────────────
+
+function ScoreTrendChart({ quizHistory, practiceHistory }) {
+  const quizPoints = (quizHistory || [])
+    .filter(h => h.score_pct !== null)
+    .slice(0, 15)
+    .reverse()
+    .map((h, i) => ({ idx: i + 1, quiz: Number(h.score_pct), label: h.quiz_title, date: new Date(h.submitted_at).toLocaleDateString() }));
+
+  const practicePoints = (practiceHistory || [])
+    .filter(h => h.score_pct !== null)
+    .slice(0, 15)
+    .reverse()
+    .map((h, i) => ({ idx: i + 1, practice: Number(h.score_pct), label: h.quiz_title, date: new Date(h.submitted_at).toLocaleDateString() }));
+
+  if (quizPoints.length < 2 && practicePoints.length < 2) return null;
+
+  // Merge by index so both lines can share the same x-axis
+  const maxLen = Math.max(quizPoints.length, practicePoints.length);
+  const merged = Array.from({ length: maxLen }, (_, i) => ({
+    idx: i + 1,
+    quiz:     quizPoints[i]?.quiz     ?? null,
+    practice: practicePoints[i]?.practice ?? null,
+    quizLabel:     quizPoints[i]?.label,
+    practiceLabel: practicePoints[i]?.label,
+    quizDate:      quizPoints[i]?.date,
+    practiceDate:  practicePoints[i]?.date,
+  }));
+
+  const TrendTooltip = ({ active, payload }) => {
+    if (!active || !payload?.length) return null;
+    const d = payload[0]?.payload;
+    return (
+      <div style={{ background: '#fff', border: '1px solid #e9ecef', borderRadius: 8, padding: '8px 12px', fontSize: 12, maxWidth: 200 }}>
+        {d.quiz !== null && (
+          <div style={{ marginBottom: 4 }}>
+            <div style={{ color: '#8898aa', fontSize: 11 }}>{d.quizDate}</div>
+            <div style={{ fontWeight: 600, color: '#32325d', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.quizLabel}</div>
+            <div style={{ color: '#5e72e4', fontWeight: 700 }}>Quiz: {d.quiz}%</div>
+          </div>
+        )}
+        {d.practice !== null && (
+          <div>
+            <div style={{ color: '#8898aa', fontSize: 11 }}>{d.practiceDate}</div>
+            <div style={{ fontWeight: 600, color: '#32325d', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.practiceLabel}</div>
+            <div style={{ color: '#2dce89', fontWeight: 700 }}>Practice: {d.practice}%</div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <Card className="shadow mb-4" style={{ borderRadius: 12 }}>
+      <CardHeader style={{ background: '#f8f9fa', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
+        <CardTitle className="mb-0" style={{ color: '#32325d', fontSize: 15 }}>📈 Score Trend</CardTitle>
+      </CardHeader>
+      <CardBody>
+        <ResponsiveContainer width="100%" height={200}>
+          <LineChart data={merged} margin={{ top: 8, right: 16, left: -20, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f0f4f8" />
+            <XAxis dataKey="idx" tick={{ fontSize: 11, fill: '#8898aa' }} axisLine={false} tickLine={false} label={{ value: 'Attempt', position: 'insideBottom', offset: -2, fontSize: 11, fill: '#8898aa' }} />
+            <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#8898aa' }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
+            <Tooltip content={<TrendTooltip />} />
+            <ReferenceLine y={60} stroke="#fb6340" strokeDasharray="4 4" strokeWidth={1} />
+            <ReferenceLine y={80} stroke="#2dce89" strokeDasharray="4 4" strokeWidth={1} />
+            {quizPoints.length >= 2 && (
+              <Line type="monotone" dataKey="quiz" name="Quiz" stroke="#5e72e4" strokeWidth={2.5} dot={{ r: 4, fill: '#5e72e4', strokeWidth: 0 }} activeDot={{ r: 6 }} connectNulls />
+            )}
+            {practicePoints.length >= 2 && (
+              <Line type="monotone" dataKey="practice" name="Practice" stroke="#2dce89" strokeWidth={2.5} dot={{ r: 4, fill: '#2dce89', strokeWidth: 0 }} activeDot={{ r: 6 }} connectNulls />
+            )}
+            <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
+          </LineChart>
+        </ResponsiveContainer>
+        <div style={{ display: 'flex', gap: 16, marginTop: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <div style={{ width: 28, height: 2, background: '#fb6340', borderRadius: 1 }} />
+            <span style={{ fontSize: 11, color: '#8898aa' }}>Pass threshold (60%)</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <div style={{ width: 28, height: 2, background: '#2dce89', borderRadius: 1 }} />
+            <span style={{ fontSize: 11, color: '#8898aa' }}>Good threshold (80%)</span>
+          </div>
+        </div>
+      </CardBody>
+    </Card>
+  );
+}
+
+// ─── Subject Performance Chart ────────────────────────────────────────────
+
+function SubjectPerformanceChart({ data }) {
+  const chartData = (data || [])
+    .filter(s => s.avg_score_pct !== null || s.best_score_pct !== null)
+    .map(s => ({
+      name: s.subject_code || (s.subject_name?.length > 14 ? s.subject_name.substring(0, 14) + '…' : s.subject_name),
+      fullName: s.subject_name,
+      avgScore:  s.avg_score_pct  !== null ? Math.round(s.avg_score_pct)  : null,
+      bestScore: s.best_score_pct !== null ? Math.round(s.best_score_pct) : null,
+    }));
+
+  if (chartData.length === 0) return null;
+
+  const SubjTooltip = ({ active, payload }) => {
+    if (!active || !payload?.length) return null;
+    const d = payload[0]?.payload;
+    return (
+      <div style={{ background: '#fff', border: '1px solid #e9ecef', borderRadius: 8, padding: '8px 12px', fontSize: 12 }}>
+        <div style={{ fontWeight: 700, color: '#32325d', marginBottom: 6 }}>{d.fullName}</div>
+        {payload.map(p => p.value !== null && (
+          <div key={p.name} style={{ color: p.fill, fontWeight: 600 }}>{p.name}: {p.value}%</div>
+        ))}
+      </div>
+    );
+  };
+
+  return (
+    <Card className="shadow mb-4" style={{ borderRadius: 12 }}>
+      <CardHeader style={{ background: '#f8f9fa', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
+        <CardTitle className="mb-0" style={{ color: '#32325d', fontSize: 15 }}>📊 Subject Performance</CardTitle>
+      </CardHeader>
+      <CardBody>
+        <ResponsiveContainer width="100%" height={Math.max(180, chartData.length * 52)}>
+          <BarChart layout="vertical" data={chartData} margin={{ top: 4, right: 24, left: 8, bottom: 4 }} barCategoryGap="30%">
+            <CartesianGrid strokeDasharray="3 3" stroke="#f0f4f8" horizontal={false} />
+            <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11, fill: '#8898aa' }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
+            <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 12, fill: '#525f7f' }} axisLine={false} tickLine={false} />
+            <Tooltip content={<SubjTooltip />} />
+            <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
+            <Bar dataKey="avgScore"  name="Avg Score"  fill="#a8b8f8" radius={[0, 4, 4, 0]} />
+            <Bar dataKey="bestScore" name="Best Score" fill="#2dce89" radius={[0, 4, 4, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
       </CardBody>
     </Card>
   );
@@ -590,11 +731,17 @@ function StudentReport({ data, weekly, quizHistory, practiceHistory, studentId, 
       {/* Activity chart with week/month toggle */}
       <ActivityChart data={weekly} studentId={studentId} isTeacherView={isTeacherView} />
 
+      {/* Score Trend */}
+      <ScoreTrendChart quizHistory={quizHistory} practiceHistory={practiceHistory} />
+
       {/* Quiz History */}
       <HistoryTable data={quizHistory} title="Recent Quiz History" icon="📋" nameCol="Quiz" contextCol="Course" contextField="course_name" studentId={studentId} isTeacherView={isTeacherView} />
 
       {/* Practice History */}
       <HistoryTable data={practiceHistory} title="Recent Practice History" icon="🎯" nameCol="Practice" contextCol="Subject" contextField="subject_name" studentId={studentId} isTeacherView={isTeacherView} />
+
+      {/* Subject performance overview chart */}
+      <SubjectPerformanceChart data={data} />
 
       {/* Subject breakdown heading */}
       <Row className="mb-2">
