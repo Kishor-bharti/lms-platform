@@ -50,7 +50,8 @@ function calculateSessionStatus(
 
 // Build ISO scheduled_at string from DATE + TIMETZ columns
 function buildScheduledAt(session_date: string, start_time: string): string {
-  const timeStr = start_time.replace(/[+-]\d{2}:\d{2}$/, '');
+  // slice(0, 8) extracts HH:MM:SS regardless of timezone suffix (+05:30, +00, etc.)
+  const timeStr = start_time.slice(0, 8);
   return `${session_date}T${timeStr}`;
 }
 

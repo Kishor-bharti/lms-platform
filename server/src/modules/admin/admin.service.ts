@@ -608,7 +608,7 @@ export async function getAllSessionsAdmin() {
     status:         r.status,
     subject_id:     r.subject_id,
     teacher_id:     r.teacher_id,
-    scheduled_at:   `${r.session_date}T${r.start_time.replace(/[+-]\d{2}:\d{2}$/, '')}`,
+    scheduled_at:   `${r.session_date}T${r.start_time.slice(0, 8)}`,
     zoom_link:      r.meeting_link,
     topic_name:     r.topic_name ?? null,
     subject_name:   r.subject_name,

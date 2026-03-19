@@ -4,14 +4,14 @@ import { Container } from "reactstrap";
 const QUOTES = [
   "Every expert was once a beginner. Keep going! 🚀",
   "Learning is the passport to the future. 🌍",
-  "Small progress is still progress. Keep pushing! 💪",
+  "Small progress is still progress. Keep pushing!",
   "Your only limit is your mind. Believe in yourself! ✨",
   "Success is the sum of small efforts, repeated daily. 🏆",
   "The more you learn, the more you earn. 📚",
   "Dream big. Study hard. Stay humble. 🌟",
   "Knowledge is power. Keep leveling up! ⚡",
   "Today's effort is tomorrow's achievement. 🎯",
-  "You are capable of amazing things. Keep going! 🌈",
+  "You are capable of amazing things. Keep going!",
 ];
 
 function useTypewriter(text, speed = 45) {

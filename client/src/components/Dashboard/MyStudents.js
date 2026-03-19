@@ -140,7 +140,11 @@ function AdminStudentsView() {
       sessions: `/api/admin/sessions${params}`,
     };
     http.get(endpoints[tab])
-      .then(r => setRows(Array.isArray(r?.data) ? r.data : []))
+      .then(r => {
+        const data = r?.data;
+        // users endpoint returns { users: [], total, page, limit }; sessions returns []
+        setRows(Array.isArray(data) ? data : Array.isArray(data?.users) ? data.users : []);
+      })
       .catch(() => setRows([]))
       .finally(() => setLoading(false));
   }, [tab, filterSubject]);
@@ -218,7 +222,7 @@ function AdminStudentsView() {
                   <td style={{ fontWeight: 700, color: '#3b4a67' }}>{s.title}</td>
                   <td style={{ color: '#6b778c' }}>{s.subject_title || s.class_title || '—'}</td>
                   <td style={{ color: '#6b778c' }}>{s.teacher_name || '—'}</td>
-                  <td style={{ color: '#6b778c' }}>{s.session_date ? new Date(s.session_date).toLocaleDateString() : '—'}</td>
+                  <td style={{ color: '#6b778c' }}>{s.scheduled_at ? new Date(s.scheduled_at).toLocaleDateString() : '—'}</td>
                   <td>
                     <Badge color={s.status === 'completed' ? 'success' : s.status === 'live' ? 'danger' : 'secondary'}
                       style={{ borderRadius: 10, padding: '3px 8px', textTransform: 'uppercase', fontSize: 10 }}>
