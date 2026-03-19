@@ -21,12 +21,12 @@ const Sessions = () => {
   const STATUS_PRIORITY = { LIVE: 0, TODAY: 1, TOMORROW: 2, SCHEDULED: 3, COMPLETED: 4 };
 
   const sortSessions = (list) => {
-    return [...list].sort((a, b) => {
+    return list.filter(Boolean).sort((a, b) => {
       const pa = STATUS_PRIORITY[a.status] ?? 9;
       const pb = STATUS_PRIORITY[b.status] ?? 9;
       if (pa !== pb) return pa - pb;
-      const ta = new Date(a.scheduled_at).getTime();
-      const tb = new Date(b.scheduled_at).getTime();
+      const ta = a.scheduled_at ? new Date(a.scheduled_at).getTime() : 0;
+      const tb = b.scheduled_at ? new Date(b.scheduled_at).getTime() : 0;
       return a.status === 'COMPLETED' ? tb - ta : ta - tb;
     });
   };
@@ -92,7 +92,9 @@ const Sessions = () => {
     try {
       const response = await http.post(`/api/classes/sessions/${sessionId}/start`);
       const updated = response?.data;
-      setSessions(sessions.map(s => s.id === sessionId ? updated : s));
+      if (updated && updated.id) {
+        setSessions(prev => sortSessions(prev.map(s => s.id === sessionId ? updated : s)));
+      }
       setExpandedSession(null);
       // Open Zoom for the teacher (start_url)
       const openUrl = updated?.start_url || updated?.zoom_link;
@@ -110,7 +112,10 @@ const Sessions = () => {
     setActionError("");
     try {
       const response = await http.post(`/api/classes/sessions/${sessionId}/complete`);
-      setSessions(sessions.map(s => s.id === sessionId ? response?.data : s));
+      const updated = response?.data;
+      if (updated && updated.id) {
+        setSessions(prev => sortSessions(prev.map(s => s.id === sessionId ? updated : s)));
+      }
       setExpandedSession(null);
     } catch (error) {
       console.error('Failed to end session:', error);
@@ -149,7 +154,9 @@ const Sessions = () => {
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
     return list.filter((s) => {
+      if (!s || !s.scheduled_at) return false;
       const d = new Date(s.scheduled_at);
+      if (isNaN(d.getTime())) return false;
       if (selectedView === 'day') return d.toISOString().slice(0, 10) === today;
       if (selectedView === 'week') return d >= weekStart && d <= weekEnd;
       if (selectedView === 'month') return d >= monthStart && d <= monthEnd;
