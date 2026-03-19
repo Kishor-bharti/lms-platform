@@ -575,7 +575,9 @@ export async function deleteAdminSession(sessionId: string): Promise<void> {
 
 // ---- All sessions (admin view) ----
 
-export async function getAllSessionsAdmin() {
+export async function getAllSessionsAdmin(date?: string) {
+  const dateClause = date ? 'WHERE s.session_date = $1' : '';
+  const params: any[] = date ? [date] : [];
   const rows = await query<any>(`
     SELECT
       s.id, s.title, s.status,
@@ -595,12 +597,13 @@ export async function getAllSessionsAdmin() {
     JOIN users    u   ON u.id   = s.teacher_id
     LEFT JOIN topics t ON t.id  = s.topic_id
     LEFT JOIN subject_enrollments se ON se.subject_id = s.subject_id
+    ${dateClause}
     GROUP BY s.id, s.title, s.status, s.subject_id, s.teacher_id,
              s.session_date, s.start_time, s.meeting_link,
              t.name, sub.name, c.name, u.first_name, u.last_name, u.email
     ORDER BY s.session_date DESC, s.start_time DESC
     LIMIT 500
-  `);
+  `, params);
 
   return rows.map((r) => ({
     id:             r.id,

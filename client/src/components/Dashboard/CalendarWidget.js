@@ -33,28 +33,7 @@ function toDateStr(y, m, d) {
   return `${y}-${pad2(m + 1)}-${pad2(d)}`;
 }
 
-function fmtTime(scheduledAt) {
-  // scheduledAt = "2026-03-16T18:30:00"
-  const t = scheduledAt?.slice(11, 16);
-  if (!t) return '';
-  const [hh, mm] = t.split(':').map(Number);
-  const ampm = hh >= 12 ? 'PM' : 'AM';
-  const h12  = hh % 12 || 12;
-  return `${h12}:${pad2(mm)} ${ampm}`;
-}
 
-const STATUS_COLORS = {
-  live:      { bg: 'rgba(45,206,137,0.18)', color: '#2dce89', label: 'LIVE' },
-  today:     { bg: 'rgba(251,99,64,0.18)',  color: '#fb6340', label: 'TODAY' },
-  tomorrow:  { bg: 'rgba(94,114,228,0.18)', color: '#5e72e4', label: 'TMRW' },
-  scheduled: { bg: 'rgba(130,94,228,0.18)', color: '#825ee4', label: 'UPCOMING' },
-  completed: { bg: 'rgba(255,255,255,0.08)',color: '#718096', label: 'DONE' },
-};
-
-function statusStyle(status) {
-  const key = (status || '').toLowerCase();
-  return STATUS_COLORS[key] || STATUS_COLORS.scheduled;
-}
 
 /* ── component ───────────────────────────────────────── */
 export default function CalendarWidget() {
@@ -63,8 +42,7 @@ export default function CalendarWidget() {
   const [sel,     setSel]     = useState(null);          // {y,m,d}
   const [view,    setView]    = useState("cal");          // "cal"|"month"|"year"
   const [yrBase,  setYrBase]  = useState(() => Math.floor(today.getFullYear() / 12) * 12);
-  const [sessions,       setSessions]       = useState([]);
-  const [sessionsLoading, setSessionsLoading] = useState(true);
+  const [sessions, setSessions] = useState([]);
 
   const cells = useMemo(() => monthMatrix(cur), [cur]);
   const navigate = useNavigate();
@@ -72,13 +50,11 @@ export default function CalendarWidget() {
   const role = typeof window !== "undefined" ? window.localStorage.getItem("role") : null;
   const sessionsPath = role === "student" ? "/admin/classes" : "/admin/sessions";
 
-  /* fetch all sessions once */
+  /* fetch all sessions once — used only for date dot indicators */
   useEffect(() => {
-    setSessionsLoading(true);
     http.get('/api/classes/my-sessions-v2')
       .then(res => setSessions(Array.isArray(res.data) ? res.data : []))
-      .catch(() => setSessions([]))
-      .finally(() => setSessionsLoading(false));
+      .catch(() => setSessions([]));
   }, []);
 
   /* set of date strings that have sessions — for dot indicators */
@@ -90,14 +66,6 @@ export default function CalendarWidget() {
     return s;
   }, [sessions]);
 
-  /* sessions for the selected day */
-  const daySessions = useMemo(() => {
-    if (!sel) return [];
-    const dateStr = toDateStr(sel.y, sel.m, sel.d);
-    return sessions
-      .filter(s => s.scheduled_at?.startsWith(dateStr))
-      .sort((a, b) => (a.scheduled_at || '').localeCompare(b.scheduled_at || ''));
-  }, [sel, sessions]);
 
   const isToday = c =>
     c.type === "curr" &&
@@ -247,41 +215,19 @@ export default function CalendarWidget() {
           </div>
         )}
 
-        {/* SESSIONS PANEL — shown when a date is selected */}
+        {/* VIEW SESSIONS BUTTON — shown when a date is selected */}
         {view === "cal" && sel && (
           <div className="cw-sp">
             <div className="cw-sp-hdr">
               <span className="cw-sp-title">{selLabel}</span>
-              {!sessionsLoading && (
-                <span className="cw-sp-count">
-                  {daySessions.length} session{daySessions.length !== 1 ? 's' : ''}
-                </span>
-              )}
             </div>
-
-            {sessionsLoading ? (
-              <div className="cw-sp-empty">Loading…</div>
-            ) : daySessions.length === 0 ? (
-              <div className="cw-sp-empty">No sessions scheduled</div>
-            ) : (
-              <div className="cw-sp-list">
-                {daySessions.map(s => {
-                  const st = statusStyle(s.status);
-                  return (
-                    <div key={s.id} className="cw-sp-item">
-                      <div className="cw-sp-time">{fmtTime(s.scheduled_at)}</div>
-                      <div className="cw-sp-info">
-                        <div className="cw-sp-name">{s.title}</div>
-                        <div className="cw-sp-sub">{s.class_title}</div>
-                      </div>
-                      <span className="cw-sp-badge" style={{ background: st.bg, color: st.color }}>
-                        {st.label}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            <button
+              className="cw-view-date-btn"
+              onClick={() => navigate(`${sessionsPath}?date=${toDateStr(sel.y, sel.m, sel.d)}`)}
+            >
+              <span>View Sessions for this date</span>
+              <span className="cw-btn-arrow">→</span>
+            </button>
           </div>
         )}
       </div>
@@ -608,7 +554,7 @@ export default function CalendarWidget() {
           color: #fff !important;
         }
 
-        /* ── sessions panel ── */
+        /* ── selected date panel ── */
         .cw-sp {
           margin-top: 12px;
           border-top: 1px solid rgba(255,255,255,0.07);
@@ -627,74 +573,27 @@ export default function CalendarWidget() {
           color: rgba(255,255,255,0.7);
           letter-spacing: 0.2px;
         }
-        .cw-sp-count {
-          font-size: 11px;
-          font-weight: 600;
-          color: rgba(94,114,228,0.9);
-          background: rgba(94,114,228,0.12);
-          padding: 2px 8px;
-          border-radius: 10px;
+        .cw-view-date-btn {
+          width: 100%;
+          background: rgba(94,114,228,0.15) !important;
+          border: 1px solid rgba(94,114,228,0.35) !important;
+          border-radius: 12px !important;
+          color: rgba(255,255,255,0.85) !important;
+          font-size: 12.5px !important;
+          font-weight: 700 !important;
+          padding: 9px 14px !important;
+          cursor: pointer !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: space-between !important;
+          transition: all 0.2s ease !important;
+          letter-spacing: 0.2px;
         }
-        .cw-sp-empty {
-          font-size: 12px;
-          color: rgba(255,255,255,0.25);
-          text-align: center;
-          padding: 10px 0;
-          font-style: italic;
-        }
-        .cw-sp-list {
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
-          max-height: 180px;
-          overflow-y: auto;
-        }
-        .cw-sp-list::-webkit-scrollbar { width: 3px; }
-        .cw-sp-list::-webkit-scrollbar-track { background: transparent; }
-        .cw-sp-list::-webkit-scrollbar-thumb { background: rgba(94,114,228,0.4); border-radius: 3px; }
-        .cw-sp-item {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          background: rgba(255,255,255,0.04);
-          border: 1px solid rgba(255,255,255,0.06);
-          border-radius: 10px;
-          padding: 7px 10px;
-        }
-        .cw-sp-time {
-          font-size: 11px;
-          font-weight: 700;
-          color: rgba(255,255,255,0.45);
-          min-width: 52px;
-          flex-shrink: 0;
-        }
-        .cw-sp-info {
-          flex: 1;
-          min-width: 0;
-        }
-        .cw-sp-name {
-          font-size: 12px;
-          font-weight: 600;
-          color: rgba(255,255,255,0.85);
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-        .cw-sp-sub {
-          font-size: 10.5px;
-          color: rgba(255,255,255,0.35);
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          margin-top: 1px;
-        }
-        .cw-sp-badge {
-          font-size: 9.5px;
-          font-weight: 800;
-          padding: 2px 7px;
-          border-radius: 8px;
-          letter-spacing: 0.3px;
-          flex-shrink: 0;
+        .cw-view-date-btn:hover {
+          background: rgba(94,114,228,0.28) !important;
+          border-color: rgba(94,114,228,0.6) !important;
+          color: #fff !important;
+          transform: translateY(-1px) !important;
         }
 
         /* ── footer ── */

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { TableSkeleton } from 'components/Skeleton.js';
 import {
   Container, Row, Col, Card, CardHeader, CardBody, CardTitle, Button,
@@ -37,7 +38,12 @@ const BLANK_FORM = {
   recurEndDate: '',
 };
 
+const ADMIN_TODAY = new Date().toISOString().slice(0, 10);
+
 export default function AdminSessions() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedDate = searchParams.get('date') || ADMIN_TODAY;
+
   const [sessions,      setSessions]      = useState([]);
   const [loading,       setLoading]       = useState(true);
   const [search,        setSearch]        = useState('');
@@ -65,7 +71,7 @@ export default function AdminSessions() {
   const [subjectStudents, setSubjectStudents] = useState([]);
   const [subjectTeachers, setSubjectTeachers] = useState([]);
 
-  useEffect(() => { fetchSessions(); }, []);
+  useEffect(() => { fetchSessions(); }, [selectedDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     http.get('/api/admin/subjects')
@@ -113,7 +119,7 @@ export default function AdminSessions() {
   const fetchSessions = async () => {
     setLoading(true);
     try {
-      const res = await http.get('/api/admin/sessions');
+      const res = await http.get(`/api/admin/sessions?date=${selectedDate}`);
       setSessions(res.data || []);
     } catch (err) {
       console.error('[AdminSessions]', err);
@@ -266,6 +272,18 @@ export default function AdminSessions() {
                 <div className="d-flex justify-content-between align-items-start flex-wrap" style={{ gap: 10 }}>
                   <CardTitle className="mb-0">All Sessions</CardTitle>
                   <div className="d-flex align-items-center flex-wrap" style={{ gap: 8 }}>
+                    <input
+                      type="date"
+                      value={selectedDate}
+                      onChange={e => { if (e.target.value) setSearchParams({ date: e.target.value }); }}
+                      style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 13, color: '#525f7f', cursor: 'pointer' }}
+                    />
+                    {selectedDate !== ADMIN_TODAY && (
+                      <button onClick={() => setSearchParams({ date: ADMIN_TODAY })}
+                        style={{ padding: '5px 12px', borderRadius: 8, border: '1px solid #5e72e4', background: 'transparent', color: '#5e72e4', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                        Today
+                      </button>
+                    )}
                     <input
                       placeholder="Search sessions..."
                       value={search}

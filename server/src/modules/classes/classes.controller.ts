@@ -20,13 +20,15 @@ export async function getMyClasses(req: Request, res: Response) {
   }
 }
 
-// ─── GET /api/classes/my-sessions-v2 ──────────────────────────
+// ─── GET /api/classes/my-sessions-v2?date=YYYY-MM-DD ──────────
 export async function getMySessionsV2(req: Request, res: Response) {
   try {
     const userId   = req.user?.id;
     const userRole = req.user?.role;
     if (!userId || !userRole) return res.status(401).json({ error: 'Unauthorized' });
-    const sessions = await classesService.getMySessionsV2(userId, userRole);
+    const rawDate = req.query.date as string | undefined;
+    const date = rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : undefined;
+    const sessions = await classesService.getMySessionsV2(userId, userRole, date);
     return res.json(sessions);
   } catch (err) {
     logger.error('[classes] getMySessionsV2 error:', err);

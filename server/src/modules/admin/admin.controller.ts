@@ -257,7 +257,9 @@ export async function deleteSubject(req: Request, res: Response) {
 
 export async function getAllSessions(req: Request, res: Response) {
   try {
-    const sessions = await adminService.getAllSessionsAdmin();
+    const rawDate = req.query.date as string | undefined;
+    const date = rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : undefined;
+    const sessions = await adminService.getAllSessionsAdmin(date);
     return res.json(sessions);
   } catch (err) {
     logger.error('[admin] getAllSessions:', err);

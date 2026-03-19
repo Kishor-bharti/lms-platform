@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Button, Card, CardHeader, CardBody, CardTitle,
   Container, Row, Col, Badge,
@@ -7,61 +8,68 @@ import Header from "components/Headers/Header.js";
 import http from "utils/http";
 import { SessionCardSkeleton } from 'components/Skeleton.js';
 
+const TODAY = new Date().toISOString().slice(0, 10);
+
+const STATUS_PRIORITY = { LIVE: 0, TODAY: 1, TOMORROW: 2, SCHEDULED: 3, COMPLETED: 4 };
+
+const sortSessions = (list) =>
+  list.filter(Boolean).sort((a, b) => {
+    const pa = STATUS_PRIORITY[a.status] ?? 9;
+    const pb = STATUS_PRIORITY[b.status] ?? 9;
+    if (pa !== pb) return pa - pb;
+    const ta = a.scheduled_at ? new Date(a.scheduled_at).getTime() : 0;
+    const tb = b.scheduled_at ? new Date(b.scheduled_at).getTime() : 0;
+    return a.status === 'COMPLETED' ? tb - ta : ta - tb;
+  });
+
 const Sessions = () => {
-  const [sessions, setSessions] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedDate = searchParams.get('date') || TODAY;
+
+  const [sessions,        setSessions]        = useState([]);
+  const [loading,         setLoading]         = useState(true);
   const [expandedSession, setExpandedSession] = useState(null);
-  const [userRole, setUserRole] = useState(null);
+  const [userRole,        setUserRole]        = useState(null);
   const [startingSession, setStartingSession] = useState(null);
-  const [selectedView, setSelectedView] = useState('day');
-  const [actionError, setActionError] = useState("");
-  const errorCount = useRef(0);
-
-  // Priority order: LIVE → TODAY → TOMORROW → SCHEDULED → COMPLETED
-  const STATUS_PRIORITY = { LIVE: 0, TODAY: 1, TOMORROW: 2, SCHEDULED: 3, COMPLETED: 4 };
-
-  const sortSessions = (list) => {
-    return list.filter(Boolean).sort((a, b) => {
-      const pa = STATUS_PRIORITY[a.status] ?? 9;
-      const pb = STATUS_PRIORITY[b.status] ?? 9;
-      if (pa !== pb) return pa - pb;
-      const ta = a.scheduled_at ? new Date(a.scheduled_at).getTime() : 0;
-      const tb = b.scheduled_at ? new Date(b.scheduled_at).getTime() : 0;
-      return a.status === 'COMPLETED' ? tb - ta : ta - tb;
-    });
-  };
-
-  const fetchSessions = useCallback(async () => {
-    try {
-      const response = await http.get('/api/classes/my-sessions-v2');
-      const data = Array.isArray(response?.data) ? response.data : [];
-      setSessions(sortSessions(data));
-      setLoading(false);
-      errorCount.current = 0;
-    } catch (error) {
-      console.error('Failed to fetch sessions:', error);
-      setSessions([]);
-      setLoading(false);
-      errorCount.current += 1;
-      if (errorCount.current >= 3) {
-        console.warn('[polling] Stopped after 3 consecutive errors');
-      }
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const [actionError,     setActionError]     = useState("");
 
   useEffect(() => {
     const role = typeof window !== "undefined" ? window.localStorage.getItem("role") : null;
     setUserRole(role);
-    fetchSessions();
-    const interval = setInterval(() => {
-      if (errorCount.current >= 3) {
-        clearInterval(interval);
-        return;
-      }
-      fetchSessions();
-    }, 60000);
+  }, []);
+
+  const fetchSessions = useCallback(async (date) => {
+    setLoading(true);
+    try {
+      const res = await http.get(`/api/classes/my-sessions-v2?date=${date}`);
+      setSessions(sortSessions(Array.isArray(res?.data) ? res.data : []));
+    } catch (err) {
+      console.error('[Sessions] fetch error:', err);
+      setSessions([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Re-fetch whenever the selected date changes
+  useEffect(() => {
+    fetchSessions(selectedDate);
+    setExpandedSession(null);
+    setActionError("");
+  }, [selectedDate, fetchSessions]);
+
+  // Poll every 60s — only for today's date (LIVE status updates)
+  useEffect(() => {
+    if (selectedDate !== TODAY) return;
+    const interval = setInterval(() => fetchSessions(TODAY), 60000);
     return () => clearInterval(interval);
-  }, [fetchSessions]);
+  }, [selectedDate, fetchSessions]);
+
+  const handleDateChange = (e) => {
+    if (e.target.value) setSearchParams({ date: e.target.value });
+  };
+
+  const goToday = () => setSearchParams({ date: TODAY });
 
   const getStatusBadge = (status) => {
     switch (status) {
@@ -74,12 +82,7 @@ const Sessions = () => {
     }
   };
 
-  const handleJoin = (zoomLink) => {
-    if (zoomLink) window.open(zoomLink, '_blank');
-  };
-
   const toggleDetails = (sessionId) => {
-    // Only teachers/admins can expand to see controls
     const role = typeof window !== "undefined" ? window.localStorage.getItem("role") : null;
     if (role === 'teacher' || role === 'admin') {
       setExpandedSession(expandedSession === sessionId ? null : sessionId);
@@ -96,7 +99,6 @@ const Sessions = () => {
         setSessions(prev => sortSessions(prev.map(s => s.id === sessionId ? updated : s)));
       }
       setExpandedSession(null);
-      // Open Zoom for the teacher (start_url)
       const openUrl = updated?.start_url || updated?.zoom_link;
       if (openUrl) window.open(openUrl, '_blank');
     } catch (error) {
@@ -125,6 +127,8 @@ const Sessions = () => {
     }
   };
 
+  const isTeacherOrAdmin = userRole === 'teacher' || userRole === 'admin';
+
   if (loading) {
     return (
       <>
@@ -138,34 +142,6 @@ const Sessions = () => {
     );
   }
 
-  const isTeacherOrAdmin = userRole === 'teacher' || userRole === 'admin';
-
-  const filterSessionsByView = (list) => {
-    const now = new Date();
-    const today = now.toISOString().slice(0, 10);
-    const dayOfWeek = now.getDay();
-    const weekStart = new Date(now);
-    weekStart.setDate(now.getDate() - dayOfWeek);
-    weekStart.setHours(0, 0, 0, 0);
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekStart.getDate() + 6);
-    weekEnd.setHours(23, 59, 59, 999);
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-
-    return list.filter((s) => {
-      if (!s || !s.scheduled_at) return false;
-      const d = new Date(s.scheduled_at);
-      if (isNaN(d.getTime())) return false;
-      if (selectedView === 'day') return d.toISOString().slice(0, 10) === today;
-      if (selectedView === 'week') return d >= weekStart && d <= weekEnd;
-      if (selectedView === 'month') return d >= monthStart && d <= monthEnd;
-      return true;
-    });
-  };
-
-  const visibleSessions = filterSessionsByView(sessions);
-
   return (
     <>
       <Header />
@@ -174,8 +150,22 @@ const Sessions = () => {
           <Col lg="12">
             <Card className="shadow mb-4" style={{ backgroundColor: "#f0f4f8", borderRadius: "8px" }}>
               <CardHeader className="border-0" style={{ backgroundColor: "#e8f0f6", borderTopLeftRadius: "8px", borderTopRightRadius: "8px" }}>
-                <CardTitle className="mb-0">Sessions</CardTitle>
+                <div className="d-flex align-items-center justify-content-between flex-wrap" style={{ gap: 8 }}>
+                  <CardTitle className="mb-0">Sessions</CardTitle>
+                  <div className="d-flex align-items-center" style={{ gap: 8 }}>
+                    <input
+                      type="date"
+                      value={selectedDate}
+                      onChange={handleDateChange}
+                      style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 14, color: '#525f7f', cursor: 'pointer' }}
+                    />
+                    {selectedDate !== TODAY && (
+                      <Button size="sm" color="primary" outline onClick={goToday}>Today</Button>
+                    )}
+                  </div>
+                </div>
               </CardHeader>
+
               <CardBody>
                 {actionError && (
                   <div className="mb-3">
@@ -183,21 +173,13 @@ const Sessions = () => {
                   </div>
                 )}
 
-                <div className="d-flex justify-content-end mb-3">
-                  <Button size="sm" color="primary" outline={selectedView !== "day"} onClick={() => setSelectedView('day')}>Day</Button>
-                  <Button size="sm" color="primary" outline={selectedView !== "week"} className="ml-2" onClick={() => setSelectedView('week')}>Week</Button>
-                  <Button size="sm" color="primary" outline={selectedView !== "month"} className="ml-2" onClick={() => setSelectedView('month')}>Month</Button>
-                </div>
-
                 <div className="session-stack">
-                  {visibleSessions.length === 0 ? (
+                  {sessions.length === 0 ? (
                     <div className="text-center py-5">
-                      <p className="text-muted">
-                        {sessions.length === 0 ? 'No sessions scheduled yet' : `No sessions for this ${selectedView}`}
-                      </p>
+                      <p className="text-muted">No sessions scheduled for {selectedDate}</p>
                     </div>
                   ) : (
-                    visibleSessions.map((session) => (
+                    sessions.map((session) => (
                       <div
                         key={session.id}
                         className="session-item mb-3 bg-white border rounded"
@@ -223,27 +205,23 @@ const Sessions = () => {
                             </div>
                           </div>
 
-                          {/* Action buttons (right side) */}
+                          {/* Action buttons */}
                           <div className="d-flex align-items-center" style={{ gap: '6px', marginLeft: '12px' }}>
                             {session.status === 'LIVE' && (
-                              <Button size="sm" color="success" onClick={() => handleJoin(session.zoom_link)}>
+                              <Button size="sm" color="success" onClick={() => session.zoom_link && window.open(session.zoom_link, '_blank')}>
                                 Join
                               </Button>
                             )}
                             {session.status === 'COMPLETED' && (
-                              <Button size="sm" color="light" onClick={() => handleJoin(session.zoom_link)}>
+                              <Button size="sm" color="light" onClick={() => session.zoom_link && window.open(session.zoom_link, '_blank')}>
                                 Replay
                               </Button>
                             )}
-                            {isTeacherOrAdmin && (
-                              <Button
-                                size="sm" color="dark"
-                                onClick={() => toggleDetails(session.id)}
-                              >
+                            {isTeacherOrAdmin ? (
+                              <Button size="sm" color="dark" onClick={() => toggleDetails(session.id)}>
                                 {expandedSession === session.id ? 'Close' : 'Details'}
                               </Button>
-                            )}
-                            {!isTeacherOrAdmin && (
+                            ) : (
                               <Button size="sm" color="dark">Details</Button>
                             )}
                           </div>
@@ -258,33 +236,22 @@ const Sessions = () => {
                                 {session.class_title}
                               </div>
                             </div>
-
                             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                              {/* Single smart button: green → Starting... → red End Session */}
                               {session.status !== 'COMPLETED' && (
                                 <button
                                   disabled={startingSession === session.id}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    if (session.status === 'LIVE') {
-                                      handleEndSession(session.id);
-                                    } else {
-                                      handleStartSession(session.id);
-                                    }
+                                    session.status === 'LIVE'
+                                      ? handleEndSession(session.id)
+                                      : handleStartSession(session.id);
                                   }}
                                   style={{
-                                    border: 'none',
-                                    borderRadius: '6px',
-                                    padding: '8px 20px',
-                                    fontWeight: '600',
-                                    fontSize: '14px',
+                                    border: 'none', borderRadius: '6px', padding: '8px 20px',
+                                    fontWeight: '600', fontSize: '14px',
                                     cursor: startingSession === session.id ? 'not-allowed' : 'pointer',
                                     opacity: startingSession === session.id ? 0.8 : 1,
-                                    background: session.status === 'LIVE'
-                                      ? '#f5365c'
-                                      : startingSession === session.id
-                                        ? '#2dce89'
-                                        : '#2dce89',
+                                    background: session.status === 'LIVE' ? '#f5365c' : '#2dce89',
                                     color: '#fff',
                                     boxShadow: session.status === 'LIVE'
                                       ? '0 4px 6px rgba(245,54,92,.35)'

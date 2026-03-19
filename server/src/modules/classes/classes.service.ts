@@ -173,8 +173,11 @@ export async function getMyClasses(
 // see their own sessions, not sessions created by admin or other teachers.
 
 export async function getSessionsByTeacher(
-  teacherId: string
+  teacherId: string,
+  date?: string
 ): Promise<SessionWithDetails[]> {
+  const dateClause = date ? ' AND s.session_date = $2' : '';
+  const params: any[] = date ? [teacherId, date] : [teacherId];
   const rows = await query<any>(
     `SELECT
        s.id,
@@ -193,10 +196,10 @@ export async function getSessionsByTeacher(
      FROM   sessions         s
      JOIN   subjects         sub ON sub.id = s.subject_id
      LEFT JOIN topics        t   ON t.id = s.topic_id
-     WHERE  s.teacher_id = $1
+     WHERE  s.teacher_id = $1${dateClause}
      ORDER  BY s.session_date DESC, s.start_time DESC
      LIMIT  100`,
-    [teacherId]
+    params
   );
 
   const now = new Date();
@@ -222,8 +225,11 @@ export async function getSessionsByTeacher(
 // are visible to all enrolled students (legacy / group sessions).
 
 export async function getSessionsByStudent(
-  studentId: string
+  studentId: string,
+  date?: string
 ): Promise<SessionWithDetails[]> {
+  const dateClause = date ? ' AND s.session_date = $2' : '';
+  const params: any[] = date ? [studentId, date] : [studentId];
   const rows = await query<any>(
     `SELECT
        s.id,
@@ -241,7 +247,7 @@ export async function getSessionsByStudent(
      JOIN   subject_enrollments  se  ON se.subject_id = sub.id
      LEFT JOIN topics            t   ON t.id = s.topic_id
      WHERE  se.student_id        = $1
-       AND  se.enrollment_status = 'active'
+       AND  se.enrollment_status = 'active'${dateClause}
        AND (
          -- no specific students targeted (open to all enrolled)
          NOT EXISTS (SELECT 1 FROM session_students ss WHERE ss.session_id = s.id)
@@ -251,7 +257,7 @@ export async function getSessionsByStudent(
        )
      ORDER  BY s.session_date DESC, s.start_time DESC
      LIMIT  100`,
-    [studentId]
+    params
   );
 
   const now = new Date();
@@ -270,7 +276,9 @@ export async function getSessionsByStudent(
 
 // ─── ADMIN: all sessions ───────────────────────────────────────
 
-export async function getAllSessions(): Promise<SessionWithDetails[]> {
+export async function getAllSessions(date?: string): Promise<SessionWithDetails[]> {
+  const dateClause = date ? 'WHERE s.session_date = $1' : '';
+  const params: any[] = date ? [date] : [];
   const rows = await query<any>(
     `SELECT
        s.id,
@@ -289,8 +297,10 @@ export async function getAllSessions(): Promise<SessionWithDetails[]> {
      FROM   sessions s
      JOIN   subjects sub ON sub.id = s.subject_id
      LEFT JOIN topics t  ON t.id  = s.topic_id
+     ${dateClause}
      ORDER  BY s.session_date DESC, s.start_time DESC
-     LIMIT  100`
+     LIMIT  100`,
+    params
   );
 
   const now = new Date();
@@ -314,11 +324,12 @@ export async function getAllSessions(): Promise<SessionWithDetails[]> {
 
 export async function getMySessionsV2(
   userId: string,
-  role: string
+  role: string,
+  date?: string
 ): Promise<SessionWithDetails[]> {
-  if (role === 'teacher') return getSessionsByTeacher(userId);
-  if (role === 'student') return getSessionsByStudent(userId);
-  if (role === 'admin')   return getAllSessions();
+  if (role === 'teacher') return getSessionsByTeacher(userId, date);
+  if (role === 'student') return getSessionsByStudent(userId, date);
+  if (role === 'admin')   return getAllSessions(date);
   return [];
 }
 
