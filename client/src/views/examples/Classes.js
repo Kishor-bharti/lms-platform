@@ -11,6 +11,21 @@ import { SessionCardSkeleton } from 'components/Skeleton.js';
 const TODAY = new Date().toISOString().slice(0, 10);
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const MO_NAMES  = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function shiftDay(dateStr, delta) {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + delta);
+  const y  = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${mo}-${dd}`;
+}
+
+function formatDayLabel(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  return `${DAY_NAMES[d.getDay()]}, ${MO_NAMES[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+}
 
 const getStatusBadge = (status) => {
   switch (status) {
@@ -62,6 +77,19 @@ const Classes = () => {
   };
 
   const goToday = () => setSearchParams({ date: TODAY });
+  const prevDay = () => setSearchParams({ date: shiftDay(selectedDate, -1) });
+  const nextDay = () => setSearchParams({ date: shiftDay(selectedDate,  1) });
+
+  // Left / right arrow keys navigate between days
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.key === 'ArrowLeft')  prevDay();
+      if (e.key === 'ArrowRight') nextDay();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }); // no deps — always reads latest selectedDate via closure
 
   if (loading) {
     return (
@@ -85,17 +113,35 @@ const Classes = () => {
             <Card className="shadow mb-4" style={{ backgroundColor: "#f0f4f8", borderRadius: "8px" }}>
               <CardHeader className="border-0" style={{ backgroundColor: "#e8f0f6", borderTopLeftRadius: "8px", borderTopRightRadius: "8px" }}>
                 <div className="d-flex align-items-center justify-content-between flex-wrap" style={{ gap: 8 }}>
-                  <CardTitle className="mb-0">My Classes</CardTitle>
-                  <div className="d-flex align-items-center" style={{ gap: 8 }}>
+                  <div>
+                    <CardTitle className="mb-0">My Classes</CardTitle>
+                    <div className="small text-muted mt-1" style={{ fontWeight: 600, fontSize: 13 }}>
+                      {formatDayLabel(selectedDate)}
+                    </div>
+                  </div>
+                  <div className="d-flex align-items-center" style={{ gap: 6 }}>
+                    <button onClick={prevDay} title="Previous day (←)"
+                      style={{ width: 30, height: 30, borderRadius: '50%', border: '1px solid #dee2e6', background: '#fff', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#525f7f' }}>
+                      ‹
+                    </button>
                     <input
                       type="date"
                       value={selectedDate}
                       onChange={handleDateChange}
                       style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 14, color: '#525f7f', cursor: 'pointer' }}
                     />
-                    {selectedDate !== TODAY && (
-                      <Button size="sm" color="primary" outline onClick={goToday}>Today</Button>
-                    )}
+                    <button onClick={nextDay} title="Next day (→)"
+                      style={{ width: 30, height: 30, borderRadius: '50%', border: '1px solid #dee2e6', background: '#fff', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#525f7f' }}>
+                      ›
+                    </button>
+                    <Button
+                      size="sm"
+                      color="primary"
+                      outline={selectedDate !== TODAY}
+                      onClick={goToday}
+                      style={{ opacity: selectedDate === TODAY ? 0.55 : 1 }}
+                      disabled={selectedDate === TODAY}
+                    >Today</Button>
                   </div>
                 </div>
               </CardHeader>

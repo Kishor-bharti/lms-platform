@@ -204,9 +204,14 @@ const Sessions = () => {
                       style={{ width: 30, height: 30, borderRadius: '50%', border: '1px solid #dee2e6', background: '#fff', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#525f7f' }}>
                       ›
                     </button>
-                    {selectedDate !== TODAY && (
-                      <Button size="sm" color="primary" outline onClick={goToday}>Today</Button>
-                    )}
+                    <Button
+                      size="sm"
+                      color="primary"
+                      outline={selectedDate !== TODAY}
+                      onClick={goToday}
+                      style={{ opacity: selectedDate === TODAY ? 0.55 : 1 }}
+                      disabled={selectedDate === TODAY}
+                    >Today</Button>
                   </div>
                 </div>
               </CardHeader>
