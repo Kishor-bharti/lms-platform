@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   Button, Card, CardHeader, CardBody, CardTitle,
@@ -65,6 +65,34 @@ const Classes = () => {
   const [sessions,        setSessions]        = useState([]);
   const [loading,         setLoading]         = useState(true);
   const [expandedSession, setExpandedSession] = useState(null);
+
+  // Filters — persist across date changes until manually cleared
+  const EMPTY_FILTERS = { teacher: '', course: '', subject: '', topic: '' };
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
+
+  const filterOptions = useMemo(() => {
+    const uniq = (arr) => [...new Set(arr.filter(Boolean))].sort();
+    return {
+      teachers: uniq(sessions.map(s => s.teacher_name)),
+      courses:  uniq(sessions.map(s => s.course_name)),
+      subjects: uniq(sessions.map(s => s.class_title)),
+      topics:   uniq(sessions.map(s => s.topic_name)),
+    };
+  }, [sessions]);
+
+  const filteredSessions = useMemo(() => {
+    if (!Object.values(filters).some(Boolean)) return sessions;
+    return sessions.filter(s => {
+      if (filters.teacher && s.teacher_name !== filters.teacher) return false;
+      if (filters.course  && s.course_name  !== filters.course)  return false;
+      if (filters.subject && s.class_title  !== filters.subject) return false;
+      if (filters.topic   && (s.topic_name  || '') !== filters.topic) return false;
+      return true;
+    });
+  }, [sessions, filters]);
+
+  const activeFilterCount = Object.values(filters).filter(Boolean).length;
+  const clearFilters = () => setFilters(EMPTY_FILTERS);
 
   const fetchSessions = useCallback(async (date) => {
     setLoading(true);
@@ -167,13 +195,59 @@ const Classes = () => {
               </CardHeader>
 
               <CardBody>
+                {/* ── Filter bar ── */}
+                {(() => {
+                  const defs = [
+                    { key: 'teacher', label: 'Teacher', opts: filterOptions.teachers },
+                    { key: 'course',  label: 'Course',  opts: filterOptions.courses  },
+                    { key: 'subject', label: 'Subject', opts: filterOptions.subjects },
+                    { key: 'topic',   label: 'Topic',   opts: filterOptions.topics   },
+                  ];
+                  if (defs.every(d => d.opts.length === 0)) return null;
+                  return (
+                    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '12px 14px', marginBottom: 16 }}>
+                      <div className="d-flex align-items-center flex-wrap" style={{ gap: 8 }}>
+                        <span className="small font-weight-bold" style={{ color: '#525f7f', marginRight: 4 }}>Filter:</span>
+                        {defs.map(({ key, label, opts }) => (
+                          <select
+                            key={key}
+                            value={filters[key]}
+                            onChange={e => setFilters(f => ({ ...f, [key]: e.target.value }))}
+                            style={{ padding: '4px 8px', borderRadius: 6, border: `1px solid ${filters[key] ? '#5e72e4' : '#dee2e6'}`, fontSize: 13, color: filters[key] ? '#5e72e4' : '#525f7f', background: filters[key] ? '#eef0fd' : '#fff', cursor: 'pointer', fontWeight: filters[key] ? 600 : 400 }}
+                          >
+                            <option value="">All {label}s</option>
+                            {opts.map(o => <option key={o} value={o}>{o}</option>)}
+                          </select>
+                        ))}
+                        {activeFilterCount > 0 && (
+                          <Button size="sm" color="danger" outline onClick={clearFilters} style={{ fontSize: 12 }}>
+                            Clear ({activeFilterCount})
+                          </Button>
+                        )}
+                        <span className="small ml-auto" style={{ color: '#525f7f' }}>
+                          <strong>{filteredSessions.length}</strong>
+                          {activeFilterCount > 0 && <span style={{ color: '#8898aa' }}> / {sessions.length}</span>}
+                          {' '}class{filteredSessions.length !== 1 ? 'es' : ''}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 <div className="session-stack">
-                  {sessions.length === 0 ? (
+                  {filteredSessions.length === 0 ? (
                     <div className="text-center py-5">
-                      <p className="text-muted">No classes scheduled for {selectedDate}</p>
+                      <p className="text-muted">
+                        {activeFilterCount > 0
+                          ? 'No classes match the selected filters.'
+                          : `No classes scheduled for ${selectedDate}`}
+                      </p>
+                      {activeFilterCount > 0 && (
+                        <Button size="sm" color="secondary" outline onClick={clearFilters}>Clear filters</Button>
+                      )}
                     </div>
                   ) : (
-                    sessions.map((session) => {
+                    filteredSessions.map((session) => {
                       const scheduledDate = new Date(session.scheduled_at);
                       const dayName = DAY_NAMES[scheduledDate.getDay()];
                       const dateStr = scheduledDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });

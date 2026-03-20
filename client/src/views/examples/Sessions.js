@@ -98,9 +98,9 @@ const Sessions = () => {
     };
   }, [sessions]);
 
-  // Apply active filters to the session list
+  // Apply active filters to the session list (all roles)
   const filteredSessions = useMemo(() => {
-    if (userRole !== 'admin') return sessions;
+    if (!Object.values(filters).some(Boolean)) return sessions;
     return sessions.filter(s => {
       if (filters.teacher && s.teacher_name !== filters.teacher) return false;
       if (filters.course  && s.course_name  !== filters.course)  return false;
@@ -113,7 +113,7 @@ const Sessions = () => {
       }
       return true;
     });
-  }, [sessions, filters, userRole]);
+  }, [sessions, filters]);
 
   const activeFilterCount = Object.values(filters).filter(Boolean).length;
   const clearFilters = () => setFilters(EMPTY_FILTERS);
@@ -284,19 +284,24 @@ const Sessions = () => {
               </CardHeader>
 
               <CardBody>
-                {/* ── Admin filter bar ── */}
-                {userRole === 'admin' && (
+                {/* ── Filter bar (all roles, columns vary by role) ── */}
+                {userRole && (() => {
+                  // admin → all 5; teacher → no teacher; student → no student
+                  const defs = [
+                    userRole !== 'teacher'  && { key: 'teacher', label: 'Teacher',  opts: filterOptions.teachers },
+                    { key: 'course',  label: 'Course',   opts: filterOptions.courses  },
+                    { key: 'subject', label: 'Subject',  opts: filterOptions.subjects },
+                    { key: 'topic',   label: 'Topic',    opts: filterOptions.topics   },
+                    userRole !== 'student'  && { key: 'student', label: 'Student',  opts: filterOptions.students },
+                  ].filter(Boolean);
+                  // only render if at least one dropdown has options
+                  if (defs.every(d => d.opts.length === 0)) return null;
+                  return (
                   <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '12px 14px', marginBottom: 16 }}>
                     <div className="d-flex align-items-center flex-wrap" style={{ gap: 8 }}>
                       <span className="small font-weight-bold" style={{ color: '#525f7f', marginRight: 4 }}>Filter:</span>
 
-                      {[
-                        { key: 'teacher', label: 'Teacher',  opts: filterOptions.teachers },
-                        { key: 'course',  label: 'Course',   opts: filterOptions.courses  },
-                        { key: 'subject', label: 'Subject',  opts: filterOptions.subjects },
-                        { key: 'topic',   label: 'Topic',    opts: filterOptions.topics   },
-                        { key: 'student', label: 'Student',  opts: filterOptions.students },
-                      ].map(({ key, label, opts }) => (
+                      {defs.map(({ key, label, opts }) => (
                         <select
                           key={key}
                           value={filters[key]}
@@ -321,7 +326,8 @@ const Sessions = () => {
                       </span>
                     </div>
                   </div>
-                )}
+                  );
+                })()}
 
                 {actionError && (
                   <div className="mb-3">
