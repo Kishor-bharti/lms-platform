@@ -2,7 +2,7 @@
 -- Migration: Session 'missed' status support
 -- Run BEFORE deploying the session time-gate feature.
 -- ================================================================
-
+-- (DON't Forget to run this!!')
 -- Drop the old check constraint (auto-named by Postgres)
 DO $$
 DECLARE cname text;
