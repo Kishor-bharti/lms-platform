@@ -190,7 +190,11 @@ const Classes = () => {
                         >
                           {/* ── Main row ── */}
                           <div className="p-3 d-flex justify-content-between align-items-start">
-                            <div className="flex-grow-1">
+                            <div
+                              className="flex-grow-1"
+                              style={{ cursor: 'pointer' }}
+                              onClick={() => setExpandedSession(expandedSession === session.id ? null : session.id)}
+                            >
                               {/* Row 1: title + session type + status */}
                               <div className="d-flex align-items-center mb-1" style={{ gap: '6px', flexWrap: 'wrap' }}>
                                 <h5 className="mb-0">{session.title || 'Untitled Session'}</h5>
