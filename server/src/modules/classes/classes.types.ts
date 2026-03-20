@@ -43,12 +43,20 @@ export interface SessionWithDetails {
   topic_id?: string;
   topic_name?: string;
   class_title: string;
+  course_name?: string;
   title: string;
   zoom_link: string | null;     // meeting_link from DB
   start_url?: string;           // zoom_start_url (teachers only)
   zoom_meeting_id?: string | null;
   scheduled_at: string;         // ISO string: session_date + start_time
-  status: string;               // LIVE | TODAY | TOMORROW | SCHEDULED | COMPLETED
+  end_time?: string;            // raw TIMETZ e.g. "20:00:00+05:30" (teachers only)
+  is_recurring?: boolean;
+  recur_pattern?: string;       // 'daily' | 'weekly'
+  recur_days?: number[];        // 0=Sun … 6=Sat (weekly only)
+  recur_until?: string;         // YYYY-MM-DD
+  target_students?: string;     // comma-separated names (null = all enrolled)
+  target_count?: number;        // 0 = open to all enrolled
+  status: string;               // LIVE | TODAY | TOMORROW | SCHEDULED | MISSED | COMPLETED
 }
 
 // ─── Legacy types (kept for backward compat) ──────────────────

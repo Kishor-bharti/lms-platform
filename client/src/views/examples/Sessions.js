@@ -29,7 +29,33 @@ function formatDayLabel(dateStr) {
   return `${DAY_NAMES[d.getDay()]}, ${MO_NAMES[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
 }
 
-const STATUS_PRIORITY = { LIVE: 0, TODAY: 1, TOMORROW: 2, SCHEDULED: 3, COMPLETED: 4 };
+/** Format "HH:MM:SS" or "HH:MM:SS+05:30" → "6:30 PM" */
+function fmtTime(timeStr) {
+  if (!timeStr) return '';
+  const [h, m] = timeStr.slice(0, 5).split(':').map(Number);
+  const period = h >= 12 ? 'PM' : 'AM';
+  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${period}`;
+}
+
+const RECUR_DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+/** Build the hover tooltip text for the recurring badge */
+function formatRecurrenceInfo(session) {
+  const { recur_pattern: pattern, recur_days: days, recur_until: until } = session;
+  if (pattern === 'daily') return `Repeats daily${until ? ` until ${until}` : ''}`;
+  if (pattern === 'weekly') {
+    const dayNames = days?.length ? days.map(d => RECUR_DAY_SHORT[d]).join(', ') : 'weekly';
+    return `Repeats every ${dayNames}${until ? ` until ${until}` : ''}`;
+  }
+  return `Recurring (${pattern || 'regular'})`;
+}
+
+/** Returns true if now >= scheduledAt − 5 min */
+function canStartSession(scheduledAt) {
+  return Date.now() >= new Date(scheduledAt).getTime() - 5 * 60 * 1000;
+}
+
+const STATUS_PRIORITY = { LIVE: 0, TODAY: 1, TOMORROW: 2, SCHEDULED: 3, MISSED: 4, COMPLETED: 5 };
 
 const sortSessions = (list) =>
   list.filter(Boolean).sort((a, b) => {
@@ -110,6 +136,7 @@ const Sessions = () => {
       case 'TOMORROW':  return <Badge color="info">TOMORROW</Badge>;
       case 'COMPLETED': return <Badge color="secondary">COMPLETED</Badge>;
       case 'SCHEDULED': return <Badge color="light">SCHEDULED</Badge>;
+      case 'MISSED':    return <Badge color="dark">MISSED</Badge>;
       default:          return <Badge>{status}</Badge>;
     }
   };
@@ -234,8 +261,8 @@ const Sessions = () => {
                         key={session.id}
                         className="session-item mb-3 bg-white border rounded"
                         style={{
-                          borderLeft: `4px solid ${session.status === 'LIVE' ? '#dc3545' : '#96c8ff'}`,
-                          backgroundColor: session.status === 'LIVE' ? '#fff5f5' : 'white',
+                          borderLeft: `4px solid ${session.status === 'LIVE' ? '#dc3545' : session.status === 'MISSED' ? '#6c757d' : '#96c8ff'}`,
+                          backgroundColor: session.status === 'LIVE' ? '#fff5f5' : session.status === 'MISSED' ? '#f8f9fa' : 'white',
                         }}
                       >
                         {/* ── Main row ── */}
@@ -245,14 +272,55 @@ const Sessions = () => {
                             style={{ cursor: isTeacherOrAdmin ? 'pointer' : 'default' }}
                             onClick={() => toggleDetails(session.id)}
                           >
-                            <div className="d-flex align-items-center mb-1" style={{ gap: '8px' }}>
-                              <h5 className="mb-0">{session.title || 'Untitled Session'}</h5>
-                              {getStatusBadge(session.status)}
-                            </div>
-                            <div className="small text-muted">
-                              <span className="mr-3">📚 {session.class_title}</span>
-                              <span>🕐 {new Date(session.scheduled_at).toLocaleString()}</span>
-                            </div>
+                            {isTeacherOrAdmin ? (
+                              <>
+                                {/* Row 1: title + session type + status */}
+                                <div className="d-flex align-items-center mb-1" style={{ gap: '6px', flexWrap: 'wrap' }}>
+                                  <h5 className="mb-0">{session.title || 'Untitled Session'}</h5>
+                                  {session.is_recurring ? (
+                                    <span title={formatRecurrenceInfo(session)} style={{ cursor: 'help' }}>
+                                      <Badge color="info" style={{ fontSize: 10 }}>↻ RECURRING ⓘ</Badge>
+                                    </span>
+                                  ) : (
+                                    <Badge color="light" style={{ fontSize: 10, color: '#6c757d', border: '1px solid #dee2e6' }}>ONE-TIME</Badge>
+                                  )}
+                                  {getStatusBadge(session.status)}
+                                </div>
+                                {/* Row 2: subject · course · date · time */}
+                                <div className="small text-muted" style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                                  <span>📚 {session.class_title}</span>
+                                  {session.course_name && <span>🎓 {session.course_name}</span>}
+                                  <span>📅 {session.scheduled_at.slice(0, 10)}</span>
+                                  <span>
+                                    ⏰ {fmtTime(session.scheduled_at.slice(11, 19))}
+                                    {session.end_time ? ` – ${fmtTime(session.end_time)}` : ''}
+                                  </span>
+                                </div>
+                                {/* Row 3: topic · target students · recur-until */}
+                                <div className="small text-muted mt-1" style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                                  {session.topic_name && <span>📖 {session.topic_name}</span>}
+                                  <span>
+                                    👥 {session.target_count > 0
+                                      ? `${session.target_count} student${session.target_count > 1 ? 's' : ''} targeted`
+                                      : 'All enrolled'}
+                                  </span>
+                                  {session.is_recurring && session.recur_until && (
+                                    <span>🔁 Until {session.recur_until}</span>
+                                  )}
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="d-flex align-items-center mb-1" style={{ gap: '8px' }}>
+                                  <h5 className="mb-0">{session.title || 'Untitled Session'}</h5>
+                                  {getStatusBadge(session.status)}
+                                </div>
+                                <div className="small text-muted">
+                                  <span className="mr-3">📚 {session.class_title}</span>
+                                  <span>🕐 {new Date(session.scheduled_at).toLocaleString()}</span>
+                                </div>
+                              </>
+                            )}
                           </div>
 
                           {/* Action buttons */}
@@ -286,37 +354,47 @@ const Sessions = () => {
                                 {session.class_title}
                               </div>
                             </div>
-                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                              {session.status !== 'COMPLETED' && (
-                                <button
-                                  disabled={startingSession === session.id}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    session.status === 'LIVE'
-                                      ? handleEndSession(session.id)
-                                      : handleStartSession(session.id);
-                                  }}
-                                  style={{
-                                    border: 'none', borderRadius: '6px', padding: '8px 20px',
-                                    fontWeight: '600', fontSize: '14px',
-                                    cursor: startingSession === session.id ? 'not-allowed' : 'pointer',
-                                    opacity: startingSession === session.id ? 0.8 : 1,
-                                    background: session.status === 'LIVE' ? '#f5365c' : '#2dce89',
-                                    color: '#fff',
-                                    boxShadow: session.status === 'LIVE'
-                                      ? '0 4px 6px rgba(245,54,92,.35)'
-                                      : '0 4px 6px rgba(45,206,137,.35)',
-                                    transition: 'background 0.3s ease, box-shadow 0.3s ease',
-                                  }}
-                                >
-                                  {startingSession === session.id
-                                    ? 'Starting...'
-                                    : session.status === 'LIVE'
-                                      ? 'End Session'
-                                      : 'Start Live Session'}
-                                </button>
-                              )}
-                            </div>
+                            {session.status === 'MISSED' ? (
+                              <div style={{ padding: '10px 14px', background: '#fff3cd', borderRadius: 6, color: '#856404', fontSize: 13, fontWeight: 500 }}>
+                                This session was not started within the allowed window and has been marked as missed.
+                              </div>
+                            ) : (
+                              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                {session.status !== 'COMPLETED' && (() => {
+                                  const isLive  = session.status === 'LIVE';
+                                  const okToStart = isLive || canStartSession(session.scheduled_at);
+                                  const busy    = startingSession === session.id;
+                                  return (
+                                    <button
+                                      disabled={busy || (!isLive && !okToStart)}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        isLive ? handleEndSession(session.id) : handleStartSession(session.id);
+                                      }}
+                                      title={!isLive && !okToStart ? 'Available 5 minutes before scheduled start time' : ''}
+                                      style={{
+                                        border: 'none', borderRadius: '6px', padding: '8px 20px',
+                                        fontWeight: '600', fontSize: '14px',
+                                        cursor: busy || (!isLive && !okToStart) ? 'not-allowed' : 'pointer',
+                                        opacity: busy || (!isLive && !okToStart) ? 0.5 : 1,
+                                        background: isLive ? '#f5365c' : '#2dce89',
+                                        color: '#fff',
+                                        boxShadow: isLive
+                                          ? '0 4px 6px rgba(245,54,92,.35)'
+                                          : '0 4px 6px rgba(45,206,137,.35)',
+                                        transition: 'background 0.3s ease, box-shadow 0.3s ease',
+                                      }}
+                                    >
+                                      {busy
+                                        ? 'Processing...'
+                                        : isLive
+                                          ? 'End Session'
+                                          : okToStart ? 'Start Live Session' : 'Not Available Yet'}
+                                    </button>
+                                  );
+                                })()}
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>

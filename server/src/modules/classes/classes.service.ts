@@ -20,6 +20,7 @@ function calculateSessionStatus(
   // Explicit DB states always win
   if (dbStatus === 'live') return 'LIVE';
   if (dbStatus === 'completed' || dbStatus === 'cancelled') return 'COMPLETED';
+  if (dbStatus === 'missed') return 'MISSED';
 
   // At this point dbStatus is 'scheduled' — teacher has NOT started or ended it.
   // We only show COMPLETED if the session day has fully passed (i.e. a past date).
@@ -176,6 +177,17 @@ export async function getSessionsByTeacher(
   teacherId: string,
   date?: string
 ): Promise<SessionWithDetails[]> {
+  // Auto-mark sessions past the 10-min grace window as 'missed'
+  await query(
+    `UPDATE sessions
+     SET    status     = 'missed',
+            updated_at = now()
+     WHERE  teacher_id = $1
+       AND  status     = 'scheduled'
+       AND  (session_date::date + start_time::timetz + interval '10 minutes') < now()`,
+    [teacherId]
+  );
+
   const dateClause = date ? ' AND s.session_date = $2' : '';
   const params: any[] = date ? [teacherId, date] : [teacherId];
   const rows = await query<any>(
@@ -184,18 +196,33 @@ export async function getSessionsByTeacher(
        s.subject_id,
        s.topic_id,
        s.teacher_id,
-       t.name         AS topic_name,
-       sub.name       AS class_title,
+       t.name               AS topic_name,
+       sub.name             AS class_title,
+       c.name               AS course_name,
        s.title,
        s.meeting_link,
        s.zoom_start_url,
        s.zoom_meeting_id,
-       s.session_date::text  AS session_date,
-       s.start_time::text    AS start_time,
+       s.session_date::text AS session_date,
+       s.start_time::text   AS start_time,
+       s.end_time::text     AS end_time,
+       s.is_recurring,
+       sr.pattern           AS recur_pattern,
+       sr.days_of_week      AS recur_days,
+       sr.recur_until::text AS recur_until,
+       (SELECT STRING_AGG(u2.first_name || ' ' || u2.last_name, ', ' ORDER BY u2.first_name)
+        FROM   session_students ss2
+        JOIN   users u2 ON u2.id = ss2.student_id
+        WHERE  ss2.session_id = s.id)        AS target_students,
+       (SELECT COUNT(*)::int
+        FROM   session_students ss3
+        WHERE  ss3.session_id = s.id)        AS target_count,
        s.status
-     FROM   sessions         s
-     JOIN   subjects         sub ON sub.id = s.subject_id
-     LEFT JOIN topics        t   ON t.id = s.topic_id
+     FROM   sessions              s
+     JOIN   subjects              sub ON sub.id = s.subject_id
+     JOIN   courses               c   ON c.id   = sub.course_id
+     LEFT JOIN topics             t   ON t.id   = s.topic_id
+     LEFT JOIN session_recurrence sr  ON sr.id  = s.recurrence_id
      WHERE  s.teacher_id = $1${dateClause}
      ORDER  BY s.session_date DESC, s.start_time DESC
      LIMIT  100`,
@@ -204,18 +231,26 @@ export async function getSessionsByTeacher(
 
   const now = new Date();
   return rows.map((r) => ({
-    id:             r.id,
-    subject_id:     r.subject_id,
-    topic_id:       r.topic_id ?? undefined,
-    topic_name:     r.topic_name ?? undefined,
-    class_title:    r.class_title,
-    title:          r.title,
-    teacher_id:     r.teacher_id,
-    zoom_link:      r.meeting_link,
-    start_url:      r.zoom_start_url ?? undefined,
+    id:              r.id,
+    subject_id:      r.subject_id,
+    topic_id:        r.topic_id    ?? undefined,
+    topic_name:      r.topic_name  ?? undefined,
+    class_title:     r.class_title,
+    course_name:     r.course_name,
+    title:           r.title,
+    teacher_id:      r.teacher_id,
+    zoom_link:       r.meeting_link,
+    start_url:       r.zoom_start_url ?? undefined,
     zoom_meeting_id: r.zoom_meeting_id,
-    scheduled_at:   buildScheduledAt(r.session_date, r.start_time),
-    status:         calculateSessionStatus(r.session_date, r.start_time, r.status, now),
+    scheduled_at:    buildScheduledAt(r.session_date, r.start_time),
+    end_time:        r.end_time     ?? undefined,
+    is_recurring:    Boolean(r.is_recurring),
+    recur_pattern:   r.recur_pattern ?? undefined,
+    recur_days:      r.recur_days    ?? undefined,
+    recur_until:     r.recur_until   ?? undefined,
+    target_students: r.target_students ?? undefined,
+    target_count:    r.target_count  ?? 0,
+    status:          calculateSessionStatus(r.session_date, r.start_time, r.status, now),
   }));
 }
 
@@ -375,7 +410,21 @@ export async function startSessionById(
       if (!assigned.length) throw new Error('FORBIDDEN');
     }
 
-    if (existing.status === 'live') throw new Error('Session is already LIVE');
+    if (existing.status === 'live')   throw new Error('Session is already LIVE');
+    if (existing.status === 'missed') throw new Error('Session was missed');
+
+    // Teachers may only start a session from 5 minutes before its scheduled time.
+    // Admins bypass this restriction.
+    if (role !== 'admin') {
+      const tz       = existing.start_time.match(/[+-]\d{2}:\d{2}$/)?.[0] ?? '+05:30';
+      const timePart = existing.start_time.slice(0, 8);
+      const scheduledMs = new Date(`${existing.session_date}T${timePart}${tz}`).getTime();
+      const FIVE_MIN_MS = 5 * 60 * 1000;
+      if (Date.now() < scheduledMs - FIVE_MIN_MS) {
+        const minsLeft = Math.ceil((scheduledMs - Date.now()) / 60000);
+        throw Object.assign(new Error('TOO_EARLY'), { minsLeft });
+      }
+    }
 
     const accessToken = await getZoomAccessToken();
     const { joinUrl, startUrl } = await createZoomMeeting({

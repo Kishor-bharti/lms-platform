@@ -1,4 +1,29 @@
 -- ================================================================
+-- Migration: Session 'missed' status support
+-- Run BEFORE deploying the session time-gate feature.
+-- ================================================================
+
+-- Drop the old check constraint (auto-named by Postgres)
+DO $$
+DECLARE cname text;
+BEGIN
+  SELECT conname INTO cname
+  FROM   pg_constraint
+  WHERE  conrelid = 'sessions'::regclass
+    AND  contype  = 'c'
+    AND  pg_get_constraintdef(oid) LIKE '%status%';
+  IF cname IS NOT NULL THEN
+    EXECUTE 'ALTER TABLE sessions DROP CONSTRAINT ' || quote_ident(cname);
+  END IF;
+END $$;
+
+-- Add updated constraint that includes 'missed'
+ALTER TABLE sessions
+  ADD CONSTRAINT sessions_status_check
+  CHECK (status IN ('scheduled','live','completed','cancelled','missed'));
+
+
+-- ================================================================
 -- Migration: T1/T2/T6/T7/T8/T10 — Teacher UX & Quiz Image Options
 -- Run on: 10x_db_clone
 -- ================================================================

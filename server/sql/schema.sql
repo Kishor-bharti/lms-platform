@@ -306,7 +306,7 @@ CREATE TABLE sessions (
   created_at       TIMESTAMPTZ  NOT NULL DEFAULT now(),
   updated_at       TIMESTAMPTZ  NOT NULL DEFAULT now(),
   CHECK (end_time > start_time),
-  CHECK (status IN ('scheduled','live','completed','cancelled'))
+  CHECK (status IN ('scheduled','live','completed','cancelled','missed'))
 );
 
 CREATE TABLE subject_materials (
