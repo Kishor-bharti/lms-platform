@@ -13,6 +13,25 @@ const TODAY = new Date().toISOString().slice(0, 10);
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const MO_NAMES  = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
+function fmtTime(timeStr) {
+  if (!timeStr) return '';
+  const [h, m] = timeStr.slice(0, 5).split(':').map(Number);
+  const period = h >= 12 ? 'PM' : 'AM';
+  return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${period}`;
+}
+
+const RECUR_DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function formatRecurrenceInfo(session) {
+  const { recur_pattern: pattern, recur_days: days, recur_until: until } = session;
+  if (pattern === 'daily') return `Repeats daily${until ? ` until ${until}` : ''}`;
+  if (pattern === 'weekly') {
+    const dayNames = days?.length ? days.map(d => RECUR_DAY_SHORT[d]).join(', ') : 'weekly';
+    return `Repeats every ${dayNames}${until ? ` until ${until}` : ''}`;
+  }
+  return `Recurring (${pattern || 'regular'})`;
+}
+
 function shiftDay(dateStr, delta) {
   const d = new Date(dateStr + 'T00:00:00');
   d.setDate(d.getDate() + delta);
@@ -34,6 +53,7 @@ const getStatusBadge = (status) => {
     case 'TOMORROW':  return <Badge color="info">TOMORROW</Badge>;
     case 'COMPLETED': return <Badge color="secondary">COMPLETED</Badge>;
     case 'SCHEDULED': return <Badge color="light">SCHEDULED</Badge>;
+    case 'MISSED':    return <Badge color="dark">MISSED</Badge>;
     default:          return <Badge>{status}</Badge>;
   }
 };
@@ -164,22 +184,41 @@ const Classes = () => {
                           key={session.id}
                           className="session-item mb-3 bg-white border rounded"
                           style={{
-                            borderLeft: `4px solid ${session.status === 'LIVE' ? '#dc3545' : '#96c8ff'}`,
-                            backgroundColor: session.status === 'LIVE' ? '#fff5f5' : 'white',
+                            borderLeft: `4px solid ${session.status === 'LIVE' ? '#dc3545' : session.status === 'MISSED' ? '#6c757d' : '#96c8ff'}`,
+                            backgroundColor: session.status === 'LIVE' ? '#fff5f5' : session.status === 'MISSED' ? '#f8f9fa' : 'white',
                           }}
                         >
                           {/* ── Main row ── */}
                           <div className="p-3 d-flex justify-content-between align-items-start">
                             <div className="flex-grow-1">
-                              <div className="d-flex align-items-center mb-1" style={{ gap: '8px' }}>
+                              {/* Row 1: title + session type + status */}
+                              <div className="d-flex align-items-center mb-1" style={{ gap: '6px', flexWrap: 'wrap' }}>
                                 <h5 className="mb-0">{session.title || 'Untitled Session'}</h5>
+                                {session.is_recurring ? (
+                                  <span title={formatRecurrenceInfo(session)} style={{ cursor: 'help' }}>
+                                    <Badge color="info" style={{ fontSize: 10 }}>↻ RECURRING ⓘ</Badge>
+                                  </span>
+                                ) : (
+                                  <Badge color="light" style={{ fontSize: 10, color: '#6c757d', border: '1px solid #dee2e6' }}>ONE-TIME</Badge>
+                                )}
                                 {getStatusBadge(session.status)}
                               </div>
-                              <div className="small text-muted">
-                                <span className="mr-3">📚 {session.class_title}</span>
-                                <span className="mr-3">📅 {dayName}, {dateStr}</span>
-                                <span>🕐 {timeStr}</span>
+                              {/* Row 2: subject · course · date · time */}
+                              <div className="small text-muted" style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                                <span>📚 {session.class_title}</span>
+                                {session.course_name && <span>🎓 {session.course_name}</span>}
+                                <span>📅 {dayName}, {dateStr}</span>
+                                <span>
+                                  ⏰ {timeStr}
+                                  {session.end_time ? ` – ${fmtTime(session.end_time)}` : ''}
+                                </span>
                               </div>
+                              {/* Row 3: teacher */}
+                              {session.teacher_name && (
+                                <div className="small text-muted mt-1">
+                                  👤 {session.teacher_name}
+                                </div>
+                              )}
                             </div>
 
                             <div className="d-flex align-items-center" style={{ gap: '6px', marginLeft: '12px' }}>
@@ -207,21 +246,35 @@ const Classes = () => {
                             <div style={{ borderTop: '1px solid #e8f0f6', padding: '16px', backgroundColor: '#f8fbff' }}>
                               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                                 <div style={{ background: '#fff', border: '1px solid #e9eef5', borderRadius: '8px', padding: '10px' }}>
-                                  <div className="small text-muted mb-1">Class</div>
+                                  <div className="small text-muted mb-1">Subject</div>
                                   <div style={{ fontWeight: 600 }}>{session.class_title}</div>
                                 </div>
                                 <div style={{ background: '#fff', border: '1px solid #e9eef5', borderRadius: '8px', padding: '10px' }}>
-                                  <div className="small text-muted mb-1">Day</div>
-                                  <div style={{ fontWeight: 600 }}>{dayName}</div>
+                                  <div className="small text-muted mb-1">Course</div>
+                                  <div style={{ fontWeight: 600 }}>{session.course_name || '—'}</div>
                                 </div>
                                 <div style={{ background: '#fff', border: '1px solid #e9eef5', borderRadius: '8px', padding: '10px' }}>
                                   <div className="small text-muted mb-1">Date</div>
-                                  <div style={{ fontWeight: 600 }}>{dateStr}</div>
+                                  <div style={{ fontWeight: 600 }}>{dayName}, {dateStr}</div>
                                 </div>
                                 <div style={{ background: '#fff', border: '1px solid #e9eef5', borderRadius: '8px', padding: '10px' }}>
                                   <div className="small text-muted mb-1">Time</div>
-                                  <div style={{ fontWeight: 600 }}>{timeStr}</div>
+                                  <div style={{ fontWeight: 600 }}>
+                                    {timeStr}{session.end_time ? ` – ${fmtTime(session.end_time)}` : ''}
+                                  </div>
                                 </div>
+                                {session.teacher_name && (
+                                  <div style={{ background: '#fff', border: '1px solid #e9eef5', borderRadius: '8px', padding: '10px' }}>
+                                    <div className="small text-muted mb-1">Teacher</div>
+                                    <div style={{ fontWeight: 600 }}>{session.teacher_name}</div>
+                                  </div>
+                                )}
+                                {session.is_recurring && session.recur_until && (
+                                  <div style={{ background: '#fff', border: '1px solid #e9eef5', borderRadius: '8px', padding: '10px' }}>
+                                    <div className="small text-muted mb-1">Repeats Until</div>
+                                    <div style={{ fontWeight: 600 }}>{session.recur_until}</div>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           )}

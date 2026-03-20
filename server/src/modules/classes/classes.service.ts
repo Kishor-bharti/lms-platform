@@ -270,24 +270,32 @@ export async function getSessionsByStudent(
        s.id,
        s.subject_id,
        s.topic_id,
-       t.name         AS topic_name,
-       sub.name       AS class_title,
+       t.name               AS topic_name,
+       sub.name             AS class_title,
+       c.name               AS course_name,
        s.title,
        s.meeting_link,
-       s.session_date::text  AS session_date,
-       s.start_time::text    AS start_time,
+       s.session_date::text AS session_date,
+       s.start_time::text   AS start_time,
+       s.end_time::text     AS end_time,
+       s.is_recurring,
+       sr.pattern           AS recur_pattern,
+       sr.days_of_week      AS recur_days,
+       sr.recur_until::text AS recur_until,
+       u.first_name || ' ' || u.last_name AS teacher_name,
        s.status
-     FROM   sessions             s
-     JOIN   subjects             sub ON sub.id = s.subject_id
-     JOIN   subject_enrollments  se  ON se.subject_id = sub.id
-     LEFT JOIN topics            t   ON t.id = s.topic_id
+     FROM   sessions              s
+     JOIN   subjects              sub ON sub.id  = s.subject_id
+     JOIN   courses               c   ON c.id    = sub.course_id
+     JOIN   users                 u   ON u.id    = s.teacher_id
+     JOIN   subject_enrollments   se  ON se.subject_id = sub.id
+     LEFT JOIN topics             t   ON t.id    = s.topic_id
+     LEFT JOIN session_recurrence sr  ON sr.id   = s.recurrence_id
      WHERE  se.student_id        = $1
        AND  se.enrollment_status = 'active'${dateClause}
        AND (
-         -- no specific students targeted (open to all enrolled)
          NOT EXISTS (SELECT 1 FROM session_students ss WHERE ss.session_id = s.id)
          OR
-         -- this student is explicitly included
          EXISTS (SELECT 1 FROM session_students ss WHERE ss.session_id = s.id AND ss.student_id = $1)
        )
      ORDER  BY s.session_date DESC, s.start_time DESC
@@ -297,15 +305,22 @@ export async function getSessionsByStudent(
 
   const now = new Date();
   return rows.map((r) => ({
-    id:          r.id,
-    subject_id:  r.subject_id,
-    topic_id:    r.topic_id ?? undefined,
-    topic_name:  r.topic_name ?? undefined,
-    class_title: r.class_title,
-    title:       r.title,
-    zoom_link:   r.meeting_link,
-    scheduled_at: buildScheduledAt(r.session_date, r.start_time),
-    status:      calculateSessionStatus(r.session_date, r.start_time, r.status, now),
+    id:            r.id,
+    subject_id:    r.subject_id,
+    topic_id:      r.topic_id     ?? undefined,
+    topic_name:    r.topic_name   ?? undefined,
+    class_title:   r.class_title,
+    course_name:   r.course_name,
+    title:         r.title,
+    zoom_link:     r.meeting_link,
+    scheduled_at:  buildScheduledAt(r.session_date, r.start_time),
+    end_time:      r.end_time     ?? undefined,
+    is_recurring:  Boolean(r.is_recurring),
+    recur_pattern: r.recur_pattern ?? undefined,
+    recur_days:    r.recur_days    ?? undefined,
+    recur_until:   r.recur_until   ?? undefined,
+    teacher_name:  r.teacher_name,
+    status:        calculateSessionStatus(r.session_date, r.start_time, r.status, now),
   }));
 }
 
@@ -320,18 +335,35 @@ export async function getAllSessions(date?: string): Promise<SessionWithDetails[
        s.subject_id,
        s.topic_id,
        s.teacher_id,
-       t.name         AS topic_name,
-       sub.name       AS class_title,
+       t.name               AS topic_name,
+       sub.name             AS class_title,
+       c.name               AS course_name,
        s.title,
        s.meeting_link,
        s.zoom_start_url,
        s.zoom_meeting_id,
-       s.session_date::text  AS session_date,
-       s.start_time::text    AS start_time,
+       s.session_date::text AS session_date,
+       s.start_time::text   AS start_time,
+       s.end_time::text     AS end_time,
+       s.is_recurring,
+       sr.pattern           AS recur_pattern,
+       sr.days_of_week      AS recur_days,
+       sr.recur_until::text AS recur_until,
+       u.first_name || ' ' || u.last_name AS teacher_name,
+       (SELECT STRING_AGG(u2.first_name || ' ' || u2.last_name, ', ' ORDER BY u2.first_name)
+        FROM   session_students ss2
+        JOIN   users u2 ON u2.id = ss2.student_id
+        WHERE  ss2.session_id = s.id)        AS target_students,
+       (SELECT COUNT(*)::int
+        FROM   session_students ss3
+        WHERE  ss3.session_id = s.id)        AS target_count,
        s.status
-     FROM   sessions s
-     JOIN   subjects sub ON sub.id = s.subject_id
-     LEFT JOIN topics t  ON t.id  = s.topic_id
+     FROM   sessions              s
+     JOIN   subjects              sub ON sub.id  = s.subject_id
+     JOIN   courses               c   ON c.id    = sub.course_id
+     JOIN   users                 u   ON u.id    = s.teacher_id
+     LEFT JOIN topics             t   ON t.id    = s.topic_id
+     LEFT JOIN session_recurrence sr  ON sr.id   = s.recurrence_id
      ${dateClause}
      ORDER  BY s.session_date DESC, s.start_time DESC
      LIMIT  100`,
@@ -340,18 +372,27 @@ export async function getAllSessions(date?: string): Promise<SessionWithDetails[
 
   const now = new Date();
   return rows.map((r) => ({
-    id:             r.id,
-    subject_id:     r.subject_id,
-    topic_id:       r.topic_id ?? undefined,
-    topic_name:     r.topic_name ?? undefined,
-    class_title:    r.class_title,
-    title:          r.title,
-    teacher_id:     r.teacher_id,
-    zoom_link:      r.meeting_link,
-    start_url:      r.zoom_start_url ?? undefined,
+    id:              r.id,
+    subject_id:      r.subject_id,
+    topic_id:        r.topic_id     ?? undefined,
+    topic_name:      r.topic_name   ?? undefined,
+    class_title:     r.class_title,
+    course_name:     r.course_name,
+    title:           r.title,
+    teacher_id:      r.teacher_id,
+    teacher_name:    r.teacher_name,
+    zoom_link:       r.meeting_link,
+    start_url:       r.zoom_start_url ?? undefined,
     zoom_meeting_id: r.zoom_meeting_id,
-    scheduled_at:   buildScheduledAt(r.session_date, r.start_time),
-    status:         calculateSessionStatus(r.session_date, r.start_time, r.status, now),
+    scheduled_at:    buildScheduledAt(r.session_date, r.start_time),
+    end_time:        r.end_time      ?? undefined,
+    is_recurring:    Boolean(r.is_recurring),
+    recur_pattern:   r.recur_pattern ?? undefined,
+    recur_days:      r.recur_days    ?? undefined,
+    recur_until:     r.recur_until   ?? undefined,
+    target_students: r.target_students ?? undefined,
+    target_count:    r.target_count   ?? 0,
+    status:          calculateSessionStatus(r.session_date, r.start_time, r.status, now),
   }));
 }
 

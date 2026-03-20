@@ -54,6 +54,7 @@ export interface SessionWithDetails {
   recur_pattern?: string;       // 'daily' | 'weekly'
   recur_days?: number[];        // 0=Sun … 6=Sat (weekly only)
   recur_until?: string;         // YYYY-MM-DD
+  teacher_name?: string;        // full name (admin + student views)
   target_students?: string;     // comma-separated names (null = all enrolled)
   target_count?: number;        // 0 = open to all enrolled
   status: string;               // LIVE | TODAY | TOMORROW | SCHEDULED | MISSED | COMPLETED

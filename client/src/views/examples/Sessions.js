@@ -286,10 +286,11 @@ const Sessions = () => {
                                   )}
                                   {getStatusBadge(session.status)}
                                 </div>
-                                {/* Row 2: subject · course · date · time */}
+                                {/* Row 2: subject · course · teacher (admin) · date · time */}
                                 <div className="small text-muted" style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
                                   <span>📚 {session.class_title}</span>
                                   {session.course_name && <span>🎓 {session.course_name}</span>}
+                                  {userRole === 'admin' && session.teacher_name && <span>👤 {session.teacher_name}</span>}
                                   <span>📅 {session.scheduled_at.slice(0, 10)}</span>
                                   <span>
                                     ⏰ {fmtTime(session.scheduled_at.slice(11, 19))}
@@ -348,11 +349,31 @@ const Sessions = () => {
                         {/* ── Details panel — teacher/admin only ── */}
                         {expandedSession === session.id && isTeacherOrAdmin && (
                           <div style={{ borderTop: '1px solid #e8f0f6', padding: '16px', backgroundColor: '#f8fbff' }}>
-                            <div style={{ marginBottom: '10px' }}>
-                              <div className="small text-muted mb-1">Class</div>
-                              <div style={{ fontWeight: 600, padding: '8px', backgroundColor: '#f0f4f8', borderRadius: '6px' }}>
-                                {session.class_title}
+                            <div style={{ display: 'grid', gridTemplateColumns: session.target_count > 0 ? '1fr 1fr' : '1fr', gap: '12px', marginBottom: '12px' }}>
+                              <div>
+                                <div className="small text-muted mb-1">Class</div>
+                                <div style={{ fontWeight: 600, padding: '8px', backgroundColor: '#f0f4f8', borderRadius: '6px' }}>
+                                  {session.class_title}
+                                </div>
                               </div>
+                              {session.target_count > 0 && session.target_students && (
+                                <div>
+                                  <div className="small text-muted mb-1">
+                                    Targeted Students ({session.target_count})
+                                  </div>
+                                  <div style={{
+                                    maxHeight: '110px', overflowY: 'auto', padding: '6px 8px',
+                                    backgroundColor: '#f0f4f8', borderRadius: '6px',
+                                    border: '1px solid #dee2e6',
+                                  }}>
+                                    {session.target_students.split(',').map((name, i) => (
+                                      <div key={i} className="small" style={{ padding: '2px 0', borderBottom: i < session.target_students.split(',').length - 1 ? '1px solid #e2e8f0' : 'none' }}>
+                                        {name.trim()}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                             {session.status === 'MISSED' ? (
                               <div style={{ padding: '10px 14px', background: '#fff3cd', borderRadius: 6, color: '#856404', fontSize: 13, fontWeight: 500 }}>
