@@ -20,11 +20,11 @@ function calculateSessionStatus(
   // Explicit DB states always win
   if (dbStatus === 'live') return 'LIVE';
   if (dbStatus === 'completed' || dbStatus === 'cancelled') return 'COMPLETED';
+  // DB-marked missed is also definitive
   if (dbStatus === 'missed') return 'MISSED';
 
-  // At this point dbStatus is 'scheduled' — teacher has NOT started or ended it.
-  // We only show COMPLETED if the session day has fully passed (i.e. a past date).
-  // If it's today — even if the start_time has passed — the teacher can still start it.
+  // dbStatus is 'scheduled' — compute status purely from time so it stays
+  // accurate for ALL roles without requiring a teacher login to trigger the DB update.
 
   const todayStart = new Date(now);
   todayStart.setHours(0, 0, 0, 0);
@@ -37,11 +37,18 @@ function calculateSessionStatus(
 
   const sessionDay = new Date(session_date + 'T00:00:00');
 
-  // Past date (before today) and never started → mark as completed
-  if (sessionDay < todayStart) return 'COMPLETED';
+  // Any past day that was never started → MISSED (not COMPLETED; it was never held)
+  if (sessionDay < todayStart) return 'MISSED';
 
-  // Today — regardless of whether start_time has passed
-  if (sessionDay >= todayStart && sessionDay < tomorrowStart) return 'TODAY';
+  // Today: check whether the 10-minute start grace window has expired
+  if (sessionDay >= todayStart && sessionDay < tomorrowStart) {
+    const tz       = start_time.match(/[+-]\d{2}:\d{2}$/)?.[0] ?? '+05:30';
+    const timePart = start_time.slice(0, 8);
+    const sessionMs    = new Date(`${session_date}T${timePart}${tz}`).getTime();
+    const gracePeriodMs = 10 * 60 * 1000; // same window used by the DB auto-mark
+    if (now.getTime() > sessionMs + gracePeriodMs) return 'MISSED';
+    return 'TODAY';
+  }
 
   // Tomorrow
   if (sessionDay >= tomorrowStart && sessionDay < afterTomorrow) return 'TOMORROW';
