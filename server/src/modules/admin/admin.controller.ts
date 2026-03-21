@@ -351,9 +351,17 @@ export async function createSession(req: Request, res: Response) {
 export async function updateSession(req: Request, res: Response) {
   try {
     const { sessionId } = req.params;
-    const { title, sessionDate, startTime, endTime, topicId } = req.body;
     if (!sessionId) return res.status(400).json({ error: 'sessionId is required' });
-    await adminService.updateAdminSession(sessionId, { title, sessionDate, startTime, endTime, topicId });
+
+    const { title, sessionDate, startTime, endTime, topicId, recurMode, recurrenceId, originalDate } = req.body;
+    const validMode = (m: string) => m === 'this' || m === 'this_and_following' || m === 'all';
+
+    if (recurMode && validMode(recurMode) && recurrenceId && originalDate && recurMode !== 'this') {
+      await adminService.updateRecurringSession(sessionId, recurrenceId, recurMode, originalDate,
+        { title, sessionDate, startTime, endTime, topicId });
+    } else {
+      await adminService.updateAdminSession(sessionId, { title, sessionDate, startTime, endTime, topicId });
+    }
     return res.json({ success: true });
   } catch (err: any) {
     logger.error('[admin] updateSession:', err);
@@ -365,10 +373,34 @@ export async function deleteSession(req: Request, res: Response) {
   try {
     const { sessionId } = req.params;
     if (!sessionId) return res.status(400).json({ error: 'sessionId is required' });
-    await adminService.deleteAdminSession(sessionId);
+
+    const mode         = req.query.mode         as string | undefined;
+    const recurrenceId = req.query.recurrenceId as string | undefined;
+    const sessionDate  = req.query.sessionDate  as string | undefined;
+
+    if ((mode === 'this_and_following' || mode === 'all') && recurrenceId) {
+      await adminService.deleteRecurringSession(
+        sessionId, recurrenceId, mode, sessionDate ?? '');
+    } else {
+      await adminService.deleteAdminSession(sessionId);
+    }
     return res.json({ success: true });
   } catch (err: any) {
     logger.error('[admin] deleteSession:', err);
     return res.status(500).json({ error: 'Failed to delete session' });
+  }
+}
+
+export async function bulkDeleteSessions(req: Request, res: Response) {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'ids array is required' });
+    }
+    await adminService.bulkDeleteSessions(ids);
+    return res.json({ success: true, deleted: ids.length });
+  } catch (err: any) {
+    logger.error('[admin] bulkDeleteSessions:', err);
+    return res.status(500).json({ error: 'Failed to delete sessions' });
   }
 }

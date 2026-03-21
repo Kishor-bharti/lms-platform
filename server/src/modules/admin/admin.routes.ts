@@ -42,9 +42,10 @@ router.post('/subjects/:subjectId/teachers/:teacherId/students',                
 router.delete('/subjects/:subjectId/teachers/:teacherId/students/:studentId',         adminController.removeStudentFromTeacher);
 
 // Sessions — admin CRUD + A5 join
-router.get('/sessions',              adminController.getAllSessions);
-router.post('/sessions',             adminController.createSession);
-router.patch('/sessions/:sessionId', adminController.updateSession);
-router.delete('/sessions/:sessionId', adminController.deleteSession);
+router.get('/sessions',                    adminController.getAllSessions);
+router.post('/sessions',                   adminController.createSession);
+router.post('/sessions/bulk-delete',       adminController.bulkDeleteSessions);
+router.patch('/sessions/:sessionId',       adminController.updateSession);
+router.delete('/sessions/:sessionId',      adminController.deleteSession);
 
 export default router;

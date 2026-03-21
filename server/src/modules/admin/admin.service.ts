@@ -651,6 +651,109 @@ export async function deleteAdminSession(sessionId: string): Promise<void> {
   await query(`DELETE FROM sessions WHERE id = $1`, [sessionId]);
 }
 
+// ---- Bulk delete sessions (by IDs) ----
+
+export async function bulkDeleteSessions(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  await withTransaction(async (client) => {
+    await queryWithClient(client,
+      `DELETE FROM session_students WHERE session_id = ANY($1::uuid[])`, [ids]);
+    await queryWithClient(client,
+      `DELETE FROM sessions WHERE id = ANY($1::uuid[])`, [ids]);
+  });
+}
+
+// ---- Delete recurring session (Google Calendar–style scope) ----
+
+export async function deleteRecurringSession(
+  sessionId:    string,
+  recurrenceId: string,
+  mode:         'this' | 'this_and_following' | 'all',
+  sessionDate:  string,
+): Promise<void> {
+  await withTransaction(async (client) => {
+    if (mode === 'this') {
+      await queryWithClient(client,
+        `DELETE FROM session_students WHERE session_id = $1`, [sessionId]);
+      await queryWithClient(client,
+        `DELETE FROM sessions WHERE id = $1`, [sessionId]);
+
+    } else if (mode === 'this_and_following') {
+      const toDelete = await queryWithClient<{ id: string }>(client,
+        `SELECT id FROM sessions WHERE recurrence_id = $1 AND session_date >= $2`,
+        [recurrenceId, sessionDate]);
+      if (toDelete.length > 0) {
+        const deleteIds = toDelete.map((r) => r.id);
+        await queryWithClient(client,
+          `DELETE FROM session_students WHERE session_id = ANY($1::uuid[])`, [deleteIds]);
+        await queryWithClient(client,
+          `DELETE FROM sessions WHERE recurrence_id = $1 AND session_date >= $2`,
+          [recurrenceId, sessionDate]);
+      }
+      // If no sessions remain, clean up recurrence record
+      const remaining = await queryWithClient<{ cnt: string }>(client,
+        `SELECT COUNT(*) AS cnt FROM sessions WHERE recurrence_id = $1`, [recurrenceId]);
+      if (Number(remaining[0]?.cnt) === 0) {
+        await queryWithClient(client,
+          `DELETE FROM session_recurrence WHERE id = $1`, [recurrenceId]);
+      }
+
+    } else { // 'all'
+      const toDelete = await queryWithClient<{ id: string }>(client,
+        `SELECT id FROM sessions WHERE recurrence_id = $1`, [recurrenceId]);
+      if (toDelete.length > 0) {
+        const deleteIds = toDelete.map((r) => r.id);
+        await queryWithClient(client,
+          `DELETE FROM session_students WHERE session_id = ANY($1::uuid[])`, [deleteIds]);
+        await queryWithClient(client,
+          `DELETE FROM sessions WHERE recurrence_id = $1`, [recurrenceId]);
+      }
+      await queryWithClient(client,
+        `DELETE FROM session_recurrence WHERE id = $1`, [recurrenceId]);
+    }
+  });
+}
+
+// ---- Update recurring session (Google Calendar–style scope) ----
+
+export async function updateRecurringSession(
+  sessionId:    string,
+  recurrenceId: string,
+  mode:         'this' | 'this_and_following' | 'all',
+  originalDate: string,
+  data: { title?: string; sessionDate?: string; startTime?: string; endTime?: string; topicId?: string | null },
+): Promise<void> {
+  if (mode === 'this') {
+    await updateAdminSession(sessionId, data);
+    return;
+  }
+
+  // For this_and_following / all: update title/times/topic, not individual dates
+  const sets: string[] = [];
+  const params: any[]  = [];
+  let   idx = 1;
+
+  if (data.title     !== undefined) { sets.push(`title      = $${idx++}`); params.push(data.title); }
+  if (data.startTime !== undefined) { sets.push(`start_time = $${idx++}`); params.push(data.startTime); }
+  if (data.endTime   !== undefined) { sets.push(`end_time   = $${idx++}`); params.push(data.endTime); }
+  if (data.topicId   !== undefined) { sets.push(`topic_id   = $${idx++}`); params.push(data.topicId); }
+
+  if (sets.length === 0) return;
+  sets.push(`updated_at = now()`);
+
+  if (mode === 'this_and_following') {
+    params.push(recurrenceId, originalDate);
+    await query(
+      `UPDATE sessions SET ${sets.join(', ')} WHERE recurrence_id = $${idx} AND session_date >= $${idx + 1}`,
+      params);
+  } else { // 'all'
+    params.push(recurrenceId);
+    await query(
+      `UPDATE sessions SET ${sets.join(', ')} WHERE recurrence_id = $${idx}`,
+      params);
+  }
+}
+
 // ---- Admin Dashboard Overview ----
 
 export async function getAdminDashboardOverview(): Promise<{ students: any[]; teachers: any[] }> {
@@ -810,6 +913,8 @@ export async function getAllSessionsAdmin(filters: AdminSessionFilters = {}) {
     SELECT
       s.id, s.title, s.status,
       s.subject_id,
+      s.recurrence_id,
+      s.is_recurring,
       s.session_date::text AS session_date,
       s.start_time::text   AS start_time,
       s.end_time::text     AS end_time,
@@ -848,12 +953,14 @@ export async function getAllSessionsAdmin(filters: AdminSessionFilters = {}) {
   };
 
   return rows.map((r) => ({
-    id:           r.id,
-    title:        r.title,
-    status:       r.status,
-    subject_id:   r.subject_id,
-    teacher_id:   r.teacher_id,
-    course_id:    r.course_id,
+    id:             r.id,
+    title:          r.title,
+    status:         r.status,
+    subject_id:     r.subject_id,
+    recurrence_id:  r.recurrence_id ?? null,
+    is_recurring:   r.is_recurring ?? false,
+    teacher_id:     r.teacher_id,
+    course_id:      r.course_id,
     session_date: r.session_date,
     start_time:   r.start_time,
     end_time:     r.end_time,
