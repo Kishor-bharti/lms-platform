@@ -1,14 +1,9 @@
 import Header from "components/Headers/Header.js";
 import UpcomingClasses from "components/Dashboard/UpcomingClasses";
 import CalendarWidget from "components/Dashboard/CalendarWidget";
-import MyStudents from "components/Dashboard/MyStudents";
-import SessionHistoryStats from "components/Dashboard/SessionHistoryStats";
 import { Container, Row, Col } from "reactstrap";
 
 const Index = (props) => {
-  const role = (localStorage.getItem('role') || '').toLowerCase();
-  const isTeacherOrAdmin = role === 'teacher' || role === 'admin';
-
   return (
     <>
       <Header />
@@ -25,20 +20,6 @@ const Index = (props) => {
             </div>
           </Col>
         </Row>
-        {isTeacherOrAdmin && (
-          <Row>
-            <Col lg="6" className="mb-4">
-              <div className="dash-card-animate" style={{ animationDelay: '0.3s' }}>
-                <MyStudents />
-              </div>
-            </Col>
-            <Col lg="6" className="mb-4">
-              <div className="dash-card-animate" style={{ animationDelay: '0.4s' }}>
-                <SessionHistoryStats />
-              </div>
-            </Col>
-          </Row>
-        )}
       </Container>
       <style>{`
         .dash-card-animate {
