@@ -15,7 +15,8 @@ function calculateSessionStatus(
   session_date: string,    // e.g. "2026-02-20"
   start_time: string,      // e.g. "18:30:00+05:30"
   dbStatus: string,
-  now: Date = new Date()
+  now: Date = new Date(),
+  timeZone: string = 'UTC'
 ): string {
   // Explicit DB states always win
   if (dbStatus === 'live') return 'LIVE';
@@ -23,35 +24,34 @@ function calculateSessionStatus(
   // DB-marked missed is also definitive
   if (dbStatus === 'missed') return 'MISSED';
 
-  // dbStatus is 'scheduled' — compute status purely from time so it stays
-  // accurate for ALL roles without requiring a teacher login to trigger the DB update.
+  const dateKeyInTz = (d: Date): string => {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(d);
 
-  const todayStart = new Date(now);
-  todayStart.setHours(0, 0, 0, 0);
+    const year = parts.find((p) => p.type === 'year')?.value;
+    const month = parts.find((p) => p.type === 'month')?.value;
+    const day = parts.find((p) => p.type === 'day')?.value;
+    return `${year}-${month}-${day}`;
+  };
 
-  const tomorrowStart = new Date(todayStart);
-  tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+  const tzOffset = start_time.match(/[+-]\d{2}:\d{2}$/)?.[0] ?? '+00:00';
+  const timePart = start_time.slice(0, 8);
+  const sessionInstant = new Date(`${session_date}T${timePart}${tzOffset}`);
+  if (Number.isNaN(sessionInstant.getTime())) return 'SCHEDULED';
 
-  const afterTomorrow = new Date(tomorrowStart);
-  afterTomorrow.setDate(afterTomorrow.getDate() + 1);
+  const gracePeriodMs = 10 * 60 * 1000;
+  if (now.getTime() > sessionInstant.getTime() + gracePeriodMs) return 'MISSED';
 
-  const sessionDay = new Date(session_date + 'T00:00:00');
+  const todayKey = dateKeyInTz(now);
+  const tomorrowKey = dateKeyInTz(new Date(now.getTime() + 24 * 60 * 60 * 1000));
+  const sessionKey = dateKeyInTz(sessionInstant);
 
-  // Any past day that was never started → MISSED (not COMPLETED; it was never held)
-  if (sessionDay < todayStart) return 'MISSED';
-
-  // Today: check whether the 10-minute start grace window has expired
-  if (sessionDay >= todayStart && sessionDay < tomorrowStart) {
-    const tz       = start_time.match(/[+-]\d{2}:\d{2}$/)?.[0] ?? '+05:30';
-    const timePart = start_time.slice(0, 8);
-    const sessionMs    = new Date(`${session_date}T${timePart}${tz}`).getTime();
-    const gracePeriodMs = 10 * 60 * 1000; // same window used by the DB auto-mark
-    if (now.getTime() > sessionMs + gracePeriodMs) return 'MISSED';
-    return 'TODAY';
-  }
-
-  // Tomorrow
-  if (sessionDay >= tomorrowStart && sessionDay < afterTomorrow) return 'TOMORROW';
+  if (sessionKey === todayKey) return 'TODAY';
+  if (sessionKey === tomorrowKey) return 'TOMORROW';
 
   return 'SCHEDULED';
 }
@@ -60,7 +60,8 @@ function calculateSessionStatus(
 function buildScheduledAt(session_date: string, start_time: string): string {
   // slice(0, 8) extracts HH:MM:SS regardless of timezone suffix (+05:30, +00, etc.)
   const timeStr = start_time.slice(0, 8);
-  return `${session_date}T${timeStr}`;
+  const tzOffset = start_time.match(/[+-]\d{2}:\d{2}$/)?.[0] ?? '+00:00';
+  return `${session_date}T${timeStr}${tzOffset}`;
 }
 
 // ─── TEACHER: subjects assigned via subject_teachers ───────────
@@ -183,7 +184,8 @@ export async function getMyClasses(
 export async function getSessionsByTeacher(
   teacherId: string,
   date?: string,
-  month?: string
+  month?: string,
+  timeZone: string = 'UTC'
 ): Promise<SessionWithDetails[]> {
   // Auto-mark sessions past the 10-min grace window as 'missed'
   await query(
@@ -268,7 +270,7 @@ export async function getSessionsByTeacher(
     recur_until:     r.recur_until   ?? undefined,
     target_students: r.target_students ?? undefined,
     target_count:    r.target_count  ?? 0,
-    status:          calculateSessionStatus(r.session_date, r.start_time, r.status, now),
+    status:          calculateSessionStatus(r.session_date, r.start_time, r.status, now, timeZone),
   }));
 }
 
@@ -280,7 +282,8 @@ export async function getSessionsByTeacher(
 export async function getSessionsByStudent(
   studentId: string,
   date?: string,
-  month?: string
+  month?: string,
+  timeZone: string = 'UTC'
 ): Promise<SessionWithDetails[]> {
   let dateClause = '';
   const params: any[] = [studentId];
@@ -355,13 +358,13 @@ export async function getSessionsByStudent(
     recur_days:    r.recur_days    ?? undefined,
     recur_until:   r.recur_until   ?? undefined,
     teacher_name:  r.teacher_name,
-    status:        calculateSessionStatus(r.session_date, r.start_time, r.status, now),
+    status:        calculateSessionStatus(r.session_date, r.start_time, r.status, now, timeZone),
   }));
 }
 
 // ─── ADMIN: all sessions ───────────────────────────────────────
 
-export async function getAllSessions(date?: string, month?: string): Promise<SessionWithDetails[]> {
+export async function getAllSessions(date?: string, month?: string, timeZone: string = 'UTC'): Promise<SessionWithDetails[]> {
   let dateClause = '';
   const params: any[] = [];
   if (date) {
@@ -437,7 +440,7 @@ export async function getAllSessions(date?: string, month?: string): Promise<Ses
     recur_until:     r.recur_until   ?? undefined,
     target_students: r.target_students ?? undefined,
     target_count:    r.target_count   ?? 0,
-    status:          calculateSessionStatus(r.session_date, r.start_time, r.status, now),
+    status:          calculateSessionStatus(r.session_date, r.start_time, r.status, now, timeZone),
   }));
 }
 
@@ -447,11 +450,12 @@ export async function getMySessionsV2(
   userId: string,
   role: string,
   date?: string,
-  month?: string
+  month?: string,
+  timeZone: string = 'UTC'
 ): Promise<SessionWithDetails[]> {
-  if (role === 'teacher') return getSessionsByTeacher(userId, date, month);
-  if (role === 'student') return getSessionsByStudent(userId, date, month);
-  if (role === 'admin')   return getAllSessions(date, month);
+  if (role === 'teacher') return getSessionsByTeacher(userId, date, month, timeZone);
+  if (role === 'student') return getSessionsByStudent(userId, date, month, timeZone);
+  if (role === 'admin')   return getAllSessions(date, month, timeZone);
   return [];
 }
 

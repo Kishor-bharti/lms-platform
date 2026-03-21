@@ -8,6 +8,7 @@ import {
 } from 'reactstrap';
 import Header from 'components/Headers/Header.js';
 import http from 'utils/http';
+import { getTodayLocalDateKey, toTimetzFromLocal, withTimeZoneQuery } from 'utils/date';
 
 const STATUS_STYLE = {
   live:      { bg: '#fde8ec', color: '#f5365c' },
@@ -30,7 +31,7 @@ const BLANK_FORM = {
   isRecurring: false, recurPattern: 'weekly', recurDays: [], recurEndDate: '',
 };
 
-const ADMIN_TODAY = new Date().toISOString().slice(0, 10);
+const ADMIN_TODAY = getTodayLocalDateKey();
 
 // ─── Recurring scope options (Google Calendar style) ────────────────────────
 const SCOPE_OPTIONS = [
@@ -83,8 +84,8 @@ export default function AdminSessions() {
     setLoading(true);
     try {
       const url = showAllDates
-        ? '/api/admin/sessions'
-        : `/api/admin/sessions?date=${selectedDate}`;
+        ? withTimeZoneQuery('/api/admin/sessions')
+        : withTimeZoneQuery(`/api/admin/sessions?date=${selectedDate}`);
       const res = await http.get(url);
       setSessions(res.data || []);
     } catch (err) {
@@ -187,7 +188,8 @@ export default function AdminSessions() {
       await http.post('/api/admin/sessions', {
         teacherId: form.teacherId, subjectId: form.subjectId,
         title: form.title, sessionDate: form.sessionDate,
-        startTime: form.startTime, endTime: form.endTime,
+        startTime: toTimetzFromLocal(form.sessionDate, form.startTime),
+        endTime: toTimetzFromLocal(form.sessionDate, form.endTime),
         topicId: form.topicId || undefined,
         studentIds: form.studentIds.length ? form.studentIds : undefined,
         isRecurring: form.isRecurring, recurPattern: form.recurPattern,
@@ -219,8 +221,12 @@ export default function AdminSessions() {
       const payload = {
         title:       editForm.title       || undefined,
         sessionDate: editForm.sessionDate || undefined,
-        startTime:   editForm.startTime   || undefined,
-        endTime:     editForm.endTime     || undefined,
+        startTime:   editForm.startTime && editForm.sessionDate
+          ? toTimetzFromLocal(editForm.sessionDate, editForm.startTime)
+          : undefined,
+        endTime:     editForm.endTime && editForm.sessionDate
+          ? toTimetzFromLocal(editForm.sessionDate, editForm.endTime)
+          : undefined,
       };
       if (editSession.is_recurring && editSession.recurrence_id && editForm.recurMode !== 'this') {
         Object.assign(payload, {

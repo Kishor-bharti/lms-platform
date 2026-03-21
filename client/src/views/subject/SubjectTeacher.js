@@ -7,6 +7,7 @@ import {
 } from 'reactstrap';
 import Header from 'components/Headers/Header.js';
 import http from 'utils/http';
+import { getTodayLocalDateKey, toTimetzFromLocal, withTimeZoneQuery } from 'utils/date';
 import { TopicCardSkeleton } from 'components/Skeleton.js';
 
 function statusBadge(status) {
@@ -120,7 +121,7 @@ export default function SubjectTeacher() {
   const fetchData = async () => {
     try {
       const [sessRes, classRes, quizRes, assignRes, matRes, topicsRes, studentsRes, teachersRes] = await Promise.all([
-        http.get('/api/classes/my-sessions-v2'),
+        http.get(withTimeZoneQuery('/api/classes/my-sessions-v2')),
         http.get('/api/classes/my-classes-v2'),
         http.get(`/api/quizzes/subject/${subjectId}`),
         http.get(`/api/assignments/subject/${subjectId}`),
@@ -187,8 +188,8 @@ export default function SubjectTeacher() {
           teacherId:    scheduleForm.teacherId,
           title:        scheduleForm.title,
           sessionDate:  scheduleForm.date,
-          startTime:    scheduleForm.time,
-          endTime:      scheduleForm.endTime || undefined,
+          startTime:    toTimetzFromLocal(scheduleForm.date, scheduleForm.time),
+          endTime:      scheduleForm.endTime ? toTimetzFromLocal(scheduleForm.date, scheduleForm.endTime) : undefined,
           topicId:      scheduleForm.topicId || undefined,
           studentIds:   scheduleForm.studentIds.length ? scheduleForm.studentIds : undefined,
           isRecurring:  scheduleForm.isRecurring,
@@ -202,8 +203,8 @@ export default function SubjectTeacher() {
           subjectId,
           title:        scheduleForm.title,
           sessionDate:  scheduleForm.date,
-          startTime:    scheduleForm.time + ':00+05:30',
-          endTime:      scheduleForm.endTime ? scheduleForm.endTime + ':00+05:30' : undefined,
+          startTime:    toTimetzFromLocal(scheduleForm.date, scheduleForm.time),
+          endTime:      scheduleForm.endTime ? toTimetzFromLocal(scheduleForm.date, scheduleForm.endTime) : undefined,
           topicId:      scheduleForm.topicId || undefined,
           studentIds:   scheduleForm.studentIds.length ? scheduleForm.studentIds : undefined,
           isRecurring:  scheduleForm.isRecurring,
@@ -936,7 +937,7 @@ export default function SubjectTeacher() {
                 <Col md={4}>
                   <FormGroup>
                     <Label><strong>Date *</strong></Label>
-                    <Input type="date" value={scheduleForm.date} min={new Date().toISOString().split('T')[0]}
+                    <Input type="date" value={scheduleForm.date} min={getTodayLocalDateKey()}
                       onChange={e => setScheduleForm(f => ({ ...f, date: e.target.value }))} />
                   </FormGroup>
                 </Col>

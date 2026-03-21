@@ -7,6 +7,7 @@ import {
 } from 'reactstrap';
 import Header from 'components/Headers/Header.js';
 import http from 'utils/http';
+import { withTimeZoneQuery } from 'utils/date';
 import { TopicCardSkeleton } from 'components/Skeleton.js';
 
 function statusBadge(status) {
@@ -65,7 +66,7 @@ export default function SubjectStudent() {
   const fetchData = async () => {
     try {
       const [sessRes, classRes, quizRes, assignRes, matRes, topicsRes] = await Promise.all([
-        http.get('/api/classes/my-sessions-v2'),
+        http.get(withTimeZoneQuery('/api/classes/my-sessions-v2')),
         http.get('/api/classes/my-classes-v2'),
         http.get(`/api/quizzes/subject/${subjectId}`),
         http.get(`/api/assignments/subject/${subjectId}`),

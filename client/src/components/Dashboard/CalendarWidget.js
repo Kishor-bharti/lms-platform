@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import http from "../../utils/http";
+import { toLocalDateKey, withTimeZoneQuery } from "utils/date";
 
 /* ── helpers ─────────────────────────────────────────── */
 function monthMatrix(date) {
@@ -80,7 +81,7 @@ export default function CalendarWidget() {
     setSessionsLoading(true);
     const y = cur.getFullYear();
     const m = pad2(cur.getMonth() + 1);
-    http.get(`/api/classes/my-sessions-v2?month=${y}-${m}`)
+    http.get(withTimeZoneQuery(`/api/classes/my-sessions-v2?month=${y}-${m}`))
       .then(res => setSessions(Array.isArray(res.data) ? res.data : []))
       .catch(() => setSessions([]))
       .finally(() => setSessionsLoading(false));
@@ -101,7 +102,8 @@ export default function CalendarWidget() {
   const sessionDateSet = useMemo(() => {
     const s = new Set();
     sessions.forEach(sess => {
-      if (sess.scheduled_at) s.add(sess.scheduled_at.slice(0, 10));
+      const localKey = toLocalDateKey(sess.scheduled_at);
+      if (localKey) s.add(localKey);
     });
     return s;
   }, [sessions]);
@@ -111,7 +113,7 @@ export default function CalendarWidget() {
     if (!sel) return [];
     const dateStr = toDateStr(sel.y, sel.m, sel.d);
     return sessions
-      .filter(s => s.scheduled_at?.startsWith(dateStr))
+      .filter(s => toLocalDateKey(s.scheduled_at) === dateStr)
       .sort((a, b) => (a.scheduled_at || '').localeCompare(b.scheduled_at || ''));
   }, [sel, sessions]);
 

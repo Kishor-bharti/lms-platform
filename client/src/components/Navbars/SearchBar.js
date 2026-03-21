@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import http from "utils/http";
+import { withTimeZoneQuery } from "utils/date";
 import routes from "routes.js";
 
 /* ── route → icon ── */
@@ -85,7 +86,7 @@ export default function SearchBar() {
             : http.get("/api/courses/my-courses"),
           isAdmin
             ? http.get("/api/admin/sessions?limit=100")
-            : http.get("/api/classes/my-sessions-v2"),
+            : http.get(withTimeZoneQuery("/api/classes/my-sessions-v2")),
           isAdmin ? http.get("/api/admin/users?limit=200") : Promise.resolve(null),
         ]);
         data = {

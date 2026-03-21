@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Card, CardHeader, CardBody, CardTitle, Table, Badge, Button, Modal, ModalHeader, ModalBody, ModalFooter } from "reactstrap";
 import http from "utils/http";
+import { getTodayLocalDateKey, toLocalDateKey, withTimeZoneQuery } from "utils/date";
 import { TableSkeleton } from 'components/Skeleton.js';
 
 const BATCH_SIZE = 4;
@@ -38,15 +39,15 @@ export default function UpcomingClasses() {
 
   const fetchSessions = async () => {
     try {
-      const response = await http.get('/api/classes/my-sessions-v2');
+      const response = await http.get(withTimeZoneQuery('/api/classes/my-sessions-v2'));
       const data = Array.isArray(response?.data) ? response.data : [];
 
       // Filter out completed sessions; only show missed sessions from today
-      const todayStr = new Date().toISOString().slice(0, 10);
+      const todayStr = getTodayLocalDateKey();
       const upcoming = data
         .filter((s) => {
           if (s.status === 'COMPLETED') return false;
-          if (s.status === 'MISSED') return s.scheduled_at.slice(0, 10) === todayStr;
+          if (s.status === 'MISSED') return toLocalDateKey(s.scheduled_at) === todayStr;
           return true;
         })
         .sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at));

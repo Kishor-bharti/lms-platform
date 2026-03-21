@@ -8,9 +8,10 @@ import {
 } from "reactstrap";
 import Header from "components/Headers/Header.js";
 import http from "utils/http";
+import { getTodayLocalDateKey, toTimetzFromLocal, withTimeZoneQuery } from "utils/date";
 import { SessionCardSkeleton } from 'components/Skeleton.js';
 
-const TODAY = new Date().toISOString().slice(0, 10);
+const TODAY = getTodayLocalDateKey();
 
 const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const MO_NAMES  = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -38,7 +39,7 @@ function fmtDateUS(dateStr) {
   return `${parseInt(m)}/${parseInt(d)}/${y}`;
 }
 
-/** Format "HH:MM:SS" or "HH:MM:SS+05:30" → "6:30 PM" */
+/** Format "HH:MM:SS" or "HH:MM:SS±HH:MM" → "6:30 PM" */
 function fmtTime(timeStr) {
   if (!timeStr) return '';
   const [h, m] = timeStr.slice(0, 5).split(':').map(Number);
@@ -143,7 +144,7 @@ const Sessions = () => {
   const fetchSessions = useCallback(async (date) => {
     setLoading(true);
     try {
-      const res = await http.get(`/api/classes/my-sessions-v2?date=${date}`);
+      const res = await http.get(withTimeZoneQuery(`/api/classes/my-sessions-v2?date=${date}`));
       setSessions(sortSessions(Array.isArray(res?.data) ? res.data : []));
     } catch (err) {
       console.error('[Sessions] fetch error:', err);
@@ -283,8 +284,8 @@ const Sessions = () => {
       await http.patch(`/api/admin/sessions/${rescheduleModal.session.id}`, {
         title:       rescheduleForm.title,
         sessionDate: rescheduleForm.date,
-        startTime:   rescheduleForm.time + ':00+05:30',
-        endTime:     rescheduleForm.endTime ? rescheduleForm.endTime + ':00+05:30' : undefined,
+        startTime:   toTimetzFromLocal(rescheduleForm.date, rescheduleForm.time),
+        endTime:     rescheduleForm.endTime ? toTimetzFromLocal(rescheduleForm.date, rescheduleForm.endTime) : undefined,
       });
       setRescheduleModal({ open: false, session: null });
       fetchSessions(selectedDate);

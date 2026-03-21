@@ -6,9 +6,10 @@ import {
 } from "reactstrap";
 import Header from "components/Headers/Header.js";
 import http from "utils/http";
+import { getTodayLocalDateKey, withTimeZoneQuery } from "utils/date";
 import { SessionCardSkeleton } from 'components/Skeleton.js';
 
-const TODAY = new Date().toISOString().slice(0, 10);
+const TODAY = getTodayLocalDateKey();
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const MO_NAMES  = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -97,7 +98,7 @@ const Classes = () => {
   const fetchSessions = useCallback(async (date) => {
     setLoading(true);
     try {
-      const res = await http.get(`/api/classes/my-sessions-v2?date=${date}`);
+      const res = await http.get(withTimeZoneQuery(`/api/classes/my-sessions-v2?date=${date}`));
       setSessions(Array.isArray(res?.data) ? res.data : []);
     } catch (err) {
       console.error('[Classes] fetch error:', err);
