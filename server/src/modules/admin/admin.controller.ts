@@ -294,11 +294,29 @@ export async function removeStudentFromTeacher(req: Request, res: Response) {
   }
 }
 
+export async function getAdminOverview(req: Request, res: Response) {
+  try {
+    const data = await adminService.getAdminDashboardOverview();
+    return res.json(data);
+  } catch (err) {
+    logger.error('[admin] getAdminOverview:', err);
+    return res.status(500).json({ error: 'Failed to fetch overview' });
+  }
+}
+
 export async function getAllSessions(req: Request, res: Response) {
   try {
-    const rawDate = req.query.date as string | undefined;
-    const date = rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : undefined;
-    const sessions = await adminService.getAllSessionsAdmin(date);
+    const validDate = (s?: string) => (s && /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : undefined);
+    const str = (k: string) => (req.query[k] as string) || undefined;
+    const filters: adminService.AdminSessionFilters = {};
+    const d = validDate(req.query.date as string);
+    if (d)            filters.date      = d;
+    if (str('courseId'))  filters.courseId  = str('courseId')!;
+    if (str('subjectId')) filters.subjectId = str('subjectId')!;
+    if (str('teacherId')) filters.teacherId = str('teacherId')!;
+    if (str('studentId')) filters.studentId = str('studentId')!;
+    if (str('status'))    filters.status    = str('status')!;
+    const sessions = await adminService.getAllSessionsAdmin(filters);
     return res.json(sessions);
   } catch (err) {
     logger.error('[admin] getAllSessions:', err);

@@ -11,6 +11,9 @@ router.use(rbacMiddleware(['admin']));
 // Stats
 router.get('/stats', adminController.getStats);
 
+// Dashboard overview (students + teachers with allocations)
+router.get('/overview', adminController.getAdminOverview);
+
 // Users
 router.get('/users', adminController.getUsers);
 router.post('/users', adminController.createUser);

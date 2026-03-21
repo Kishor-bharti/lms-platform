@@ -651,51 +651,205 @@ export async function deleteAdminSession(sessionId: string): Promise<void> {
   await query(`DELETE FROM sessions WHERE id = $1`, [sessionId]);
 }
 
+// ---- Admin Dashboard Overview ----
+
+export async function getAdminDashboardOverview(): Promise<{ students: any[]; teachers: any[] }> {
+  const parseJson = (v: any): any[] => {
+    if (Array.isArray(v)) return v;
+    if (typeof v === 'string') try { return JSON.parse(v); } catch { return []; }
+    return v ?? [];
+  };
+
+  const [studentRows, teacherRows] = await Promise.all([
+    query<any>(`
+      SELECT
+        u.id,
+        u.first_name || ' ' || u.last_name AS name,
+        u.email,
+        COALESCE(
+          json_agg(DISTINCT jsonb_build_object(
+            'id', sub.id,
+            'name', sub.name,
+            'course_name', c.name
+          )) FILTER (WHERE sub.id IS NOT NULL AND se.enrollment_status = 'active'),
+          '[]'
+        ) AS subjects,
+        (
+          SELECT COALESCE(json_agg(t_data), '[]'::json)
+          FROM (
+            SELECT json_build_object(
+              'teacher_id',   sts2.teacher_id,
+              'teacher_name', u_t.first_name || ' ' || u_t.last_name,
+              'subjects', json_agg(json_build_object(
+                'subject_id',   sts2.subject_id,
+                'subject_name', sub3.name
+              ) ORDER BY sub3.name)
+            ) AS t_data
+            FROM subject_teacher_students sts2
+            JOIN users    u_t  ON u_t.id  = sts2.teacher_id
+            JOIN subjects sub3 ON sub3.id = sts2.subject_id
+            WHERE sts2.student_id = u.id
+            GROUP BY sts2.teacher_id, u_t.first_name, u_t.last_name
+          ) t_inner
+        ) AS teachers
+      FROM users u
+      JOIN user_roles ur ON ur.user_id = u.id
+      JOIN roles r       ON r.id = ur.role_id AND r.name = 'student'
+      LEFT JOIN subject_enrollments se ON se.student_id = u.id AND se.enrollment_status = 'active'
+      LEFT JOIN subjects sub ON sub.id = se.subject_id
+      LEFT JOIN courses  c   ON c.id   = sub.course_id
+      WHERE u.is_active = true
+      GROUP BY u.id, u.first_name, u.last_name, u.email
+      ORDER BY u.first_name, u.last_name
+    `),
+    query<any>(`
+      SELECT
+        u.id,
+        u.first_name || ' ' || u.last_name AS name,
+        u.email,
+        COALESCE(
+          json_agg(DISTINCT jsonb_build_object(
+            'id', sub.id,
+            'name', sub.name,
+            'course_name', c.name
+          )) FILTER (WHERE sub.id IS NOT NULL),
+          '[]'
+        ) AS subjects,
+        COUNT(DISTINCT sts.student_id)::int AS total_students
+      FROM users u
+      JOIN user_roles ur ON ur.user_id = u.id
+      JOIN roles r       ON r.id = ur.role_id AND r.name = 'teacher'
+      LEFT JOIN subject_teachers        st  ON st.teacher_id  = u.id
+      LEFT JOIN subjects                sub ON sub.id = st.subject_id
+      LEFT JOIN courses                 c   ON c.id   = sub.course_id
+      LEFT JOIN subject_teacher_students sts ON sts.teacher_id = u.id
+      WHERE u.is_active = true
+      GROUP BY u.id, u.first_name, u.last_name, u.email
+      ORDER BY u.first_name, u.last_name
+    `),
+  ]);
+
+  return {
+    students: studentRows.map((r) => ({
+      id:       r.id,
+      name:     r.name,
+      email:    r.email,
+      subjects: parseJson(r.subjects),
+      teachers: parseJson(r.teachers),
+    })),
+    teachers: teacherRows.map((r) => ({
+      id:             r.id,
+      name:           r.name,
+      email:          r.email,
+      subjects:       parseJson(r.subjects),
+      total_students: r.total_students ?? 0,
+    })),
+  };
+}
+
 // ---- All sessions (admin view) ----
 
-export async function getAllSessionsAdmin(date?: string) {
-  const dateClause = date ? 'WHERE s.session_date = $1' : '';
-  const params: any[] = date ? [date] : [];
+export interface AdminSessionFilters {
+  date?:      string;
+  courseId?:  string;
+  subjectId?: string;
+  teacherId?: string;
+  studentId?: string;
+  status?:    string;
+}
+
+export async function getAllSessionsAdmin(filters: AdminSessionFilters = {}) {
+  const conditions: string[] = [];
+  const params: any[] = [];
+
+  if (filters.date) {
+    params.push(filters.date);
+    conditions.push(`s.session_date = $${params.length}`);
+  }
+  if (filters.courseId) {
+    params.push(filters.courseId);
+    conditions.push(`sub.course_id = $${params.length}`);
+  }
+  if (filters.subjectId) {
+    params.push(filters.subjectId);
+    conditions.push(`s.subject_id = $${params.length}`);
+  }
+  if (filters.teacherId) {
+    params.push(filters.teacherId);
+    conditions.push(`s.teacher_id = $${params.length}`);
+  }
+  if (filters.status) {
+    params.push(filters.status);
+    conditions.push(`s.status = $${params.length}`);
+  }
+  if (filters.studentId) {
+    params.push(filters.studentId);
+    conditions.push(`EXISTS (
+      SELECT 1 FROM session_students ss_f
+      WHERE  ss_f.session_id = s.id AND ss_f.student_id = $${params.length}
+    )`);
+  }
+
+  const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
   const rows = await query<any>(`
     SELECT
       s.id, s.title, s.status,
-      s.subject_id, s.teacher_id,
+      s.subject_id,
       s.session_date::text AS session_date,
       s.start_time::text   AS start_time,
+      s.end_time::text     AS end_time,
       s.meeting_link,
       t.name   AS topic_name,
+      sub.id   AS subject_id_col,
       sub.name AS subject_name,
+      c.id     AS course_id,
       c.name   AS course_name,
+      u.id     AS teacher_id,
       u.first_name || ' ' || u.last_name AS teacher_name,
-      u.email AS teacher_email,
-      COUNT(se.student_id) FILTER (WHERE se.enrollment_status = 'active') AS enrolled_count
+      u.email  AS teacher_email,
+      (
+        SELECT COALESCE(json_agg(json_build_object(
+          'student_id',   u_s.id,
+          'student_name', u_s.first_name || ' ' || u_s.last_name
+        ) ORDER BY u_s.first_name), '[]'::json)
+        FROM session_students ss
+        JOIN users u_s ON u_s.id = ss.student_id
+        WHERE ss.session_id = s.id
+      ) AS session_students_list
     FROM sessions s
     JOIN subjects sub ON sub.id = s.subject_id
     JOIN courses  c   ON c.id   = sub.course_id
     JOIN users    u   ON u.id   = s.teacher_id
     LEFT JOIN topics t ON t.id  = s.topic_id
-    LEFT JOIN subject_enrollments se ON se.subject_id = s.subject_id
-    ${dateClause}
-    GROUP BY s.id, s.title, s.status, s.subject_id, s.teacher_id,
-             s.session_date, s.start_time, s.meeting_link,
-             t.name, sub.name, c.name, u.first_name, u.last_name, u.email
+    ${whereClause}
     ORDER BY s.session_date DESC, s.start_time DESC
     LIMIT 500
   `, params);
 
+  const parseJson = (v: any): any[] => {
+    if (Array.isArray(v)) return v;
+    if (typeof v === 'string') try { return JSON.parse(v); } catch { return []; }
+    return [];
+  };
+
   return rows.map((r) => ({
-    id:             r.id,
-    title:          r.title,
-    status:         r.status,
-    subject_id:     r.subject_id,
-    teacher_id:     r.teacher_id,
-    scheduled_at:   `${r.session_date}T${r.start_time.slice(0, 8)}`,
-    zoom_link:      r.meeting_link,
-    topic_name:     r.topic_name ?? null,
-    subject_name:   r.subject_name,
-    course_name:    r.course_name,
-    teacher_name:   r.teacher_name,
-    teacher_email:  r.teacher_email,
-    enrolled_count: Number(r.enrolled_count),
+    id:           r.id,
+    title:        r.title,
+    status:       r.status,
+    subject_id:   r.subject_id,
+    teacher_id:   r.teacher_id,
+    course_id:    r.course_id,
+    session_date: r.session_date,
+    start_time:   r.start_time,
+    end_time:     r.end_time,
+    scheduled_at: `${r.session_date}T${r.start_time.slice(0, 8)}`,
+    zoom_link:    r.meeting_link,
+    topic_name:   r.topic_name ?? null,
+    subject_name: r.subject_name,
+    course_name:  r.course_name,
+    teacher_name: r.teacher_name,
+    teacher_email: r.teacher_email,
+    students:     parseJson(r.session_students_list),
   }));
 }
