@@ -35,10 +35,10 @@ export default function AdminAllocations() {
 
   // Add student modal
   const [addModal,          setAddModal]          = useState({ open: false, teacherId: '', teacherName: '' });
-  const [studentSearch,     setStudentSearch]     = useState('');
-  const [selectedStudentId, setSelectedStudentId] = useState('');
-  const [assigning,         setAssigning]         = useState(false);
-  const [assignError,       setAssignError]       = useState('');
+  const [studentSearch,      setStudentSearch]      = useState('');
+  const [selectedStudentIds, setSelectedStudentIds] = useState(new Set());
+  const [assigning,          setAssigning]          = useState(false);
+  const [assignError,        setAssignError]        = useState('');
 
   // Remove confirm modal
   const [removeModal, setRemoveModal] = useState({ open: false, teacherId: '', teacherName: '', studentId: '', studentName: '' });
@@ -97,7 +97,7 @@ export default function AdminAllocations() {
   const openAddModal = (teacherId, teacherName) => {
     setAddModal({ open: true, teacherId, teacherName });
     setStudentSearch('');
-    setSelectedStudentId('');
+    setSelectedStudentIds(new Set());
     setAssignError('');
   };
 
@@ -119,19 +119,31 @@ export default function AdminAllocations() {
       });
   }, [addModal, allocations, enrolledStudents, studentSearch]);
 
+  const toggleStudent = (id) => {
+    setSelectedStudentIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
   const handleAssign = async () => {
-    if (!selectedStudentId) { setAssignError('Please select a student'); return; }
+    if (selectedStudentIds.size === 0) { setAssignError('Please select at least one student'); return; }
     setAssigning(true);
     setAssignError('');
     try {
-      await http.post(
-        `/api/admin/subjects/${selectedSubject}/teachers/${addModal.teacherId}/students`,
-        { studentId: selectedStudentId }
+      await Promise.all(
+        [...selectedStudentIds].map(studentId =>
+          http.post(
+            `/api/admin/subjects/${selectedSubject}/teachers/${addModal.teacherId}/students`,
+            { studentId }
+          )
+        )
       );
       setAddModal({ open: false, teacherId: '', teacherName: '' });
       loadSubjectData(selectedSubject);
     } catch (err) {
-      setAssignError(err?.response?.data?.error || 'Failed to assign student');
+      setAssignError(err?.response?.data?.error || 'Failed to assign students');
     } finally {
       setAssigning(false);
     }
@@ -417,7 +429,7 @@ export default function AdminAllocations() {
                           <Button
                             size="sm"
                             onClick={() => openAddModal(teacher.teacher_id, teacher.teacher_name)}
-                            disabled={availableStudents.length === 0 && addModal.teacherId !== teacher.teacher_id}
+                            disabled={unallocated === 0}
                             style={{
                               borderRadius: 20, fontWeight: 700, fontSize: 12,
                               background: color, color: '#fff', border: 'none',
@@ -460,50 +472,72 @@ export default function AdminAllocations() {
             <Input
               placeholder="Name or email…"
               value={studentSearch}
-              onChange={e => { setStudentSearch(e.target.value); setSelectedStudentId(''); }}
+              onChange={e => { setStudentSearch(e.target.value); setSelectedStudentIds(new Set()); }}
               style={{ borderRadius: 8, fontSize: 13 }}
               autoFocus
             />
           </FormGroup>
 
-          <div style={{ maxHeight: 260, overflowY: 'auto', border: '1px solid #e9ecef', borderRadius: 10, background: '#fff' }}>
+          {availableStudents.length > 1 && (
+            <div
+              onClick={() => {
+                const allIds = new Set(availableStudents.map(s => s.id));
+                const allSelected = availableStudents.every(s => selectedStudentIds.has(s.id));
+                setSelectedStudentIds(allSelected ? new Set() : allIds);
+              }}
+              style={{ padding: '8px 14px', cursor: 'pointer', borderBottom: '1px solid #e9ecef', background: '#f8faff', display: 'flex', alignItems: 'center', gap: 8 }}
+            >
+              <input
+                type="checkbox"
+                readOnly
+                checked={availableStudents.every(s => selectedStudentIds.has(s.id))}
+                style={{ cursor: 'pointer' }}
+              />
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#525f7f' }}>
+                Select all ({availableStudents.length})
+              </span>
+            </div>
+          )}
+
+          <div style={{ maxHeight: 240, overflowY: 'auto', border: '1px solid #e9ecef', borderRadius: 10, background: '#fff' }}>
             {availableStudents.length === 0 ? (
               <div style={{ padding: '24px 16px', textAlign: 'center', color: '#adb5bd', fontSize: 13 }}>
                 {studentSearch ? 'No students match your search' : 'All enrolled students are already allocated to this teacher'}
               </div>
             ) : (
-              availableStudents.map(s => (
-                <div
-                  key={s.id}
-                  onClick={() => setSelectedStudentId(s.id)}
-                  style={{
-                    padding: '10px 14px', cursor: 'pointer',
-                    borderBottom: '1px solid #f0f4f8',
-                    background: selectedStudentId === s.id ? '#eef0fd' : 'transparent',
-                    transition: 'background 0.15s',
-                  }}
-                >
-                  <div className="d-flex align-items-center" style={{ gap: 10 }}>
-                    <div style={{
-                      width: 32, height: 32, borderRadius: 8, flexShrink: 0,
-                      background: avatarColor(`${s.first_name} ${s.last_name}`),
-                      color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontWeight: 700, fontSize: 12,
-                    }}>
-                      {initials(`${s.first_name} ${s.last_name}`)}
-                    </div>
-                    <div>
-                      <div style={{ fontWeight: 600, color: '#32325d', fontSize: 13 }}>
-                        {s.first_name} {s.last_name}
-                        {selectedStudentId === s.id && (
-                          <span style={{ marginLeft: 8, color: '#5e72e4', fontSize: 11 }}>✓ Selected</span>
-                        )}
+              availableStudents.map(s => {
+                const checked = selectedStudentIds.has(s.id);
+                return (
+                  <div
+                    key={s.id}
+                    onClick={() => toggleStudent(s.id)}
+                    style={{
+                      padding: '10px 14px', cursor: 'pointer',
+                      borderBottom: '1px solid #f0f4f8',
+                      background: checked ? '#eef0fd' : 'transparent',
+                      transition: 'background 0.15s',
+                    }}
+                  >
+                    <div className="d-flex align-items-center" style={{ gap: 10 }}>
+                      <input type="checkbox" readOnly checked={checked} style={{ cursor: 'pointer', flexShrink: 0 }} />
+                      <div style={{
+                        width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+                        background: avatarColor(`${s.first_name} ${s.last_name}`),
+                        color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontWeight: 700, fontSize: 12,
+                      }}>
+                        {initials(`${s.first_name} ${s.last_name}`)}
                       </div>
-                      <div style={{ color: '#8898aa', fontSize: 11 }}>{s.email}</div>
+                      <div>
+                        <div style={{ fontWeight: 600, color: '#32325d', fontSize: 13 }}>
+                          {s.first_name} {s.last_name}
+                        </div>
+                        <div style={{ color: '#8898aa', fontSize: 11 }}>{s.email}</div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
 
@@ -512,11 +546,15 @@ export default function AdminAllocations() {
         <ModalFooter style={{ background: '#f8fbff' }}>
           <Button
             color="primary"
-            disabled={!selectedStudentId || assigning}
+            disabled={selectedStudentIds.size === 0 || assigning}
             onClick={handleAssign}
             style={{ borderRadius: 20, fontWeight: 700 }}
           >
-            {assigning ? 'Assigning…' : 'Assign Student'}
+            {assigning
+              ? 'Assigning…'
+              : selectedStudentIds.size > 0
+                ? `Assign ${selectedStudentIds.size} Student${selectedStudentIds.size > 1 ? 's' : ''}`
+                : 'Assign Student'}
           </Button>
           <Button color="link" onClick={() => setAddModal({ open: false, teacherId: '', teacherName: '' })}>
             Cancel
