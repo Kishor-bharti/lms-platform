@@ -564,6 +564,11 @@ export async function updateAdminSession(
   if (data.endTime     !== undefined) { sets.push(`end_time     = $${idx++}`); params.push(data.endTime); }
   if (data.topicId     !== undefined) { sets.push(`topic_id     = $${idx++}`); params.push(data.topicId); }
 
+  // Reset status to scheduled when date or time changes (reschedule of missed/cancelled sessions)
+  if (data.sessionDate !== undefined || data.startTime !== undefined) {
+    sets.push(`status = 'scheduled'`);
+  }
+
   if (sets.length === 0) return;
   params.push(sessionId);
   await query(`UPDATE sessions SET ${sets.join(', ')}, updated_at = now() WHERE id = $${idx}`, params);

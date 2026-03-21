@@ -587,7 +587,7 @@ export default function SubjectTeacher() {
                                 )}
                               </div>
                               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                                {canEditSession(s) && s.status !== 'LIVE' && (
+                                {isAdmin && s.status !== 'LIVE' && (
                                   <Button size="sm" color="danger" outline style={{ borderRadius: 8, fontSize: 11 }}
                                     onClick={() => setDeleteSessionModal({ open: true, session: s })}>
                                     Delete
@@ -620,7 +620,7 @@ export default function SubjectTeacher() {
                                   <span style={{ display: 'inline-block', marginLeft: 8, fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10 }}>📌 {s.topic_name}</span>
                                 )}
                               </div>
-                              {canEditSession(s) && (
+                              {isAdmin && (
                                 <Button size="sm" color="danger" outline style={{ borderRadius: 8, fontSize: 11 }}
                                   onClick={() => setDeleteSessionModal({ open: true, session: s })}>
                                   Delete

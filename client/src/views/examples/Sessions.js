@@ -3,6 +3,8 @@ import { useSearchParams } from "react-router-dom";
 import {
   Button, Card, CardHeader, CardBody, CardTitle,
   Container, Row, Col, Badge,
+  Modal, ModalHeader, ModalBody, ModalFooter,
+  Form, FormGroup, Label, Input,
 } from "reactstrap";
 import Header from "components/Headers/Header.js";
 import http from "utils/http";
@@ -84,6 +86,14 @@ const Sessions = () => {
   const [userRole,        setUserRole]        = useState(null);
   const [startingSession, setStartingSession] = useState(null);
   const [actionError,     setActionError]     = useState("");
+
+  const [deleteModal,     setDeleteModal]     = useState({ open: false, session: null });
+  const [deletingSession, setDeletingSession] = useState(false);
+
+  const [rescheduleModal,  setRescheduleModal]  = useState({ open: false, session: null });
+  const [rescheduleForm,   setRescheduleForm]   = useState({ title: '', date: '', time: '', endTime: '' });
+  const [rescheduling,     setRescheduling]     = useState(false);
+  const [rescheduleError,  setRescheduleError]  = useState('');
 
   // Admin-only filter state — intentionally NOT reset on date change
   const EMPTY_FILTERS = { teacher: '', course: '', subject: '', topic: '', student: '' };
@@ -181,7 +191,7 @@ const Sessions = () => {
       case 'LIVE':      return <Badge color="danger" className="live-blink">● LIVE</Badge>;
       case 'TODAY':     return <Badge color="warning">TODAY</Badge>;
       case 'TOMORROW':  return <Badge color="info">TOMORROW</Badge>;
-      case 'COMPLETED': return <Badge color="secondary">COMPLETED</Badge>;
+      case 'COMPLETED': return <Badge style={{ background: '#6c757d', color: '#fff' }}>COMPLETED</Badge>;
       case 'SCHEDULED': return <Badge color="light">SCHEDULED</Badge>;
       case 'MISSED':
         return userRole === 'student'
@@ -233,6 +243,55 @@ const Sessions = () => {
       setActionError(error?.response?.data?.error || 'Failed to end session');
     } finally {
       setStartingSession(null);
+    }
+  };
+
+  const handleDeleteSession = async () => {
+    if (!deleteModal.session) return;
+    setDeletingSession(true);
+    try {
+      await http.delete(`/api/classes/sessions/${deleteModal.session.id}`);
+      setDeleteModal({ open: false, session: null });
+      setExpandedSession(null);
+      fetchSessions(selectedDate);
+    } catch (err) {
+      alert(err?.response?.data?.error || 'Failed to delete session');
+    } finally {
+      setDeletingSession(false);
+    }
+  };
+
+  const openReschedule = (session) => {
+    setRescheduleForm({
+      title:   session.title || '',
+      date:    session.scheduled_at.slice(0, 10),
+      time:    session.scheduled_at.slice(11, 16),
+      endTime: session.end_time ? session.end_time.slice(0, 5) : '',
+    });
+    setRescheduleError('');
+    setRescheduleModal({ open: true, session });
+  };
+
+  const handleReschedule = async () => {
+    if (!rescheduleForm.title || !rescheduleForm.date || !rescheduleForm.time) {
+      setRescheduleError('Title, date, and start time are required');
+      return;
+    }
+    setRescheduling(true);
+    setRescheduleError('');
+    try {
+      await http.patch(`/api/admin/sessions/${rescheduleModal.session.id}`, {
+        title:       rescheduleForm.title,
+        sessionDate: rescheduleForm.date,
+        startTime:   rescheduleForm.time + ':00+05:30',
+        endTime:     rescheduleForm.endTime ? rescheduleForm.endTime + ':00+05:30' : undefined,
+      });
+      setRescheduleModal({ open: false, session: null });
+      fetchSessions(selectedDate);
+    } catch (err) {
+      setRescheduleError(err?.response?.data?.error || 'Failed to reschedule session');
+    } finally {
+      setRescheduling(false);
     }
   };
 
@@ -546,6 +605,26 @@ const Sessions = () => {
                                 })()}
                               </div>
                             )}
+
+                            {/* Admin-only: Delete + Reschedule */}
+                            {userRole === 'admin' && (
+                              <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                                {session.status !== 'COMPLETED' && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); openReschedule(session); }}
+                                    style={{ border: 'none', borderRadius: 6, padding: '8px 20px', fontWeight: 600, fontSize: 14, cursor: 'pointer', background: '#5e72e4', color: '#fff', boxShadow: '0 4px 6px rgba(94,114,228,.3)' }}
+                                  >
+                                    Reschedule
+                                  </button>
+                                )}
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setDeleteModal({ open: true, session }); }}
+                                  style={{ border: 'none', borderRadius: 6, padding: '8px 20px', fontWeight: 600, fontSize: 14, cursor: 'pointer', background: '#f5365c', color: '#fff', boxShadow: '0 4px 6px rgba(245,54,92,.3)' }}
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -564,6 +643,83 @@ const Sessions = () => {
           </Col>
         </Row>
       </Container>
+
+      {/* ── Delete Session Confirmation Modal ── */}
+      <Modal isOpen={deleteModal.open} toggle={() => setDeleteModal({ open: false, session: null })} centered size="sm">
+        <ModalHeader toggle={() => setDeleteModal({ open: false, session: null })}>Confirm Delete Session</ModalHeader>
+        <ModalBody className="text-center">
+          <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
+          <p>Delete session <strong>{deleteModal.session?.title}</strong>?</p>
+          <p className="text-muted small">This will permanently remove the session for all users.</p>
+        </ModalBody>
+        <ModalFooter className="justify-content-center">
+          <Button color="danger" disabled={deletingSession} onClick={handleDeleteSession}>
+            {deletingSession ? 'Deleting…' : 'Yes, Delete'}
+          </Button>
+          <Button color="secondary" outline onClick={() => setDeleteModal({ open: false, session: null })}>Cancel</Button>
+        </ModalFooter>
+      </Modal>
+
+      {/* ── Reschedule Session Modal ── */}
+      <Modal isOpen={rescheduleModal.open} toggle={() => setRescheduleModal({ open: false, session: null })} centered size="lg">
+        <ModalHeader
+          toggle={() => setRescheduleModal({ open: false, session: null })}
+          style={{ background: 'linear-gradient(135deg,#3b4a67,#6286c3)', color: '#fff', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}
+        >
+          Reschedule Session
+        </ModalHeader>
+        <ModalBody style={{ background: '#f8fbff' }}>
+          <Form>
+            <FormGroup>
+              <Label><strong>Title *</strong></Label>
+              <Input
+                value={rescheduleForm.title}
+                onChange={e => setRescheduleForm(f => ({ ...f, title: e.target.value }))}
+                placeholder="Session title"
+              />
+            </FormGroup>
+            <Row form>
+              <Col md={4}>
+                <FormGroup>
+                  <Label><strong>Date *</strong></Label>
+                  <Input
+                    type="date"
+                    value={rescheduleForm.date}
+                    onChange={e => setRescheduleForm(f => ({ ...f, date: e.target.value }))}
+                  />
+                </FormGroup>
+              </Col>
+              <Col md={4}>
+                <FormGroup>
+                  <Label><strong>Start Time *</strong></Label>
+                  <Input
+                    type="time"
+                    value={rescheduleForm.time}
+                    onChange={e => setRescheduleForm(f => ({ ...f, time: e.target.value }))}
+                  />
+                </FormGroup>
+              </Col>
+              <Col md={4}>
+                <FormGroup>
+                  <Label>End Time</Label>
+                  <Input
+                    type="time"
+                    value={rescheduleForm.endTime}
+                    onChange={e => setRescheduleForm(f => ({ ...f, endTime: e.target.value }))}
+                  />
+                </FormGroup>
+              </Col>
+            </Row>
+            {rescheduleError && <p className="text-danger small mt-2">{rescheduleError}</p>}
+          </Form>
+        </ModalBody>
+        <ModalFooter style={{ background: '#f8fbff' }}>
+          <Button color="primary" disabled={rescheduling} onClick={handleReschedule}>
+            {rescheduling ? 'Saving…' : 'Save Changes'}
+          </Button>
+          <Button color="link" onClick={() => setRescheduleModal({ open: false, session: null })}>Cancel</Button>
+        </ModalFooter>
+      </Modal>
     </>
   );
 };
