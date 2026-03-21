@@ -582,7 +582,7 @@ export default function SubjectTeacher() {
                                 <div className="d-flex align-items-center mb-1" style={{ gap: 8 }}>
                                   <strong>{s.title}</strong>{statusBadge(s.status)}
                                 </div>
-                                <div className="small text-muted">{new Date(s.scheduled_at).toLocaleString()}</div>
+                                <div className="small text-muted">{new Date(s.scheduled_at).toLocaleString('en-US')}</div>
                                 {s.topic_name && (
                                   <span style={{ display: 'inline-block', marginTop: 4, fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10 }}>📌 {s.topic_name}</span>
                                 )}
@@ -616,7 +616,7 @@ export default function SubjectTeacher() {
                             <div className="d-flex justify-content-between align-items-center">
                               <div>
                                 <strong>{s.title}</strong>
-                                <span className="small text-muted ml-2">{new Date(s.scheduled_at).toLocaleDateString()}</span>
+                                <span className="small text-muted ml-2">{new Date(s.scheduled_at).toLocaleDateString('en-US')}</span>
                                 {s.topic_name && (
                                   <span style={{ display: 'inline-block', marginLeft: 8, fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10 }}>📌 {s.topic_name}</span>
                                 )}
@@ -757,7 +757,7 @@ export default function SubjectTeacher() {
                               {a.description && <p className="small text-muted mb-1 mt-1">{a.description}</p>}
                               <div className="small text-muted">
                                 <span className="mr-3">Max points: {a.max_marks}</span>
-                                {a.due_date && <span>Due: {new Date(a.due_date).toLocaleDateString()}</span>}
+                                {a.due_date && <span>Due: {new Date(a.due_date).toLocaleDateString('en-US')}</span>}
                                 <span className="ml-3">Submissions: {a.submission_count || 0}</span>
                               </div>
                             </div>

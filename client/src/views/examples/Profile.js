@@ -132,10 +132,10 @@ export default function Profile() {
                         </span>
                       </div>
                       <div className="profile-info-row">
-                        <strong>Member since:</strong> {profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : '—'}
+                        <strong>Member since:</strong> {profile?.created_at ? new Date(profile.created_at).toLocaleDateString('en-US') : '—'}
                       </div>
                       <div className="profile-info-row">
-                        <strong>Last login:</strong> {profile?.last_login_at ? new Date(profile.last_login_at).toLocaleDateString() : 'N/A'}
+                        <strong>Last login:</strong> {profile?.last_login_at ? new Date(profile.last_login_at).toLocaleDateString('en-US') : 'N/A'}
                       </div>
                     </div>
                   </div>

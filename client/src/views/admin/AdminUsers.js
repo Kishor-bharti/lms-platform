@@ -150,7 +150,7 @@ export default function AdminUsers() {
                             </span>
                           </td>
                           <td style={{ padding: '12px 14px', color: '#8898aa', fontSize: 12 }}>
-                            {u.last_login_at ? new Date(u.last_login_at).toLocaleDateString() : 'Never'}
+                            {u.last_login_at ? new Date(u.last_login_at).toLocaleDateString('en-US') : 'Never'}
                           </td>
                           <td style={{ padding: '12px 14px' }}>
                             <Button size="sm" color={u.is_active ? 'warning' : 'success'} outline

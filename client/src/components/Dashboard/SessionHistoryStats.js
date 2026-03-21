@@ -78,7 +78,7 @@ function TeacherSessionHistory() {
                       </div>
                     </td>
                     <td style={{ color: '#6b778c', whiteSpace: 'nowrap' }}>
-                      {s.last_session ? new Date(s.last_session).toLocaleDateString() : '—'}
+                      {s.last_session ? new Date(s.last_session).toLocaleDateString('en-US') : '—'}
                     </td>
                   </tr>
                 );
@@ -194,7 +194,7 @@ function AdminSessionHistory() {
                   <td style={{ color: '#6b778c' }}>{s.teacher_name || '—'}</td>
                   <td style={{ color: '#6b778c' }}>{s.subject_title || s.class_title || '—'}</td>
                   <td style={{ color: '#6b778c', whiteSpace: 'nowrap' }}>
-                    {s.session_date ? new Date(s.session_date).toLocaleDateString() : '—'}
+                    {s.session_date ? new Date(s.session_date).toLocaleDateString('en-US') : '—'}
                   </td>
                   <td>
                     <Badge color={statusColor(s.status)}

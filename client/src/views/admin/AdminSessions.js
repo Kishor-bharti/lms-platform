@@ -450,8 +450,8 @@ export default function AdminSessions() {
                               </td>
                               <td style={{ padding: '12px 14px', color: '#525f7f', fontSize: 13, whiteSpace: 'nowrap' }}>
                                 {s.session_date
-                                  ? `${new Date(s.session_date + 'T00:00:00').toLocaleDateString()} ${s.start_time?.slice(0, 5) || ''}`
-                                  : new Date(s.scheduled_at).toLocaleString()}
+                                  ? `${new Date(s.session_date + 'T00:00:00').toLocaleDateString('en-US')} ${s.start_time?.slice(0, 5) || ''}`
+                                  : new Date(s.scheduled_at).toLocaleString('en-US')}
                               </td>
                               <td style={{ padding: '12px 14px' }}>
                                 <button onClick={() => openStudents(s)}
@@ -590,7 +590,7 @@ export default function AdminSessions() {
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 90, overflowY: 'auto' }}>
                       {preview.map(d => (
                         <span key={d} style={{ background: '#fff', border: '1px solid #c5cae9', borderRadius: 8, padding: '2px 8px', fontSize: 12, color: '#3b4a67' }}>
-                          {new Date(d + 'T00:00:00Z').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                          {new Date(d + 'T00:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                         </span>
                       ))}
                     </div>

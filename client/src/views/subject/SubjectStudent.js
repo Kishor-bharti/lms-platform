@@ -28,7 +28,7 @@ function dueDateLabel(due_date) {
   if (diffDays < 0)   return <Badge color="danger">Overdue</Badge>;
   if (diffDays === 0) return <Badge color="warning">Due Today</Badge>;
   if (diffDays <= 3)  return <Badge color="warning">Due in {diffDays}d</Badge>;
-  return <span className="text-muted small">Due {due.toLocaleDateString()}</span>;
+  return <span className="text-muted small">Due {due.toLocaleDateString('en-US')}</span>;
 }
 
 export default function SubjectStudent() {
@@ -323,7 +323,7 @@ export default function SubjectStudent() {
                                   <div className="d-flex align-items-center mb-1" style={{ gap: 8 }}>
                                     <strong>{s.title}</strong>{statusBadge(s.status)}
                                   </div>
-                                  <div className="small text-muted">{new Date(s.scheduled_at).toLocaleString()}</div>
+                                  <div className="small text-muted">{new Date(s.scheduled_at).toLocaleString('en-US')}</div>
                                 </div>
                                 {s.status === 'LIVE' && s.zoom_link && (
                                   <a href={s.zoom_link} target="_blank" rel="noreferrer">
@@ -345,7 +345,7 @@ export default function SubjectStudent() {
                               <div className="d-flex justify-content-between align-items-center">
                                 <div>
                                   <strong>{s.title}</strong>
-                                  <div className="small text-muted">{new Date(s.scheduled_at).toLocaleDateString()}</div>
+                                  <div className="small text-muted">{new Date(s.scheduled_at).toLocaleDateString('en-US')}</div>
                                 </div>
                                 {s.recording_url && (
                                   <Button color="secondary" size="sm" disabled style={{ borderRadius: 8, cursor: 'not-allowed' }}>Replay</Button>

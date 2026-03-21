@@ -159,7 +159,7 @@ export default function AdminDashboard() {
     { label: 'Live Now', value: stats.live_sessions,  icon: 'ni ni-button-play',      color: '#f5365c', bg: '#fde8ec' },
   ] : [];
 
-  const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
   const fmtTime = (t) => t ? t.slice(0, 5) : '—';
 
   return (

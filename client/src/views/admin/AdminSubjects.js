@@ -546,7 +546,7 @@ export default function AdminSubjects() {
                       <tr key={student.id}>
                         <td style={{ fontWeight: 600 }}>{student.first_name} {student.last_name}</td>
                         <td>{student.email}</td>
-                        <td>{student.enrolled_at ? new Date(student.enrolled_at).toLocaleDateString() : '-'}</td>
+                        <td>{student.enrolled_at ? new Date(student.enrolled_at).toLocaleDateString('en-US') : '-'}</td>
                         <td>
                           <Badge color={student.status === 'active' ? 'success' : 'warning'}>
                             {student.status}

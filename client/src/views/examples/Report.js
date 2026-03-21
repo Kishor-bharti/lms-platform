@@ -230,13 +230,13 @@ function ScoreTrendChart({ quizHistory, practiceHistory }) {
     .filter(h => h.score_pct !== null)
     .slice(0, 15)
     .reverse()
-    .map((h, i) => ({ idx: i + 1, quiz: Number(h.score_pct), label: h.quiz_title, date: new Date(h.submitted_at).toLocaleDateString() }));
+    .map((h, i) => ({ idx: i + 1, quiz: Number(h.score_pct), label: h.quiz_title, date: new Date(h.submitted_at).toLocaleDateString('en-US') }));
 
   const practicePoints = (practiceHistory || [])
     .filter(h => h.score_pct !== null)
     .slice(0, 15)
     .reverse()
-    .map((h, i) => ({ idx: i + 1, practice: Number(h.score_pct), label: h.quiz_title, date: new Date(h.submitted_at).toLocaleDateString() }));
+    .map((h, i) => ({ idx: i + 1, practice: Number(h.score_pct), label: h.quiz_title, date: new Date(h.submitted_at).toLocaleDateString('en-US') }));
 
   if (quizPoints.length < 2 && practicePoints.length < 2) return null;
 
@@ -558,7 +558,7 @@ function HistoryTable({ data, title, icon, nameCol, contextCol, contextField, st
                     {fmtSecs(item.time_taken_seconds)}
                   </td>
                   <td style={{ padding: '12px 14px', color: '#8898aa', fontSize: 12, whiteSpace: 'nowrap' }}>
-                    {new Date(item.submitted_at).toLocaleDateString()}
+                    {new Date(item.submitted_at).toLocaleDateString('en-US')}
                   </td>
                   <td style={{ padding: '12px 14px' }}>
                     <span style={{ background: perf.bg, color: perf.color, borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>
@@ -843,7 +843,7 @@ function StudentReport({ data, weekly, quizHistory, practiceHistory, studentId, 
                   <div style={{ marginTop: 14, display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#8898aa' }}>
                     <span>⏱ {fmtTime(subj.total_time_spent_mins)} spent</span>
                     {subj.last_activity_at && (
-                      <span>Last active: {new Date(subj.last_activity_at).toLocaleDateString()}</span>
+                      <span>Last active: {new Date(subj.last_activity_at).toLocaleDateString('en-US')}</span>
                     )}
                   </div>
 
@@ -1142,7 +1142,7 @@ function TeacherReport({ data }) {
                                   </span>
                                 </td>
                                 <td style={{ padding: '12px', color: '#8898aa', fontSize: 12, whiteSpace: 'nowrap' }}>
-                                  {s.last_activity_at ? new Date(s.last_activity_at).toLocaleDateString() : 'Never'}
+                                  {s.last_activity_at ? new Date(s.last_activity_at).toLocaleDateString('en-US') : 'Never'}
                                 </td>
                                 <td style={{ padding: '12px' }}>
                                   <Button size="sm" color="primary" outline

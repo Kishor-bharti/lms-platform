@@ -131,7 +131,7 @@ export default function SearchBar() {
           sub:   s.class_title && s.title !== s.class_title
             ? `Subject: ${s.class_title}`
             : s.scheduled_at
-              ? new Date(s.scheduled_at).toLocaleDateString()
+              ? new Date(s.scheduled_at).toLocaleDateString('en-US')
               : "Session",
           path:  isAdmin ? "/admin/admin-sessions" : role === "student" ? "/admin/classes" : "/admin/sessions",
           icon:  "ni ni-calendar-grid-58",
