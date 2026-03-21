@@ -41,8 +41,11 @@ export default function SubjectTeacher() {
   const [deleteAssignModal,   setDeleteAssignModal]   = useState({ open: false, assign: null });
   const [deleteMatModal,      setDeleteMatModal]      = useState({ open: false, mat: null });
 
-  // Session date navigation (sessions tab)
-  const [sessionDateStr, setSessionDateStr] = useState(getTodayLocalDateKey());
+  // Session date navigation + filters (sessions tab)
+  const [sessionDateStr,    setSessionDateStr]    = useState(getTodayLocalDateKey());
+  const [sessStatusFilter,  setSessStatusFilter]  = useState('all');
+  const [sessTopicFilter,   setSessTopicFilter]   = useState('all');
+  const [sessTeacherFilter, setSessTeacherFilter] = useState('all'); // admin only
 
   // Reschedule modal (admin only)
   const [rescheduleModal,  setRescheduleModal]  = useState({ open: false, session: null });
@@ -471,13 +474,20 @@ export default function SubjectTeacher() {
   };
 
   const navSessionDate = (offset) => {
-    const d = new Date(sessionDateStr + 'T00:00:00');
-    d.setDate(d.getDate() + offset);
-    setSessionDateStr(d.toISOString().slice(0, 10));
+    const [yr, mo, dy] = sessionDateStr.split('-').map(Number);
+    const d = new Date(yr, mo - 1, dy + offset);
+    setSessionDateStr(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`);
   };
+
+  const sessionTeachers = isAdmin ? [...new Map(
+    sessions.filter(s => s.teacher_id && s.teacher_name).map(s => [s.teacher_id, s.teacher_name])
+  ).entries()] : [];
 
   const sessionDaySessions = sessions
     .filter(s => (s.session_date || s.scheduled_at?.slice(0, 10)) === sessionDateStr)
+    .filter(s => sessStatusFilter  === 'all' || s.status    === sessStatusFilter)
+    .filter(s => sessTopicFilter   === 'all' || s.topic_id  === sessTopicFilter)
+    .filter(s => !isAdmin || sessTeacherFilter === 'all' || s.teacher_id === sessTeacherFilter)
     .sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
 
   const TABS = [
@@ -644,9 +654,9 @@ export default function SubjectTeacher() {
             <Col className="mb-4">
               <Card className="shadow" style={{ borderRadius: 12 }}>
                 <CardHeader style={{ background: '#eaf3ff', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
-                  <div className="d-flex justify-content-between align-items-center flex-wrap" style={{ gap: 10 }}>
+                  {/* Row 1: title + date nav */}
+                  <div className="d-flex justify-content-between align-items-center flex-wrap" style={{ gap: 10, marginBottom: 10 }}>
                     <CardTitle className="mb-0">Sessions ({sessions.length})</CardTitle>
-                    {/* Date Navigation */}
                     <div className="d-flex align-items-center" style={{ gap: 6 }}>
                       <button onClick={() => navSessionDate(-1)}
                         style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #dee2e6', background: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -666,6 +676,37 @@ export default function SubjectTeacher() {
                         </button>
                       )}
                     </div>
+                  </div>
+                  {/* Row 2: filters */}
+                  <div className="d-flex align-items-center flex-wrap" style={{ gap: 8 }}>
+                    <select value={sessStatusFilter} onChange={e => setSessStatusFilter(e.target.value)}
+                      style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12, background: '#fff', color: '#525f7f', cursor: 'pointer' }}>
+                      <option value="all">All Status</option>
+                      <option value="LIVE">Live</option>
+                      <option value="TODAY">Today</option>
+                      <option value="TOMORROW">Tomorrow</option>
+                      <option value="SCHEDULED">Scheduled</option>
+                      <option value="COMPLETED">Completed</option>
+                      <option value="MISSED">Missed</option>
+                    </select>
+                    <select value={sessTopicFilter} onChange={e => setSessTopicFilter(e.target.value)}
+                      style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12, background: '#fff', color: '#525f7f', cursor: 'pointer' }}>
+                      <option value="all">All Topics</option>
+                      {topics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </select>
+                    {isAdmin && sessionTeachers.length > 0 && (
+                      <select value={sessTeacherFilter} onChange={e => setSessTeacherFilter(e.target.value)}
+                        style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12, background: '#fff', color: '#525f7f', cursor: 'pointer' }}>
+                        <option value="all">All Teachers</option>
+                        {sessionTeachers.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+                      </select>
+                    )}
+                    {(sessStatusFilter !== 'all' || sessTopicFilter !== 'all' || sessTeacherFilter !== 'all') && (
+                      <button onClick={() => { setSessStatusFilter('all'); setSessTopicFilter('all'); setSessTeacherFilter('all'); }}
+                        style={{ padding: '4px 10px', borderRadius: 8, border: '1px solid #f5365c', background: 'transparent', color: '#f5365c', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                        Clear ×
+                      </button>
+                    )}
                   </div>
                 </CardHeader>
                 <CardBody style={{ padding: '16px 20px' }}>

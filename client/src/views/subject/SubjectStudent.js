@@ -35,13 +35,15 @@ export default function SubjectStudent() {
   const { subjectId } = useParams();
   const navigate      = useNavigate();
 
-  const [tab,            setTab]            = useState('sessions');
-  const [subject,        setSubject]        = useState(null);
-  const [sessions,       setSessions]       = useState([]);
-  const [sessionDateStr, setSessionDateStr] = useState(() => {
+  const [tab,             setTab]             = useState('sessions');
+  const [subject,         setSubject]         = useState(null);
+  const [sessions,        setSessions]        = useState([]);
+  const [sessionDateStr,  setSessionDateStr]  = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   });
+  const [sessStatusFilter, setSessStatusFilter] = useState('all');
+  const [sessTopicFilter,  setSessTopicFilter]  = useState('all');
   const [quizzes,     setQuizzes]     = useState([]);
   const [quizStatuses, setQuizStatuses] = useState({});
   const [assignments, setAssignments] = useState([]);
@@ -157,9 +159,9 @@ export default function SubjectStudent() {
   };
 
   const navSessionDate = (offset) => {
-    const d = new Date(sessionDateStr + 'T00:00:00');
-    d.setDate(d.getDate() + offset);
-    setSessionDateStr(d.toISOString().slice(0, 10));
+    const [yr, mo, dy] = sessionDateStr.split('-').map(Number);
+    const d = new Date(yr, mo - 1, dy + offset);
+    setSessionDateStr(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`);
   };
 
   const todayKey = (() => {
@@ -169,6 +171,8 @@ export default function SubjectStudent() {
 
   const sessionDaySessions = allSessions
     .filter(s => (s.session_date || s.scheduled_at?.slice(0, 10)) === sessionDateStr)
+    .filter(s => sessStatusFilter === 'all' || s.status   === sessStatusFilter)
+    .filter(s => sessTopicFilter  === 'all' || s.topic_id === sessTopicFilter)
     .sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
   const allPracticeQuizzes = quizzes.filter(q => q.quiz_type === 'practice');
   const practiceQuizzes = allPracticeQuizzes.filter(q => !topicView || q.topic_id === topicView.id);
@@ -329,9 +333,9 @@ export default function SubjectStudent() {
             <Col className="mb-4">
               <Card className="shadow" style={{ borderRadius: 12 }}>
                 <CardHeader style={{ background: '#e3f9fc', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
-                  <div className="d-flex justify-content-between align-items-center flex-wrap" style={{ gap: 10 }}>
+                  {/* Row 1: title + date nav */}
+                  <div className="d-flex justify-content-between align-items-center flex-wrap" style={{ gap: 10, marginBottom: 10 }}>
                     <CardTitle className="mb-0">Sessions ({allSessions.length})</CardTitle>
-                    {/* Date Navigation */}
                     <div className="d-flex align-items-center" style={{ gap: 6 }}>
                       <button onClick={() => navSessionDate(-1)}
                         style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #dee2e6', background: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -351,6 +355,30 @@ export default function SubjectStudent() {
                         </button>
                       )}
                     </div>
+                  </div>
+                  {/* Row 2: filters */}
+                  <div className="d-flex align-items-center flex-wrap" style={{ gap: 8 }}>
+                    <select value={sessStatusFilter} onChange={e => setSessStatusFilter(e.target.value)}
+                      style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12, background: '#fff', color: '#525f7f', cursor: 'pointer' }}>
+                      <option value="all">All Status</option>
+                      <option value="LIVE">Live</option>
+                      <option value="TODAY">Today</option>
+                      <option value="TOMORROW">Tomorrow</option>
+                      <option value="SCHEDULED">Scheduled</option>
+                      <option value="COMPLETED">Completed</option>
+                      <option value="MISSED">Missed</option>
+                    </select>
+                    <select value={sessTopicFilter} onChange={e => setSessTopicFilter(e.target.value)}
+                      style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12, background: '#fff', color: '#525f7f', cursor: 'pointer' }}>
+                      <option value="all">All Topics</option>
+                      {topics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </select>
+                    {(sessStatusFilter !== 'all' || sessTopicFilter !== 'all') && (
+                      <button onClick={() => { setSessStatusFilter('all'); setSessTopicFilter('all'); }}
+                        style={{ padding: '4px 10px', borderRadius: 8, border: '1px solid #f5365c', background: 'transparent', color: '#f5365c', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                        Clear ×
+                      </button>
+                    )}
                   </div>
                 </CardHeader>
                 <CardBody style={{ padding: '16px 20px' }}>
