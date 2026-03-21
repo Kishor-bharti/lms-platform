@@ -505,20 +505,16 @@ function SessionLink({ session }) {
       </a>
     );
   }
-  if (status === 'completed' && zoom_link) {
+  if (status === 'completed') {
     return (
-      <a
-        href={zoom_link}
-        target="_blank"
-        rel="noopener noreferrer"
-        style={{
-          display: 'inline-flex', alignItems: 'center', gap: 5,
-          background: '#2dce8918', color: '#2dce89', border: '1px solid #2dce8940',
-          borderRadius: 6, padding: '4px 11px', fontSize: 12, fontWeight: 700, textDecoration: 'none',
-        }}
-      >
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', gap: 5,
+        background: '#f0f0f0', color: '#adb5bd', border: '1px solid #e0e0e0',
+        borderRadius: 6, padding: '4px 11px', fontSize: 12, fontWeight: 700,
+        cursor: 'not-allowed',
+      }}>
         ▶ Replay
-      </a>
+      </span>
     );
   }
   return <span style={{ color: '#d0d5dd' }}>—</span>;

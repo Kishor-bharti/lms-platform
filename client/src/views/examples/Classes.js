@@ -306,7 +306,7 @@ const Classes = () => {
                                 </Button>
                               )}
                               {session.status === 'COMPLETED' && (
-                                <Button size="sm" color="light" onClick={() => session.zoom_link && window.open(session.zoom_link, '_blank')}>
+                                <Button size="sm" color="light" disabled style={{ cursor: 'not-allowed' }}>
                                   Replay
                                 </Button>
                               )}

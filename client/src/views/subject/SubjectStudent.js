@@ -347,9 +347,7 @@ export default function SubjectStudent() {
                                   <div className="small text-muted">{new Date(s.scheduled_at).toLocaleDateString()}</div>
                                 </div>
                                 {s.recording_url && (
-                                  <a href={s.recording_url} target="_blank" rel="noreferrer">
-                                    <Button color="primary" size="sm" outline style={{ borderRadius: 8 }}>Replay</Button>
-                                  </a>
+                                  <Button color="secondary" size="sm" disabled style={{ borderRadius: 8, cursor: 'not-allowed' }}>Replay</Button>
                                 )}
                               </div>
                             </div>

@@ -157,7 +157,7 @@ export default function UpcomingClasses() {
                         </Button>
                       )}
                       {session.status === 'COMPLETED' && (
-                        <Button size="sm" style={{ background: "#f0f0f0", color: "#333", borderRadius: 20, padding: "6px 12px", marginRight: 8 }}>
+                        <Button size="sm" disabled style={{ background: "#f0f0f0", color: "#adb5bd", borderRadius: 20, padding: "6px 12px", marginRight: 8, cursor: 'not-allowed' }}>
                           Replay
                         </Button>
                       )}
@@ -263,7 +263,7 @@ export default function UpcomingClasses() {
               <Button style={{ background: "linear-gradient(135deg, #2ecc71 0%, #27ae60 100%)", border: "none", boxShadow: "0 6px 16px rgba(46, 204, 113, .35)", borderRadius: 22, padding: "8px 16px" }} onClick={() => window.open(current.zoom_link, '_blank')}>Join Now</Button>
             )}
             {current?.status === 'COMPLETED' && (
-              <Button style={{ background: "#f0f0f0", border: "none", borderRadius: 22, padding: "8px 16px", color: "#333" }}>Replay</Button>
+              <Button disabled style={{ background: "#f0f0f0", border: "none", borderRadius: 22, padding: "8px 16px", color: "#adb5bd", cursor: 'not-allowed' }}>Replay</Button>
             )}
             {current?.status !== 'LIVE' && current?.status !== 'COMPLETED' && (
               <Button style={{ background: "#adb5bd", border: "none", borderRadius: 22, padding: "8px 16px" }} disabled>Join Soon</Button>
