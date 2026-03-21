@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import http from "../../utils/http";
 
@@ -75,14 +75,25 @@ export default function CalendarWidget() {
   const role = typeof window !== "undefined" ? window.localStorage.getItem("role") : null;
   const sessionsPath = role === "student" ? "/admin/classes" : "/admin/sessions";
 
-  /* fetch all sessions once — dot indicators + inline panel */
-  useEffect(() => {
+  /* fetch all sessions — dot indicators + inline panel */
+  const fetchSessions = useCallback(() => {
     setSessionsLoading(true);
     http.get('/api/classes/my-sessions-v2')
       .then(res => setSessions(Array.isArray(res.data) ? res.data : []))
       .catch(() => setSessions([]))
       .finally(() => setSessionsLoading(false));
   }, []);
+
+  useEffect(() => { fetchSessions(); }, [fetchSessions]);
+
+  // Re-fetch when the tab/page becomes visible again (reflects reschedules / status changes)
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') fetchSessions();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [fetchSessions]);
 
   /* set of date strings that have sessions — for dot indicators */
   const sessionDateSet = useMemo(() => {

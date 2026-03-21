@@ -27,6 +27,15 @@ export default function UpcomingClasses() {
     return () => clearInterval(interval);
   }, []);
 
+  // Re-fetch when the tab/page becomes visible again (e.g. after navigating back from Sessions)
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') fetchSessions();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []);
+
   const fetchSessions = async () => {
     try {
       const response = await http.get('/api/classes/my-sessions-v2');
@@ -67,8 +76,14 @@ export default function UpcomingClasses() {
       case 'TODAY':     return "info";
       case 'TOMORROW':  return "warning";
       case 'MISSED':    return isStudent ? "dark" : "danger";
+      case 'SCHEDULED': return null; // uses custom inline style
       default:          return "secondary";
     }
+  };
+
+  const getStatusStyle = (status) => {
+    if (status === 'SCHEDULED') return { background: '#825ee4', color: '#fff' };
+    return {};
   };
 
   const getStatusLabel = (status) => {
@@ -117,6 +132,7 @@ export default function UpcomingClasses() {
                           alignItems: "center",
                           gap: 6,
                           fontWeight: 700,
+                          ...getStatusStyle(session.status),
                         }}
                       >
                         {session.status === 'LIVE' && (
@@ -229,6 +245,7 @@ export default function UpcomingClasses() {
                       alignItems: "center",
                       gap: 6,
                       fontWeight: 700,
+                      ...getStatusStyle(current.status),
                     }}
                   >
                     {current.status === 'LIVE' && (

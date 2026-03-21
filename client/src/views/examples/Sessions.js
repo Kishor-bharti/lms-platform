@@ -192,7 +192,7 @@ const Sessions = () => {
       case 'TODAY':     return <Badge color="warning">TODAY</Badge>;
       case 'TOMORROW':  return <Badge color="info">TOMORROW</Badge>;
       case 'COMPLETED': return <Badge style={{ background: '#6c757d', color: '#fff' }}>COMPLETED</Badge>;
-      case 'SCHEDULED': return <Badge color="light">SCHEDULED</Badge>;
+      case 'SCHEDULED': return <Badge style={{ background: '#825ee4', color: '#fff' }}>SCHEDULED</Badge>;
       case 'MISSED':
         return userRole === 'student'
           ? <Badge style={{ background: '#212529', color: '#fff' }}>About to Reschedule</Badge>

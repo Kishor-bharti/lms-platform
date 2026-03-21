@@ -259,7 +259,7 @@ export default function SubjectTeacher() {
 
   const canEditItem = (item) => isAdmin || item.created_by === userId;
   const canEditMaterial = (m) => isAdmin || m.uploaded_by === userId;
-  const canEditSession = (s) => isAdmin || s.teacher_id === userId;
+
 
   const canEditQuiz = (quiz) => {
     return isAdmin || quiz.created_by === userId;
