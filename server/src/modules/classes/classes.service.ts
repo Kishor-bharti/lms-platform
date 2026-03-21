@@ -204,7 +204,8 @@ export async function getSessionsByTeacher(
     dateClause = ' AND s.session_date = $2';
     params.push(date);
   } else if (month) {
-    const [y, m] = month.split('-').map(Number);
+    const [yStr, mStr] = month.split('-');
+    const y = Number(yStr); const m = Number(mStr);
     const nextStart = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`;
     dateClause = ' AND s.session_date >= $2 AND s.session_date < $3';
     params.push(`${month}-01`, nextStart);
@@ -237,6 +238,7 @@ export async function getSessionsByTeacher(
        (SELECT COUNT(*)::int
         FROM   session_students ss3
         WHERE  ss3.session_id = s.id)        AS target_count,
+       s.recurrence_id,
        s.status
      FROM   sessions              s
      JOIN   subjects              sub ON sub.id = s.subject_id
@@ -263,7 +265,10 @@ export async function getSessionsByTeacher(
     start_url:       r.zoom_start_url ?? undefined,
     zoom_meeting_id: r.zoom_meeting_id,
     scheduled_at:    buildScheduledAt(r.session_date, r.start_time),
+    session_date:    r.session_date,
+    start_time:      r.start_time,
     end_time:        r.end_time     ?? undefined,
+    recurrence_id:   r.recurrence_id ?? undefined,
     is_recurring:    Boolean(r.is_recurring),
     recur_pattern:   r.recur_pattern ?? undefined,
     recur_days:      r.recur_days    ?? undefined,
@@ -291,7 +296,8 @@ export async function getSessionsByStudent(
     dateClause = ' AND s.session_date = $2';
     params.push(date);
   } else if (month) {
-    const [y, m] = month.split('-').map(Number);
+    const [yStr, mStr] = month.split('-');
+    const y = Number(yStr); const m = Number(mStr);
     const nextStart = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`;
     dateClause = ' AND s.session_date >= $2 AND s.session_date < $3';
     params.push(`${month}-01`, nextStart);
@@ -315,6 +321,7 @@ export async function getSessionsByStudent(
        sr.days_of_week      AS recur_days,
        sr.recur_until::text AS recur_until,
        u.first_name || ' ' || u.last_name AS teacher_name,
+       s.recurrence_id,
        s.status
      FROM   sessions              s
      JOIN   subjects              sub ON sub.id  = s.subject_id
@@ -352,7 +359,10 @@ export async function getSessionsByStudent(
     title:         r.title,
     zoom_link:     r.meeting_link,
     scheduled_at:  buildScheduledAt(r.session_date, r.start_time),
+    session_date:  r.session_date,
+    start_time:    r.start_time,
     end_time:      r.end_time     ?? undefined,
+    recurrence_id: r.recurrence_id ?? undefined,
     is_recurring:  Boolean(r.is_recurring),
     recur_pattern: r.recur_pattern ?? undefined,
     recur_days:    r.recur_days    ?? undefined,
@@ -371,7 +381,8 @@ export async function getAllSessions(date?: string, month?: string, timeZone: st
     dateClause = 'WHERE s.session_date = $1';
     params.push(date);
   } else if (month) {
-    const [y, m] = month.split('-').map(Number);
+    const [yStr, mStr] = month.split('-');
+    const y = Number(yStr); const m = Number(mStr);
     const nextStart = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`;
     dateClause = 'WHERE s.session_date >= $1 AND s.session_date < $2';
     params.push(`${month}-01`, nextStart);
@@ -405,6 +416,7 @@ export async function getAllSessions(date?: string, month?: string, timeZone: st
        (SELECT COUNT(*)::int
         FROM   session_students ss3
         WHERE  ss3.session_id = s.id)        AS target_count,
+       s.recurrence_id,
        s.status
      FROM   sessions              s
      JOIN   subjects              sub ON sub.id  = s.subject_id
@@ -433,7 +445,10 @@ export async function getAllSessions(date?: string, month?: string, timeZone: st
     start_url:       r.zoom_start_url ?? undefined,
     zoom_meeting_id: r.zoom_meeting_id,
     scheduled_at:    buildScheduledAt(r.session_date, r.start_time),
+    session_date:    r.session_date,
+    start_time:      r.start_time,
     end_time:        r.end_time      ?? undefined,
+    recurrence_id:   r.recurrence_id ?? undefined,
     is_recurring:    Boolean(r.is_recurring),
     recur_pattern:   r.recur_pattern ?? undefined,
     recur_days:      r.recur_days    ?? undefined,

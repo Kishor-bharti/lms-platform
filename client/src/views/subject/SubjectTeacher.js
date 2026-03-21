@@ -41,6 +41,18 @@ export default function SubjectTeacher() {
   const [deleteAssignModal,   setDeleteAssignModal]   = useState({ open: false, assign: null });
   const [deleteMatModal,      setDeleteMatModal]      = useState({ open: false, mat: null });
 
+  // Session date navigation (sessions tab)
+  const [sessionDateStr, setSessionDateStr] = useState(getTodayLocalDateKey());
+
+  // Reschedule modal (admin only)
+  const [rescheduleModal,  setRescheduleModal]  = useState({ open: false, session: null });
+  const [rescheduleForm,   setRescheduleForm]   = useState({ title: '', sessionDate: '', startTime: '', endTime: '', recurMode: 'this' });
+  const [rescheduleSaving, setRescheduleSaving] = useState(false);
+
+  // Recurring delete scope modal (admin only)
+  const [recurDeleteModal, setRecurDeleteModal] = useState({ open: false, session: null, scope: 'this' });
+  const [recurDeleting,    setRecurDeleting]    = useState(false);
+
   // Schedule session modal
   const [scheduleOpen,    setScheduleOpen]    = useState(false);
   const [scheduleForm,    setScheduleForm]    = useState({
@@ -250,6 +262,57 @@ export default function SubjectTeacher() {
     } catch (err) { alert(err?.response?.data?.error || 'Failed to delete session'); }
   };
 
+  const onDeleteSessionClick = (s) => {
+    if (isAdmin && s.is_recurring && s.recurrence_id) {
+      setRecurDeleteModal({ open: true, session: s, scope: 'this' });
+    } else {
+      setDeleteSessionModal({ open: true, session: s });
+    }
+  };
+
+  const handleReschedule = async () => {
+    const s = rescheduleModal.session;
+    if (!s) return;
+    setRescheduleSaving(true);
+    try {
+      const payload = {};
+      if (rescheduleForm.title)       payload.title       = rescheduleForm.title;
+      if (rescheduleForm.sessionDate) payload.sessionDate = rescheduleForm.sessionDate;
+      if (rescheduleForm.startTime && rescheduleForm.sessionDate)
+        payload.startTime = toTimetzFromLocal(rescheduleForm.sessionDate, rescheduleForm.startTime);
+      if (rescheduleForm.endTime && rescheduleForm.sessionDate)
+        payload.endTime = toTimetzFromLocal(rescheduleForm.sessionDate, rescheduleForm.endTime);
+      if (s.is_recurring && s.recurrence_id && rescheduleForm.recurMode !== 'this') {
+        payload.recurMode    = rescheduleForm.recurMode;
+        payload.recurrenceId = s.recurrence_id;
+        payload.originalDate = s.session_date;
+      }
+      await http.patch(`/api/admin/sessions/${s.id}`, payload);
+      setRescheduleModal({ open: false, session: null });
+      fetchData();
+    } catch (err) {
+      alert(err?.response?.data?.error || 'Failed to reschedule session');
+    } finally { setRescheduleSaving(false); }
+  };
+
+  const handleRecurDelete = async () => {
+    const { session, scope } = recurDeleteModal;
+    if (!session) return;
+    setRecurDeleting(true);
+    try {
+      const params = new URLSearchParams({ mode: scope });
+      if (scope !== 'this' && session.recurrence_id) {
+        params.set('recurrenceId', session.recurrence_id);
+        params.set('sessionDate', session.session_date || '');
+      }
+      await http.delete(`/api/admin/sessions/${session.id}?${params}`);
+      setRecurDeleteModal({ open: false, session: null, scope: 'this' });
+      fetchData();
+    } catch (err) {
+      alert(err?.response?.data?.error || 'Failed to delete session');
+    } finally { setRecurDeleting(false); }
+  };
+
   const handleDeleteAssignment = async () => {
     if (!deleteAssignModal.assign) return;
     try {
@@ -395,8 +458,27 @@ export default function SubjectTeacher() {
     }
   };
 
-  const upcoming = sessions.filter((s) => s.status !== 'COMPLETED');
-  const past     = sessions.filter((s) => s.status === 'COMPLETED');
+  const formatTimetz = (timetz) => {
+    if (!timetz) return '';
+    const [h, m] = timetz.slice(0, 5).split(':').map(Number);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${ampm}`;
+  };
+
+  const canStartSession = (s) => {
+    if (['COMPLETED', 'MISSED'].includes(s.status)) return false;
+    return (new Date(s.scheduled_at) - Date.now()) / 60000 <= 5;
+  };
+
+  const navSessionDate = (offset) => {
+    const d = new Date(sessionDateStr + 'T00:00:00');
+    d.setDate(d.getDate() + offset);
+    setSessionDateStr(d.toISOString().slice(0, 10));
+  };
+
+  const sessionDaySessions = sessions
+    .filter(s => (s.session_date || s.scheduled_at?.slice(0, 10)) === sessionDateStr)
+    .sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
 
   const TABS = [
     { key: 'topics',      label: `Topics (${topics.length})` },
@@ -559,79 +641,131 @@ export default function SubjectTeacher() {
         {/* ---- SESSIONS TAB ---- */}
         {tab === 'sessions' && (
           <Row>
-            <Col lg="8" className="mb-4">
+            <Col className="mb-4">
               <Card className="shadow" style={{ borderRadius: 12 }}>
                 <CardHeader style={{ background: '#eaf3ff', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
-                  <CardTitle className="mb-0">Sessions</CardTitle>
+                  <div className="d-flex justify-content-between align-items-center flex-wrap" style={{ gap: 10 }}>
+                    <CardTitle className="mb-0">Sessions ({sessions.length})</CardTitle>
+                    {/* Date Navigation */}
+                    <div className="d-flex align-items-center" style={{ gap: 6 }}>
+                      <button onClick={() => navSessionDate(-1)}
+                        style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #dee2e6', background: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        ‹
+                      </button>
+                      <input type="date" value={sessionDateStr}
+                        onChange={e => e.target.value && setSessionDateStr(e.target.value)}
+                        style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 13 }} />
+                      <button onClick={() => navSessionDate(1)}
+                        style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #dee2e6', background: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        ›
+                      </button>
+                      {sessionDateStr !== getTodayLocalDateKey() && (
+                        <button onClick={() => setSessionDateStr(getTodayLocalDateKey())}
+                          style={{ padding: '5px 12px', borderRadius: 8, border: '1px solid #5e72e4', background: 'transparent', color: '#5e72e4', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                          Today
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </CardHeader>
-                <CardBody>
-                  {sessions.length === 0 ? (
-                    <div className="text-center py-4">
-                      <p className="text-muted">No sessions yet</p>
-                      <Button color="success" size="sm" onClick={() => setScheduleOpen(true)}>Schedule First</Button>
+                <CardBody style={{ padding: '16px 20px' }}>
+                  {sessionDaySessions.length === 0 ? (
+                    <div className="text-center py-5">
+                      <div style={{ fontSize: 36, marginBottom: 10 }}>📅</div>
+                      <p className="text-muted">
+                        No sessions on {new Date(sessionDateStr + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                      </p>
+                      <Button color="success" size="sm" style={{ borderRadius: 8 }} onClick={() => setScheduleOpen(true)}>
+                        + Schedule a Session
+                      </Button>
                     </div>
                   ) : (
-                    <>
-                      {upcoming.length > 0 && <>
-                        <p className="text-xs font-weight-bold text-uppercase text-muted mb-2">Upcoming</p>
-                        {upcoming.map((s) => (
-                          <div key={s.id} className="p-3 mb-2 bg-white border rounded"
-                            style={{ borderLeft: `3px solid ${s.status === 'LIVE' ? '#f5365c' : '#fb6340'}` }}>
-                            <div className="d-flex justify-content-between align-items-center">
-                              <div>
-                                <div className="d-flex align-items-center mb-1" style={{ gap: 8 }}>
-                                  <strong>{s.title}</strong>{statusBadge(s.status)}
-                                </div>
-                                <div className="small text-muted">{new Date(s.scheduled_at).toLocaleString('en-US')}</div>
-                                {s.topic_name && (
-                                  <span style={{ display: 'inline-block', marginTop: 4, fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10 }}>📌 {s.topic_name}</span>
+                    sessionDaySessions.map(s => {
+                      const borderColor = { LIVE: '#f5365c', TODAY: '#fb6340', TOMORROW: '#11cdef', SCHEDULED: '#5e72e4', COMPLETED: '#8898aa', MISSED: '#fb6340' }[s.status] || '#5e72e4';
+                      const startDisplay = s.start_time ? formatTimetz(s.start_time) : new Date(s.scheduled_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                      const endDisplay   = s.end_time ? formatTimetz(s.end_time) : null;
+                      const isStartable  = canStartSession(s);
+                      const isLive       = s.status === 'LIVE';
+                      return (
+                        <div key={s.id} className="mb-3 bg-white border rounded shadow-sm"
+                          style={{ borderLeft: `4px solid ${borderColor}`, padding: '14px 16px' }}>
+                          <div className="d-flex justify-content-between align-items-start flex-wrap" style={{ gap: 10 }}>
+                            {/* Left: session info */}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              {/* Title + badges */}
+                              <div className="d-flex align-items-center flex-wrap" style={{ gap: 6, marginBottom: 6 }}>
+                                <span style={{ fontWeight: 700, fontSize: 15, color: '#32325d' }}>{s.title}</span>
+                                {s.is_recurring && (
+                                  <span style={{ fontSize: 10, fontWeight: 700, background: '#eef0fd', color: '#5e72e4', padding: '2px 7px', borderRadius: 10 }}>↺ RECURRING</span>
                                 )}
+                                {statusBadge(s.status)}
                               </div>
-                              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                                {isAdmin && s.status !== 'LIVE' && (
-                                  <Button size="sm" color="danger" outline style={{ borderRadius: 8, fontSize: 11 }}
-                                    onClick={() => setDeleteSessionModal({ open: true, session: s })}>
-                                    Delete
-                                  </Button>
+                              {/* Details */}
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 18px', fontSize: 12, color: '#525f7f' }}>
+                                {s.course_name && <span>📚 {s.course_name}</span>}
+                                {s.class_title && <span>📋 {s.class_title}</span>}
+                                {isAdmin && s.teacher_name && <span>👤 {s.teacher_name}</span>}
+                                {s.topic_name && <span style={{ color: '#5e72e4', fontWeight: 600 }}>📌 {s.topic_name}</span>}
+                                <span>⏰ {startDisplay}{endDisplay ? ` – ${endDisplay}` : ''}</span>
+                                {s.target_count > 0
+                                  ? <span>👥 {s.target_count} student{s.target_count !== 1 ? 's' : ''} targeted</span>
+                                  : <span>👥 All enrolled students</span>}
+                                {s.is_recurring && s.recur_until && (
+                                  <span>📅 Until {new Date(s.recur_until + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                                 )}
-                                <button
-                                  disabled={startingSession === s.id}
-                                  onClick={() => s.status === 'LIVE' ? handleEnd(s.id) : handleStart(s.id)}
-                                  style={{
-                                    border: 'none', borderRadius: 6, padding: '7px 16px',
-                                    fontWeight: 600, fontSize: 13, cursor: 'pointer',
-                                    background: s.status === 'LIVE' ? '#f5365c' : '#2dce89', color: '#fff',
-                                  }}>
-                                  {startingSession === s.id ? '...' : s.status === 'LIVE' ? 'End Session' : 'Start Live Session'}
-                                </button>
                               </div>
                             </div>
-                          </div>
-                        ))}
-                      </>}
-                      {past.length > 0 && <>
-                        <p className="text-xs font-weight-bold text-uppercase text-muted mt-3 mb-2">Past</p>
-                        {past.map((s) => (
-                          <div key={s.id} className="p-3 mb-2 bg-white border rounded" style={{ opacity: 0.7 }}>
-                            <div className="d-flex justify-content-between align-items-center">
-                              <div>
-                                <strong>{s.title}</strong>
-                                <span className="small text-muted ml-2">{new Date(s.scheduled_at).toLocaleDateString('en-US')}</span>
-                                {s.topic_name && (
-                                  <span style={{ display: 'inline-block', marginLeft: 8, fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10 }}>📌 {s.topic_name}</span>
-                                )}
-                              </div>
+                            {/* Right: action buttons */}
+                            <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                              {isLive && s.zoom_link && (
+                                <Button size="sm" color="danger" style={{ borderRadius: 8, fontWeight: 700 }}
+                                  onClick={() => window.open(s.zoom_link, '_blank')}>
+                                  Join Live
+                                </Button>
+                              )}
+                              {!isLive && !['COMPLETED', 'MISSED'].includes(s.status) && (
+                                <Button size="sm"
+                                  color={isStartable ? 'success' : 'secondary'}
+                                  disabled={!isStartable || startingSession === s.id}
+                                  title={isStartable ? 'Start this session' : 'Available 5 min before start time'}
+                                  style={{ borderRadius: 8, fontWeight: 700, opacity: isStartable ? 1 : 0.55, cursor: isStartable ? 'pointer' : 'not-allowed' }}
+                                  onClick={() => { if (isStartable) handleStart(s.id); }}>
+                                  {startingSession === s.id ? '...' : 'Start Session'}
+                                </Button>
+                              )}
+                              {isLive && (
+                                <Button size="sm" color="warning" style={{ borderRadius: 8, fontWeight: 700 }}
+                                  disabled={startingSession === s.id}
+                                  onClick={() => handleEnd(s.id)}>
+                                  {startingSession === s.id ? '...' : 'End Session'}
+                                </Button>
+                              )}
+                              {isAdmin && !['COMPLETED', 'MISSED'].includes(s.status) && (
+                                <Button size="sm" color="info" outline style={{ borderRadius: 8, fontSize: 11 }}
+                                  onClick={() => {
+                                    setRescheduleModal({ open: true, session: s });
+                                    setRescheduleForm({
+                                      title:       s.title,
+                                      sessionDate: s.session_date || s.scheduled_at?.slice(0, 10) || '',
+                                      startTime:   s.start_time?.slice(0, 5) || '',
+                                      endTime:     s.end_time?.slice(0, 5)   || '',
+                                      recurMode:   'this',
+                                    });
+                                  }}>
+                                  Reschedule
+                                </Button>
+                              )}
                               {isAdmin && (
                                 <Button size="sm" color="danger" outline style={{ borderRadius: 8, fontSize: 11 }}
-                                  onClick={() => setDeleteSessionModal({ open: true, session: s })}>
+                                  onClick={() => onDeleteSessionClick(s)}>
                                   Delete
                                 </Button>
                               )}
                             </div>
                           </div>
-                        ))}
-                      </>}
-                    </>
+                        </div>
+                      );
+                    })
                   )}
                 </CardBody>
               </Card>
@@ -1235,6 +1369,84 @@ export default function SubjectTeacher() {
           <ModalFooter className="justify-content-center">
             <Button color="danger" onClick={handleDeleteSession}>Yes, Delete</Button>
             <Button color="secondary" outline onClick={() => setDeleteSessionModal({ open: false, session: null })}>Cancel</Button>
+          </ModalFooter>
+        </Modal>
+
+        {/* Reschedule Session Modal — Admin only */}
+        <Modal isOpen={rescheduleModal.open} toggle={() => setRescheduleModal({ open: false, session: null })} centered>
+          <ModalHeader toggle={() => setRescheduleModal({ open: false, session: null })}>Reschedule Session</ModalHeader>
+          <ModalBody>
+            <Form>
+              <FormGroup>
+                <Label><strong>Title</strong></Label>
+                <Input value={rescheduleForm.title} onChange={e => setRescheduleForm(f => ({ ...f, title: e.target.value }))} />
+              </FormGroup>
+              <Row form>
+                <Col md={4}>
+                  <FormGroup>
+                    <Label>Date</Label>
+                    <Input type="date" value={rescheduleForm.sessionDate} onChange={e => setRescheduleForm(f => ({ ...f, sessionDate: e.target.value }))} />
+                  </FormGroup>
+                </Col>
+                <Col md={4}>
+                  <FormGroup>
+                    <Label>Start Time</Label>
+                    <Input type="time" value={rescheduleForm.startTime} onChange={e => setRescheduleForm(f => ({ ...f, startTime: e.target.value }))} />
+                  </FormGroup>
+                </Col>
+                <Col md={4}>
+                  <FormGroup>
+                    <Label>End Time</Label>
+                    <Input type="time" value={rescheduleForm.endTime} onChange={e => setRescheduleForm(f => ({ ...f, endTime: e.target.value }))} />
+                  </FormGroup>
+                </Col>
+              </Row>
+              {rescheduleModal.session?.is_recurring && rescheduleModal.session?.recurrence_id && (
+                <FormGroup>
+                  <Label><strong>Apply to</strong></Label>
+                  {[{ value: 'this', label: 'This event only' }, { value: 'this_and_following', label: 'This and following events' }, { value: 'all', label: 'All events in series' }].map(opt => (
+                    <div key={opt.value} style={{ marginBottom: 6 }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                        <input type="radio" name="rescheduleRecurMode" value={opt.value}
+                          checked={rescheduleForm.recurMode === opt.value}
+                          onChange={() => setRescheduleForm(f => ({ ...f, recurMode: opt.value }))} />
+                        {opt.label}
+                      </label>
+                    </div>
+                  ))}
+                </FormGroup>
+              )}
+            </Form>
+          </ModalBody>
+          <ModalFooter>
+            <Button color="info" disabled={rescheduleSaving} onClick={handleReschedule}>
+              {rescheduleSaving ? 'Saving...' : 'Save Changes'}
+            </Button>
+            <Button color="link" onClick={() => setRescheduleModal({ open: false, session: null })}>Cancel</Button>
+          </ModalFooter>
+        </Modal>
+
+        {/* Recurring Delete Scope Modal — Admin only */}
+        <Modal isOpen={recurDeleteModal.open} toggle={() => setRecurDeleteModal({ open: false, session: null, scope: 'this' })} centered size="sm">
+          <ModalHeader toggle={() => setRecurDeleteModal({ open: false, session: null, scope: 'this' })}>Delete Recurring Session</ModalHeader>
+          <ModalBody>
+            <p>Delete <strong>{recurDeleteModal.session?.title}</strong>?</p>
+            {[{ value: 'this', label: 'This event only' }, { value: 'this_and_following', label: 'This and following events' }, { value: 'all', label: 'All events in series' }].map(opt => (
+              <div key={opt.value} style={{ marginBottom: 8 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                  <input type="radio" name="recurDeleteScope" value={opt.value}
+                    checked={recurDeleteModal.scope === opt.value}
+                    onChange={() => setRecurDeleteModal(m => ({ ...m, scope: opt.value }))} />
+                  {opt.label}
+                </label>
+              </div>
+            ))}
+          </ModalBody>
+          <ModalFooter>
+            <Button color="danger" disabled={recurDeleting} onClick={handleRecurDelete}>
+              {recurDeleting ? 'Deleting...' : 'Delete'}
+            </Button>
+            <Button color="secondary" outline onClick={() => setRecurDeleteModal({ open: false, session: null, scope: 'this' })}>Cancel</Button>
           </ModalFooter>
         </Modal>
 

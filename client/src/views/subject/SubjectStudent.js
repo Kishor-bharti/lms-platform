@@ -35,9 +35,13 @@ export default function SubjectStudent() {
   const { subjectId } = useParams();
   const navigate      = useNavigate();
 
-  const [tab,         setTab]         = useState('sessions');
-  const [subject,     setSubject]     = useState(null);
-  const [sessions,    setSessions]    = useState([]);
+  const [tab,            setTab]            = useState('sessions');
+  const [subject,        setSubject]        = useState(null);
+  const [sessions,       setSessions]       = useState([]);
+  const [sessionDateStr, setSessionDateStr] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  });
   const [quizzes,     setQuizzes]     = useState([]);
   const [quizStatuses, setQuizStatuses] = useState({});
   const [assignments, setAssignments] = useState([]);
@@ -144,8 +148,28 @@ export default function SubjectStudent() {
   };
 
   const allSessions = sessions.filter((s) => !topicView || s.topic_id === topicView.id);
-  const upcoming = allSessions.filter((s) => s.status !== 'COMPLETED');
-  const past     = allSessions.filter((s) => s.status === 'COMPLETED');
+
+  const formatTimetz = (timetz) => {
+    if (!timetz) return '';
+    const [h, m] = timetz.slice(0, 5).split(':').map(Number);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${ampm}`;
+  };
+
+  const navSessionDate = (offset) => {
+    const d = new Date(sessionDateStr + 'T00:00:00');
+    d.setDate(d.getDate() + offset);
+    setSessionDateStr(d.toISOString().slice(0, 10));
+  };
+
+  const todayKey = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  })();
+
+  const sessionDaySessions = allSessions
+    .filter(s => (s.session_date || s.scheduled_at?.slice(0, 10)) === sessionDateStr)
+    .sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
   const allPracticeQuizzes = quizzes.filter(q => q.quiz_type === 'practice');
   const practiceQuizzes = allPracticeQuizzes.filter(q => !topicView || q.topic_id === topicView.id);
   const filteredAssignments = topicView ? assignments.filter(a => a.topic_id === topicView.id) : assignments;
@@ -302,60 +326,85 @@ export default function SubjectStudent() {
         {/* ---- SESSIONS TAB ---- */}
         {tab === 'sessions' && (
           <Row>
-            <Col lg="8">
+            <Col className="mb-4">
               <Card className="shadow" style={{ borderRadius: 12 }}>
                 <CardHeader style={{ background: '#e3f9fc', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
-                  <CardTitle className="mb-0">Sessions</CardTitle>
+                  <div className="d-flex justify-content-between align-items-center flex-wrap" style={{ gap: 10 }}>
+                    <CardTitle className="mb-0">Sessions ({allSessions.length})</CardTitle>
+                    {/* Date Navigation */}
+                    <div className="d-flex align-items-center" style={{ gap: 6 }}>
+                      <button onClick={() => navSessionDate(-1)}
+                        style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #dee2e6', background: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        ‹
+                      </button>
+                      <input type="date" value={sessionDateStr}
+                        onChange={e => e.target.value && setSessionDateStr(e.target.value)}
+                        style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 13 }} />
+                      <button onClick={() => navSessionDate(1)}
+                        style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #dee2e6', background: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        ›
+                      </button>
+                      {sessionDateStr !== todayKey && (
+                        <button onClick={() => setSessionDateStr(todayKey)}
+                          style={{ padding: '5px 12px', borderRadius: 8, border: '1px solid #11cdef', background: 'transparent', color: '#11cdef', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                          Today
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </CardHeader>
-                <CardBody>
-                  {allSessions.length === 0 ? (
-                    <p className="text-muted text-center py-4">No sessions scheduled yet{topicView ? ' for this topic' : ''}</p>
+                <CardBody style={{ padding: '16px 20px' }}>
+                  {sessionDaySessions.length === 0 ? (
+                    <div className="text-center py-5">
+                      <div style={{ fontSize: 36, marginBottom: 10 }}>📅</div>
+                      <p className="text-muted">
+                        No sessions on {new Date(sessionDateStr + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                      </p>
+                    </div>
                   ) : (
-                    <>
-                      {upcoming.length > 0 && (
-                        <>
-                          <p className="text-xs font-weight-bold text-uppercase text-muted mb-2">Upcoming</p>
-                          {upcoming.map((s) => (
-                            <div key={s.id} className="p-3 mb-2 bg-white border rounded"
-                              style={{ borderLeft: `3px solid ${s.status === 'LIVE' ? '#f5365c' : '#11cdef'}` }}>
-                              <div className="d-flex justify-content-between align-items-center flex-wrap" style={{ gap: 8 }}>
-                                <div>
-                                  <div className="d-flex align-items-center mb-1" style={{ gap: 8 }}>
-                                    <strong>{s.title}</strong>{statusBadge(s.status)}
-                                  </div>
-                                  <div className="small text-muted">{new Date(s.scheduled_at).toLocaleString('en-US')}</div>
-                                </div>
-                                {s.status === 'LIVE' && s.zoom_link && (
-                                  <a href={s.zoom_link} target="_blank" rel="noreferrer">
-                                    <Button color="danger" size="sm" style={{ borderRadius: 8, fontWeight: 700 }}>
-                                      Join Live
-                                    </Button>
-                                  </a>
+                    sessionDaySessions.map(s => {
+                      const borderColor = { LIVE: '#f5365c', TODAY: '#fb6340', TOMORROW: '#11cdef', SCHEDULED: '#11cdef', COMPLETED: '#8898aa', MISSED: '#fb6340' }[s.status] || '#11cdef';
+                      const startDisplay = s.start_time ? formatTimetz(s.start_time) : new Date(s.scheduled_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                      const endDisplay   = s.end_time ? formatTimetz(s.end_time) : null;
+                      const isLive       = s.status === 'LIVE';
+                      return (
+                        <div key={s.id} className="mb-3 bg-white border rounded shadow-sm"
+                          style={{ borderLeft: `4px solid ${borderColor}`, padding: '14px 16px' }}>
+                          <div className="d-flex justify-content-between align-items-start flex-wrap" style={{ gap: 10 }}>
+                            {/* Left: info */}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div className="d-flex align-items-center flex-wrap" style={{ gap: 6, marginBottom: 6 }}>
+                                <span style={{ fontWeight: 700, fontSize: 15, color: '#32325d' }}>{s.title}</span>
+                                {s.is_recurring && (
+                                  <span style={{ fontSize: 10, fontWeight: 700, background: '#e3f9fc', color: '#11cdef', padding: '2px 7px', borderRadius: 10 }}>↺ RECURRING</span>
+                                )}
+                                {statusBadge(s.status)}
+                              </div>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 18px', fontSize: 12, color: '#525f7f' }}>
+                                {s.course_name && <span>📚 {s.course_name}</span>}
+                                {s.class_title && <span>📋 {s.class_title}</span>}
+                                {s.teacher_name && <span>👤 {s.teacher_name}</span>}
+                                {s.topic_name && <span style={{ color: '#5e72e4', fontWeight: 600 }}>📌 {s.topic_name}</span>}
+                                <span>⏰ {startDisplay}{endDisplay ? ` – ${endDisplay}` : ''}</span>
+                                {s.is_recurring && s.recur_until && (
+                                  <span>📅 Until {new Date(s.recur_until + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                                 )}
                               </div>
                             </div>
-                          ))}
-                        </>
-                      )}
-                      {past.length > 0 && (
-                        <>
-                          <p className="text-xs font-weight-bold text-uppercase text-muted mt-3 mb-2">Past</p>
-                          {past.map((s) => (
-                            <div key={s.id} className="p-3 mb-2 bg-white border rounded" style={{ opacity: 0.7 }}>
-                              <div className="d-flex justify-content-between align-items-center">
-                                <div>
-                                  <strong>{s.title}</strong>
-                                  <div className="small text-muted">{new Date(s.scheduled_at).toLocaleDateString('en-US')}</div>
-                                </div>
-                                {s.recording_url && (
-                                  <Button color="secondary" size="sm" disabled style={{ borderRadius: 8, cursor: 'not-allowed' }}>Replay</Button>
-                                )}
-                              </div>
+                            {/* Right: action */}
+                            <div style={{ flexShrink: 0 }}>
+                              {isLive && s.zoom_link && (
+                                <a href={s.zoom_link} target="_blank" rel="noreferrer">
+                                  <Button color="danger" size="sm" style={{ borderRadius: 8, fontWeight: 700 }}>
+                                    Join Live
+                                  </Button>
+                                </a>
+                              )}
                             </div>
-                          ))}
-                        </>
-                      )}
-                    </>
+                          </div>
+                        </div>
+                      );
+                    })
                   )}
                 </CardBody>
               </Card>

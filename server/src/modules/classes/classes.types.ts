@@ -49,7 +49,10 @@ export interface SessionWithDetails {
   start_url?: string;           // zoom_start_url (teachers only)
   zoom_meeting_id?: string | null;
   scheduled_at: string;         // ISO string: session_date + start_time
-  end_time?: string;            // raw TIMETZ e.g. "20:00:00+05:30" (teachers only)
+  session_date?: string;        // YYYY-MM-DD (local date the session is on)
+  start_time?: string;          // TIMETZ e.g. "18:30:00+05:30"
+  end_time?: string;            // raw TIMETZ e.g. "20:00:00+05:30"
+  recurrence_id?: string;       // UUID of the session_recurrence row (recurring only)
   is_recurring?: boolean;
   recur_pattern?: string;       // 'daily' | 'weekly'
   recur_days?: number[];        // 0=Sun … 6=Sat (weekly only)
