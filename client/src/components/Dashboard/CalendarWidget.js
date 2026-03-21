@@ -75,14 +75,16 @@ export default function CalendarWidget() {
   const role = typeof window !== "undefined" ? window.localStorage.getItem("role") : null;
   const sessionsPath = role === "student" ? "/admin/classes" : "/admin/sessions";
 
-  /* fetch all sessions — dot indicators + inline panel */
+  /* fetch sessions for the currently displayed month — dot indicators + inline panel */
   const fetchSessions = useCallback(() => {
     setSessionsLoading(true);
-    http.get('/api/classes/my-sessions-v2')
+    const y = cur.getFullYear();
+    const m = pad2(cur.getMonth() + 1);
+    http.get(`/api/classes/my-sessions-v2?month=${y}-${m}`)
       .then(res => setSessions(Array.isArray(res.data) ? res.data : []))
       .catch(() => setSessions([]))
       .finally(() => setSessionsLoading(false));
-  }, []);
+  }, [cur]);
 
   useEffect(() => { fetchSessions(); }, [fetchSessions]);
 

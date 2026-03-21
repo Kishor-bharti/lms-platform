@@ -26,9 +26,11 @@ export async function getMySessionsV2(req: Request, res: Response) {
     const userId   = req.user?.id;
     const userRole = req.user?.role;
     if (!userId || !userRole) return res.status(401).json({ error: 'Unauthorized' });
-    const rawDate = req.query.date as string | undefined;
-    const date = rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : undefined;
-    const sessions = await classesService.getMySessionsV2(userId, userRole, date);
+    const rawDate  = req.query.date  as string | undefined;
+    const rawMonth = req.query.month as string | undefined;
+    const date  = rawDate  && /^\d{4}-\d{2}-\d{2}$/.test(rawDate)  ? rawDate  : undefined;
+    const month = rawMonth && /^\d{4}-\d{2}$/.test(rawMonth)        ? rawMonth : undefined;
+    const sessions = await classesService.getMySessionsV2(userId, userRole, date, month);
     return res.json(sessions);
   } catch (err) {
     logger.error('[classes] getMySessionsV2 error:', err);

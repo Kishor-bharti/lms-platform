@@ -182,7 +182,8 @@ export async function getMyClasses(
 
 export async function getSessionsByTeacher(
   teacherId: string,
-  date?: string
+  date?: string,
+  month?: string
 ): Promise<SessionWithDetails[]> {
   // Auto-mark sessions past the 10-min grace window as 'missed'
   await query(
@@ -195,8 +196,18 @@ export async function getSessionsByTeacher(
     [teacherId]
   );
 
-  const dateClause = date ? ' AND s.session_date = $2' : '';
-  const params: any[] = date ? [teacherId, date] : [teacherId];
+  let dateClause = '';
+  const params: any[] = [teacherId];
+  if (date) {
+    dateClause = ' AND s.session_date = $2';
+    params.push(date);
+  } else if (month) {
+    const [y, m] = month.split('-').map(Number);
+    const nextStart = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`;
+    dateClause = ' AND s.session_date >= $2 AND s.session_date < $3';
+    params.push(`${month}-01`, nextStart);
+  }
+  const limitClause = month ? '' : 'LIMIT 100';
   const rows = await query<any>(
     `SELECT
        s.id,
@@ -232,7 +243,7 @@ export async function getSessionsByTeacher(
      LEFT JOIN session_recurrence sr  ON sr.id  = s.recurrence_id
      WHERE  s.teacher_id = $1${dateClause}
      ORDER  BY s.session_date DESC, s.start_time DESC
-     LIMIT  100`,
+     ${limitClause}`,
     params
   );
 
@@ -268,10 +279,21 @@ export async function getSessionsByTeacher(
 
 export async function getSessionsByStudent(
   studentId: string,
-  date?: string
+  date?: string,
+  month?: string
 ): Promise<SessionWithDetails[]> {
-  const dateClause = date ? ' AND s.session_date = $2' : '';
-  const params: any[] = date ? [studentId, date] : [studentId];
+  let dateClause = '';
+  const params: any[] = [studentId];
+  if (date) {
+    dateClause = ' AND s.session_date = $2';
+    params.push(date);
+  } else if (month) {
+    const [y, m] = month.split('-').map(Number);
+    const nextStart = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`;
+    dateClause = ' AND s.session_date >= $2 AND s.session_date < $3';
+    params.push(`${month}-01`, nextStart);
+  }
+  const limitClause = month ? '' : 'LIMIT 100';
   const rows = await query<any>(
     `SELECT
        s.id,
@@ -312,7 +334,7 @@ export async function getSessionsByStudent(
          EXISTS (SELECT 1 FROM session_students ss WHERE ss.session_id = s.id AND ss.student_id = $1)
        )
      ORDER  BY s.session_date DESC, s.start_time DESC
-     LIMIT  100`,
+     ${limitClause}`,
     params
   );
 
@@ -339,9 +361,19 @@ export async function getSessionsByStudent(
 
 // ─── ADMIN: all sessions ───────────────────────────────────────
 
-export async function getAllSessions(date?: string): Promise<SessionWithDetails[]> {
-  const dateClause = date ? 'WHERE s.session_date = $1' : '';
-  const params: any[] = date ? [date] : [];
+export async function getAllSessions(date?: string, month?: string): Promise<SessionWithDetails[]> {
+  let dateClause = '';
+  const params: any[] = [];
+  if (date) {
+    dateClause = 'WHERE s.session_date = $1';
+    params.push(date);
+  } else if (month) {
+    const [y, m] = month.split('-').map(Number);
+    const nextStart = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`;
+    dateClause = 'WHERE s.session_date >= $1 AND s.session_date < $2';
+    params.push(`${month}-01`, nextStart);
+  }
+  const limitClause = month ? '' : 'LIMIT 100';
   const rows = await query<any>(
     `SELECT
        s.id,
@@ -379,7 +411,7 @@ export async function getAllSessions(date?: string): Promise<SessionWithDetails[
      LEFT JOIN session_recurrence sr  ON sr.id   = s.recurrence_id
      ${dateClause}
      ORDER  BY s.session_date DESC, s.start_time DESC
-     LIMIT  100`,
+     ${limitClause}`,
     params
   );
 
@@ -414,11 +446,12 @@ export async function getAllSessions(date?: string): Promise<SessionWithDetails[
 export async function getMySessionsV2(
   userId: string,
   role: string,
-  date?: string
+  date?: string,
+  month?: string
 ): Promise<SessionWithDetails[]> {
-  if (role === 'teacher') return getSessionsByTeacher(userId, date);
-  if (role === 'student') return getSessionsByStudent(userId, date);
-  if (role === 'admin')   return getAllSessions(date);
+  if (role === 'teacher') return getSessionsByTeacher(userId, date, month);
+  if (role === 'student') return getSessionsByStudent(userId, date, month);
+  if (role === 'admin')   return getAllSessions(date, month);
   return [];
 }
 
