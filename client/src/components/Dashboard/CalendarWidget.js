@@ -54,7 +54,7 @@ const STATUS_COLORS = {
 function statusStyle(status, role) {
   const key = (status || '').toLowerCase();
   if (key === 'missed' && role === 'student') {
-    return { bg: 'rgba(33,37,41,0.15)', color: '#212529', label: 'Reschedule' };
+    return { bg: 'rgba(255,255,255,0.08)', color: '#718096', label: 'Reschedule' };
   }
   return STATUS_COLORS[key] || STATUS_COLORS.scheduled;
 }
