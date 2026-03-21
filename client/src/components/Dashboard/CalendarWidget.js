@@ -48,10 +48,14 @@ const STATUS_COLORS = {
   tomorrow:  { bg: 'rgba(94,114,228,0.18)', color: '#5e72e4', label: 'TMRW' },
   scheduled: { bg: 'rgba(130,94,228,0.18)', color: '#825ee4', label: 'UPCOMING' },
   completed: { bg: 'rgba(255,255,255,0.08)',color: '#718096', label: 'DONE' },
+  missed:    { bg: 'rgba(220,53,69,0.15)',  color: '#dc3545', label: 'MISSED' },
 };
 
-function statusStyle(status) {
+function statusStyle(status, role) {
   const key = (status || '').toLowerCase();
+  if (key === 'missed' && role === 'student') {
+    return { bg: 'rgba(33,37,41,0.15)', color: '#212529', label: 'Reschedule' };
+  }
   return STATUS_COLORS[key] || STATUS_COLORS.scheduled;
 }
 
@@ -266,7 +270,7 @@ export default function CalendarWidget() {
             ) : (
               <div className="cw-sp-list">
                 {daySessions.map(s => {
-                  const st = statusStyle(s.status);
+                  const st = statusStyle(s.status, role);
                   return (
                     <div key={s.id} className="cw-sp-item">
                       <div className="cw-sp-time">{fmtTime(s.scheduled_at)}</div>

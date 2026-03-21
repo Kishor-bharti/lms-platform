@@ -188,7 +188,7 @@ export async function deleteSessionById(req: Request, res: Response) {
     if (role !== 'teacher' && role !== 'admin') {
       return res.status(403).json({ error: 'Only teachers and admins can delete sessions' });
     }
-    await classesService.deleteSession(sessionId, userId);
+    await classesService.deleteSession(sessionId, userId, role);
     return res.json({ success: true });
   } catch (err: any) {
     logger.error('[classes] deleteSession error:', err);

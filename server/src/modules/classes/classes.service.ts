@@ -755,16 +755,25 @@ function computeEndTime(startTime: string, addMinutes: number): string {
 
 // ─── DELETE session (teacher who owns it or admin) ─────────────
 
-export async function deleteSession(sessionId: string, requesterId: string): Promise<void> {
-  const result = await query<any>(`
-    UPDATE sessions SET status = 'cancelled', updated_at = now()
-    WHERE id = $1
-      AND (teacher_id = $2 OR EXISTS (
-        SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id
-        WHERE ur.user_id = $2 AND r.name = 'admin'
-      ))
-    RETURNING id
-  `, [sessionId, requesterId]);
+export async function deleteSession(sessionId: string, requesterId: string, role?: string): Promise<void> {
+  if (role === 'admin') {
+    // Hard delete: remove session_students first (FK), then the session itself
+    await withTransaction(async (client) => {
+      // Verify session exists (no ownership check for admin)
+      const rows = await queryWithClient<any>(client, `SELECT id FROM sessions WHERE id = $1`, [sessionId]);
+      if (!rows[0]) throw new Error('FORBIDDEN');
 
-  if (!result[0]) throw new Error('FORBIDDEN');
+      await queryWithClient(client, `DELETE FROM session_students WHERE session_id = $1`, [sessionId]);
+      await queryWithClient(client, `DELETE FROM sessions WHERE id = $1`, [sessionId]);
+    });
+  } else {
+    // Soft cancel: teacher can only cancel their own session
+    const result = await query<any>(`
+      UPDATE sessions SET status = 'cancelled', updated_at = now()
+      WHERE id = $1 AND teacher_id = $2
+      RETURNING id
+    `, [sessionId, requesterId]);
+
+    if (!result[0]) throw new Error('FORBIDDEN');
+  }
 }

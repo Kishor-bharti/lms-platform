@@ -12,6 +12,8 @@ export default function UpcomingClasses() {
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState(null);
   const errorCount = useRef(0);
+  const role = (localStorage.getItem('role') || '').toLowerCase();
+  const isStudent = role === 'student';
 
   useEffect(() => {
     fetchSessions();
@@ -30,10 +32,14 @@ export default function UpcomingClasses() {
       const response = await http.get('/api/classes/my-sessions-v2');
       const data = Array.isArray(response?.data) ? response.data : [];
 
-      // Filter out completed sessions — dashboard should show upcoming only
-      // Sort ascending by scheduled_at so nearest-upcoming is first
+      // Filter out completed sessions; only show missed sessions from today
+      const todayStr = new Date().toISOString().slice(0, 10);
       const upcoming = data
-        .filter((s) => s.status !== 'COMPLETED')
+        .filter((s) => {
+          if (s.status === 'COMPLETED') return false;
+          if (s.status === 'MISSED') return s.scheduled_at.slice(0, 10) === todayStr;
+          return true;
+        })
         .sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at));
 
       setAllSessions(upcoming);
@@ -57,15 +63,17 @@ export default function UpcomingClasses() {
 
   const getStatusColor = (status) => {
     switch(status) {
-      case 'LIVE':
-        return "danger";
-      case 'TODAY':
-        return "info";
-      case 'TOMORROW':
-        return "warning";
-      default:
-        return "secondary";
+      case 'LIVE':      return "danger";
+      case 'TODAY':     return "info";
+      case 'TOMORROW':  return "warning";
+      case 'MISSED':    return isStudent ? "dark" : "danger";
+      default:          return "secondary";
     }
+  };
+
+  const getStatusLabel = (status) => {
+    if (status === 'MISSED' && isStudent) return 'About to Reschedule';
+    return status;
   };
 
   return (
@@ -98,7 +106,7 @@ export default function UpcomingClasses() {
                   <tr key={session.id}>
                     <th scope="row" style={{ fontWeight: 700, color: "#3b4a67" }}>{session.title || 'Untitled'}</th>
                     <td>{session.class_title}</td>
-                    <td>{new Date(session.scheduled_at).toLocaleString()}</td>
+                    <td>{new Date(session.scheduled_at).toLocaleString('en-US')}</td>
                     <td>
                       <Badge
                         color={getStatusColor(session.status)}
@@ -123,7 +131,7 @@ export default function UpcomingClasses() {
                             }}
                           />
                         )}
-                        <span className={session.status === 'LIVE' ? 'live-blink' : ''}>{session.status}</span>
+                        <span className={session.status === 'LIVE' ? 'live-blink' : ''}>{getStatusLabel(session.status)}</span>
                       </Badge>
                     </td>
                     <td className="text-right">
@@ -204,12 +212,12 @@ export default function UpcomingClasses() {
                   <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#fff", border: "1px solid #e9eef5", borderRadius: 10, padding: "8px 10px" }}>
                     <i className="ni ni-calendar-grid-58" style={{ color: "#6286c3" }} />
                     <span style={{ color: "#6b778c" }}>Date:</span>
-                    <span style={{ fontWeight: 600, color: "#1f2937" }}>{new Date(current.scheduled_at).toLocaleDateString()}</span>
+                    <span style={{ fontWeight: 600, color: "#1f2937" }}>{new Date(current.scheduled_at).toLocaleDateString('en-US')}</span>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#fff", border: "1px solid #e9eef5", borderRadius: 10, padding: "8px 10px" }}>
                     <i className="ni ni-watch-time" style={{ color: "#6286c3" }} />
                     <span style={{ color: "#6b778c" }}>Time:</span>
-                    <span style={{ fontWeight: 600, color: "#1f2937" }}>{new Date(current.scheduled_at).toLocaleTimeString()}</span>
+                    <span style={{ fontWeight: 600, color: "#1f2937" }}>{new Date(current.scheduled_at).toLocaleTimeString('en-US')}</span>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#fff", border: "1px solid #e9eef5", borderRadius: 10, padding: "8px 10px" }}>
                   <Badge
@@ -226,7 +234,7 @@ export default function UpcomingClasses() {
                     {current.status === 'LIVE' && (
                       <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 4, background: "#dc3545", display: "inline-block" }} />
                     )}
-                    <span className={current.status === 'LIVE' ? 'live-blink' : ''}>{current.status}</span>
+                    <span className={current.status === 'LIVE' ? 'live-blink' : ''}>{getStatusLabel(current.status)}</span>
                   </Badge>
                   </div>
                 </div>

@@ -29,6 +29,13 @@ function formatDayLabel(dateStr) {
   return `${DAY_NAMES[d.getDay()]}, ${MO_NAMES[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
 }
 
+/** Format YYYY-MM-DD → "M/D/YYYY" (US) */
+function fmtDateUS(dateStr) {
+  if (!dateStr) return '';
+  const [y, m, d] = dateStr.split('-');
+  return `${parseInt(m)}/${parseInt(d)}/${y}`;
+}
+
 /** Format "HH:MM:SS" or "HH:MM:SS+05:30" → "6:30 PM" */
 function fmtTime(timeStr) {
   if (!timeStr) return '';
@@ -176,7 +183,10 @@ const Sessions = () => {
       case 'TOMORROW':  return <Badge color="info">TOMORROW</Badge>;
       case 'COMPLETED': return <Badge color="secondary">COMPLETED</Badge>;
       case 'SCHEDULED': return <Badge color="light">SCHEDULED</Badge>;
-      case 'MISSED':    return <Badge color="dark">MISSED</Badge>;
+      case 'MISSED':
+        return userRole === 'student'
+          ? <Badge style={{ background: '#212529', color: '#fff' }}>About to Reschedule</Badge>
+          : <Badge color="danger">MISSED</Badge>;
       default:          return <Badge>{status}</Badge>;
     }
   };
@@ -353,8 +363,8 @@ const Sessions = () => {
                         key={session.id}
                         className="session-item mb-3 bg-white border rounded"
                         style={{
-                          borderLeft: `4px solid ${session.status === 'LIVE' ? '#dc3545' : session.status === 'MISSED' ? '#6c757d' : '#96c8ff'}`,
-                          backgroundColor: session.status === 'LIVE' ? '#fff5f5' : session.status === 'MISSED' ? '#f8f9fa' : 'white',
+                          borderLeft: `4px solid ${session.status === 'LIVE' ? '#dc3545' : session.status === 'MISSED' ? (isTeacherOrAdmin ? '#dc3545' : '#343a40') : '#96c8ff'}`,
+                          backgroundColor: session.status === 'LIVE' ? '#fff5f5' : session.status === 'MISSED' ? (isTeacherOrAdmin ? '#fff5f5' : '#f8f9fa') : 'white',
                         }}
                       >
                         {/* ── Main row ── */}
@@ -383,7 +393,7 @@ const Sessions = () => {
                                   <span>📚 {session.class_title}</span>
                                   {session.course_name && <span>🎓 {session.course_name}</span>}
                                   {userRole === 'admin' && session.teacher_name && <span>👤 {session.teacher_name}</span>}
-                                  <span>📅 {session.scheduled_at.slice(0, 10)}</span>
+                                  <span>📅 {fmtDateUS(session.scheduled_at.slice(0, 10))}</span>
                                   <span>
                                     ⏰ {fmtTime(session.scheduled_at.slice(11, 19))}
                                     {session.end_time ? ` – ${fmtTime(session.end_time)}` : ''}
@@ -398,7 +408,7 @@ const Sessions = () => {
                                       : 'All enrolled'}
                                   </span>
                                   {session.is_recurring && session.recur_until && (
-                                    <span>🔁 Until {session.recur_until}</span>
+                                    <span>🔁 Until {fmtDateUS(session.recur_until)}</span>
                                   )}
                                 </div>
                               </>
@@ -410,7 +420,7 @@ const Sessions = () => {
                                 </div>
                                 <div className="small text-muted">
                                   <span className="mr-3">📚 {session.class_title}</span>
-                                  <span>🕐 {new Date(session.scheduled_at).toLocaleString()}</span>
+                                  <span>🕐 {new Date(session.scheduled_at).toLocaleString('en-US')}</span>
                                 </div>
                               </>
                             )}
@@ -479,7 +489,7 @@ const Sessions = () => {
                               {session.is_recurring && session.recur_until && (
                                 <div style={{ background: '#fff', border: '1px solid #e9eef5', borderRadius: '8px', padding: '10px' }}>
                                   <div className="small text-muted mb-1">Repeats Until</div>
-                                  <div style={{ fontWeight: 600 }}>{session.recur_until}</div>
+                                  <div style={{ fontWeight: 600 }}>{fmtDateUS(session.recur_until)}</div>
                                 </div>
                               )}
                               {session.target_count > 0 && session.target_students && (
