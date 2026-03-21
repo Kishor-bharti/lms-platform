@@ -449,6 +449,79 @@ export async function deleteSubject(subjectId: string): Promise<void> {
   await query(`DELETE FROM subjects WHERE id = $1`, [subjectId]);
 }
 
+// ---- Teacher-Student Allocations ----
+
+export interface TeacherAllocationStudent {
+  student_id:  string;
+  student_name: string;
+  email:       string;
+  assigned_at: string;
+}
+
+export interface TeacherAllocation {
+  teacher_id:   string;
+  teacher_name: string;
+  teacher_email: string;
+  students:     TeacherAllocationStudent[];
+}
+
+export async function getSubjectAllocations(subjectId: string): Promise<TeacherAllocation[]> {
+  const rows = await query<any>(`
+    SELECT
+      st.teacher_id,
+      u_t.first_name || ' ' || u_t.last_name  AS teacher_name,
+      u_t.email                                AS teacher_email,
+      COALESCE(
+        json_agg(
+          json_build_object(
+            'student_id',   u_s.id,
+            'student_name', u_s.first_name || ' ' || u_s.last_name,
+            'email',        u_s.email,
+            'assigned_at',  sts.assigned_at
+          ) ORDER BY u_s.first_name
+        ) FILTER (WHERE u_s.id IS NOT NULL),
+        '[]'::json
+      ) AS students
+    FROM  subject_teachers st
+    JOIN  users u_t ON u_t.id = st.teacher_id
+    LEFT JOIN subject_teacher_students sts
+          ON  sts.subject_id = st.subject_id
+          AND sts.teacher_id = st.teacher_id
+    LEFT JOIN users u_s ON u_s.id = sts.student_id
+    WHERE st.subject_id = $1
+    GROUP BY st.teacher_id, u_t.first_name, u_t.last_name, u_t.email
+    ORDER BY u_t.first_name
+  `, [subjectId]);
+
+  return rows.map((r) => ({
+    teacher_id:    r.teacher_id,
+    teacher_name:  r.teacher_name,
+    teacher_email: r.teacher_email,
+    students: Array.isArray(r.students)
+      ? r.students
+      : (r.students ? JSON.parse(r.students) : []),
+  }));
+}
+
+export async function assignStudentToTeacher(
+  subjectId: string, teacherId: string, studentId: string, adminId: string
+): Promise<void> {
+  await query(`
+    INSERT INTO subject_teacher_students (subject_id, teacher_id, student_id, assigned_by)
+    VALUES ($1, $2, $3, $4)
+    ON CONFLICT DO NOTHING
+  `, [subjectId, teacherId, studentId, adminId]);
+}
+
+export async function removeStudentFromTeacher(
+  subjectId: string, teacherId: string, studentId: string
+): Promise<void> {
+  await query(`
+    DELETE FROM subject_teacher_students
+    WHERE subject_id = $1 AND teacher_id = $2 AND student_id = $3
+  `, [subjectId, teacherId, studentId]);
+}
+
 // ---- Admin session management (A6 / A7) ----
 
 export interface AdminCreateSessionInput {

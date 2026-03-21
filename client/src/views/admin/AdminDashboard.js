@@ -89,6 +89,9 @@ export default function AdminDashboard() {
                   <Button color="info" style={{ borderRadius: 8 }} onClick={() => navigate('/admin/admin-sessions')}>
                     View All Sessions
                   </Button>
+                  <Button color="secondary" style={{ borderRadius: 8 }} onClick={() => navigate('/admin/admin-allocations')}>
+                    Manage Allocations
+                  </Button>
                 </div>
               </CardBody>
             </Card>

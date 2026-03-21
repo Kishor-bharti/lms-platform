@@ -255,6 +255,45 @@ export async function deleteSubject(req: Request, res: Response) {
   }
 }
 
+// ── Teacher-Student Allocations ──────────────────────────────────────────────
+
+export async function getSubjectAllocations(req: Request, res: Response) {
+  try {
+    const { subjectId } = req.params;
+    if (!subjectId) return res.status(400).json({ error: 'subjectId is required' });
+    const allocations = await adminService.getSubjectAllocations(subjectId);
+    return res.json(allocations);
+  } catch (err) {
+    logger.error('[admin] getSubjectAllocations:', err);
+    return res.status(500).json({ error: 'Failed to fetch allocations' });
+  }
+}
+
+export async function assignStudentToTeacher(req: Request, res: Response) {
+  try {
+    const { subjectId, teacherId } = req.params;
+    const { studentId } = req.body;
+    const adminId = req.user!.id;
+    if (!studentId) return res.status(400).json({ error: 'studentId is required' });
+    await adminService.assignStudentToTeacher(subjectId!, teacherId!, studentId, adminId);
+    return res.json({ success: true });
+  } catch (err) {
+    logger.error('[admin] assignStudentToTeacher:', err);
+    return res.status(500).json({ error: 'Failed to assign student' });
+  }
+}
+
+export async function removeStudentFromTeacher(req: Request, res: Response) {
+  try {
+    const { subjectId, teacherId, studentId } = req.params;
+    await adminService.removeStudentFromTeacher(subjectId!, teacherId!, studentId!);
+    return res.json({ success: true });
+  } catch (err) {
+    logger.error('[admin] removeStudentFromTeacher:', err);
+    return res.status(500).json({ error: 'Failed to remove student allocation' });
+  }
+}
+
 export async function getAllSessions(req: Request, res: Response) {
   try {
     const rawDate = req.query.date as string | undefined;

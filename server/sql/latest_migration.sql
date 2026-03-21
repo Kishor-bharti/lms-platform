@@ -77,3 +77,23 @@ CREATE POLICY "Allow anon uploads to assignment-files"
 ON storage.objects
 FOR INSERT TO anon
 WITH CHECK (bucket_id = 'assignment-files');
+
+
+-- ================================================================
+-- Migration: Teacher-Student Allocation within Subjects
+-- Adds explicit teacher→student assignment per subject.
+-- Existing data is unaffected; the table starts empty.
+-- Run: psql $DATABASE_URL -f server/sql/latest_migration.sql
+-- ================================================================
+
+CREATE TABLE IF NOT EXISTS subject_teacher_students (
+  subject_id  UUID        NOT NULL REFERENCES subjects(id)  ON DELETE CASCADE,
+  teacher_id  UUID        NOT NULL REFERENCES users(id)     ON DELETE CASCADE,
+  student_id  UUID        NOT NULL REFERENCES users(id)     ON DELETE CASCADE,
+  assigned_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  assigned_by UUID        NOT NULL REFERENCES users(id),
+  PRIMARY KEY (subject_id, teacher_id, student_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_sts_subject_teacher ON subject_teacher_students(subject_id, teacher_id);
+CREATE INDEX IF NOT EXISTS idx_sts_student         ON subject_teacher_students(student_id);

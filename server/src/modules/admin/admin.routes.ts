@@ -33,6 +33,11 @@ router.get('/subjects/:subjectId/enrollments', adminController.getEnrolledStuden
 router.post('/subjects/:subjectId/enrollments', adminController.enrollStudent);
 router.delete('/subjects/:subjectId/enrollments/:studentId', adminController.unenrollStudent);
 
+// Teacher-Student Allocations
+router.get('/subjects/:subjectId/allocations',                                        adminController.getSubjectAllocations);
+router.post('/subjects/:subjectId/teachers/:teacherId/students',                      adminController.assignStudentToTeacher);
+router.delete('/subjects/:subjectId/teachers/:teacherId/students/:studentId',         adminController.removeStudentFromTeacher);
+
 // Sessions — admin CRUD + A5 join
 router.get('/sessions',              adminController.getAllSessions);
 router.post('/sessions',             adminController.createSession);

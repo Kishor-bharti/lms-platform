@@ -12,6 +12,7 @@ import AdminUsers from 'views/admin/AdminUsers.js';
 import AdminCourses from 'views/admin/AdminCourses.js';
 import AdminSubjects from 'views/admin/AdminSubjects.js';
 import AdminSessions from 'views/admin/AdminSessions.js';
+import AdminAllocations from 'views/admin/AdminAllocations.js';
 import QuizBuilder from 'views/quiz/QuizBuilder.js';
 import QuizTaker from 'views/quiz/QuizTaker.js';
 import CourseQuiz from 'views/quiz/CourseQuiz.js';
@@ -119,6 +120,15 @@ var routes = [
     name: 'All Sessions',
     icon: 'ni ni-calendar-grid-58 text-danger',
     component: <AdminSessions />,
+    layout: '/admin',
+    roles: ['ADMIN'],
+    hidden: true,
+  },
+  {
+    path: '/admin-allocations',
+    name: 'Teacher Allocations',
+    icon: 'ni ni-bullet-list-67 text-danger',
+    component: <AdminAllocations />,
     layout: '/admin',
     roles: ['ADMIN'],
     hidden: true,
