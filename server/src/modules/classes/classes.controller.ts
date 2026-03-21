@@ -154,7 +154,8 @@ export async function getSubjectStudentsHandler(req: Request, res: Response) {
     if (role !== 'teacher' && role !== 'admin') {
       return res.status(403).json({ error: 'Forbidden' });
     }
-    const students = await getSubjectStudents(subjectId);
+    const teacherId = role === 'teacher' ? req.user!.id : undefined;
+    const students = await getSubjectStudents(subjectId, teacherId);
     return res.json(students);
   } catch (err) {
     logger.error('[classes] getSubjectStudents error:', err);

@@ -300,6 +300,12 @@ export async function getSessionsByStudent(
      LEFT JOIN session_recurrence sr  ON sr.id   = s.recurrence_id
      WHERE  se.student_id        = $1
        AND  se.enrollment_status = 'active'${dateClause}
+       AND EXISTS (
+         SELECT 1 FROM subject_teacher_students sts
+         WHERE  sts.subject_id = s.subject_id
+           AND  sts.teacher_id = s.teacher_id
+           AND  sts.student_id = $1
+       )
        AND (
          NOT EXISTS (SELECT 1 FROM session_students ss WHERE ss.session_id = s.id)
          OR
@@ -700,9 +706,22 @@ export async function getSubjectTeachers(subjectId: string): Promise<Array<{
 // ─── GET enrolled students for a subject (teacher-visible) ─────
 // Used to populate student selectors for 1-on-1 session / assignment targeting.
 
-export async function getSubjectStudents(subjectId: string): Promise<Array<{
-  id: string; first_name: string; last_name: string; email: string;
-}>> {
+export async function getSubjectStudents(
+  subjectId: string,
+  teacherId?: string
+): Promise<Array<{ id: string; first_name: string; last_name: string; email: string }>> {
+  if (teacherId) {
+    // Teacher: only students explicitly allocated to them for this subject
+    return query<any>(
+      `SELECT u.id, u.first_name, u.last_name, u.email
+       FROM   subject_teacher_students sts
+       JOIN   users u ON u.id = sts.student_id
+       WHERE  sts.subject_id = $1 AND sts.teacher_id = $2
+       ORDER  BY u.first_name, u.last_name`,
+      [subjectId, teacherId]
+    );
+  }
+  // Admin: all enrolled students for the subject
   return query<any>(
     `SELECT u.id, u.first_name, u.last_name, u.email
      FROM   subject_enrollments se
@@ -729,12 +748,14 @@ export async function getMySessionStats(teacherId: string): Promise<Array<{
        u.email,
        COUNT(s.id)  AS sessions_count,
        MAX(s.session_date::text) AS last_session
-     FROM   sessions s
-     JOIN   subject_enrollments se ON se.subject_id = s.subject_id
-     JOIN   users u ON u.id = se.student_id
-     WHERE  s.teacher_id = $1
-       AND  s.status = 'completed'
-     GROUP  BY u.id
+     FROM   subject_teacher_students sts
+     JOIN   users u ON u.id = sts.student_id
+     LEFT JOIN sessions s
+       ON  s.subject_id = sts.subject_id
+       AND s.teacher_id = sts.teacher_id
+       AND s.status = 'completed'
+     WHERE  sts.teacher_id = $1
+     GROUP  BY u.id, u.first_name, u.last_name, u.email
      ORDER  BY sessions_count DESC`,
     [teacherId]
   );
