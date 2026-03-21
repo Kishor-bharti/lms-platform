@@ -715,13 +715,26 @@ export async function getAdminDashboardOverview(): Promise<{ students: any[]; te
           )) FILTER (WHERE sub.id IS NOT NULL),
           '[]'
         ) AS subjects,
-        COUNT(DISTINCT sts.student_id)::int AS total_students
+        COUNT(DISTINCT sts.student_id)::int AS total_students,
+        (
+          SELECT COALESCE(json_agg(s_row ORDER BY s_row->>'student_name'), '[]'::json)
+          FROM (
+            SELECT DISTINCT ON (u_s.id)
+              json_build_object(
+                'student_id',   u_s.id,
+                'student_name', u_s.first_name || ' ' || u_s.last_name
+              ) AS s_row
+            FROM subject_teacher_students sts2
+            JOIN users u_s ON u_s.id = sts2.student_id
+            WHERE sts2.teacher_id = u.id
+          ) s_inner
+        ) AS students_list
       FROM users u
       JOIN user_roles ur ON ur.user_id = u.id
       JOIN roles r       ON r.id = ur.role_id AND r.name = 'teacher'
-      LEFT JOIN subject_teachers        st  ON st.teacher_id  = u.id
-      LEFT JOIN subjects                sub ON sub.id = st.subject_id
-      LEFT JOIN courses                 c   ON c.id   = sub.course_id
+      LEFT JOIN subject_teachers         st  ON st.teacher_id  = u.id
+      LEFT JOIN subjects                 sub ON sub.id = st.subject_id
+      LEFT JOIN courses                  c   ON c.id   = sub.course_id
       LEFT JOIN subject_teacher_students sts ON sts.teacher_id = u.id
       WHERE u.is_active = true
       GROUP BY u.id, u.first_name, u.last_name, u.email
@@ -743,6 +756,7 @@ export async function getAdminDashboardOverview(): Promise<{ students: any[]; te
       email:          r.email,
       subjects:       parseJson(r.subjects),
       total_students: r.total_students ?? 0,
+      students:       parseJson(r.students_list),
     })),
   };
 }
@@ -823,7 +837,7 @@ export async function getAllSessionsAdmin(filters: AdminSessionFilters = {}) {
     JOIN users    u   ON u.id   = s.teacher_id
     LEFT JOIN topics t ON t.id  = s.topic_id
     ${whereClause}
-    ORDER BY s.session_date DESC, s.start_time DESC
+    ORDER BY s.session_date ASC, s.start_time ASC
     LIMIT 500
   `, params);
 

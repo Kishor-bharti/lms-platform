@@ -73,7 +73,7 @@ export default function AdminDashboard() {
 
   // Session filters
   const [filters, setFilters] = useState({
-    courseId: '', subjectId: '', teacherId: '', studentId: '', status: '',
+    date: '', courseId: '', subjectId: '', teacherId: '', studentId: '', status: '',
   });
 
   const navigate = useNavigate();
@@ -96,6 +96,7 @@ export default function AdminDashboard() {
     setSessionsLoading(true);
     try {
       const params = new URLSearchParams();
+      if (f.date)      params.set('date',      f.date);
       if (f.courseId)  params.set('courseId',  f.courseId);
       if (f.subjectId) params.set('subjectId', f.subjectId);
       if (f.teacherId) params.set('teacherId', f.teacherId);
@@ -113,14 +114,13 @@ export default function AdminDashboard() {
 
   const applyFilter = (key, value) => {
     const next = { ...filters, [key]: value };
-    // reset subject if course changes
     if (key === 'courseId') next.subjectId = '';
     setFilters(next);
     fetchSessions(next);
   };
 
   const clearFilters = () => {
-    const empty = { courseId: '', subjectId: '', teacherId: '', studentId: '', status: '' };
+    const empty = { date: '', courseId: '', subjectId: '', teacherId: '', studentId: '', status: '' };
     setFilters(empty);
     fetchSessions(empty);
   };
@@ -164,6 +164,7 @@ export default function AdminDashboard() {
 
   return (
     <>
+      <style>{`@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }`}</style>
       <Header />
       <Container className="mt--7" fluid style={{ backgroundColor: 'rgb(196,214,226)', minHeight: '100vh', paddingTop: 30, paddingBottom: 30 }}>
 
@@ -253,6 +254,12 @@ export default function AdminDashboard() {
 
               {/* Filter Bar */}
               <div style={{ padding: '12px 20px', background: '#f8f9fc', borderBottom: '1px solid #e9ecef', display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                <input
+                  type="date"
+                  value={filters.date}
+                  onChange={(e) => applyFilter('date', e.target.value)}
+                  style={{ ...selectStyle, minWidth: 140 }}
+                />
                 <FilterSelect
                   value={filters.courseId} placeholder="All Courses"
                   options={courses} onChange={(v) => applyFilter('courseId', v)}
@@ -287,6 +294,11 @@ export default function AdminDashboard() {
                     ✕ Clear Filters
                   </button>
                 )}
+                {!sessionsLoading && (
+                  <span style={{ marginLeft: 'auto', fontSize: 12, color: '#8898aa', fontWeight: 600 }}>
+                    {sessions.length} session{sessions.length !== 1 ? 's' : ''}
+                  </span>
+                )}
               </div>
 
               <CardBody style={{ overflowX: 'auto', padding: 0 }}>
@@ -298,7 +310,7 @@ export default function AdminDashboard() {
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                     <thead>
                       <tr style={{ background: '#f8f9fa' }}>
-                        {['Title', 'Course', 'Subject', 'Topic', 'Teacher', 'Students', 'Date', 'Time', 'Status'].map((h) => (
+                        {['Title', 'Course', 'Subject', 'Topic', 'Teacher', 'Students', 'Date', 'Time', 'Status', 'Link'].map((h) => (
                           <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase', letterSpacing: 0.5, whiteSpace: 'nowrap' }}>{h}</th>
                         ))}
                       </tr>
@@ -338,6 +350,9 @@ export default function AdminDashboard() {
                               <span style={{ background: sc + '20', color: sc, padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
                                 {s.status}
                               </span>
+                            </td>
+                            <td style={{ padding: '11px 14px' }}>
+                              <SessionLink session={s} />
                             </td>
                           </tr>
                         );
@@ -449,15 +464,64 @@ function TeachersTable({ teachers }) {
               />
             </td>
             <td style={{ padding: '12px 16px' }}>
-              <span style={{ background: '#5e72e418', color: '#5e72e4', borderRadius: 20, padding: '3px 12px', fontWeight: 700, fontSize: 13 }}>
-                {t.total_students}
-              </span>
+              <BadgePopup
+                count={t.total_students}
+                color="#5e72e4"
+                items={t.students || []}
+                label="students"
+                renderItem={(s) => (
+                  <div style={{ padding: '8px 16px', borderBottom: '1px solid #f0f4f8', fontSize: 13, color: '#32325d' }}>
+                    {s.student_name}
+                  </div>
+                )}
+              />
             </td>
           </tr>
         ))}
       </tbody>
     </table>
   );
+}
+
+// ─── Session Link / Action button ────────────────────────────────────────────
+function SessionLink({ session }) {
+  const { status, zoom_link } = session;
+  if (status === 'live') {
+    return (
+      <a
+        href={zoom_link || '#'}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 5,
+          background: '#f5365c', color: '#fff', borderRadius: 6,
+          padding: '4px 11px', fontSize: 12, fontWeight: 700, textDecoration: 'none',
+          cursor: zoom_link ? 'pointer' : 'default', opacity: zoom_link ? 1 : 0.6,
+        }}
+        onClick={!zoom_link ? (e) => e.preventDefault() : undefined}
+      >
+        <span style={{ animation: 'blink 1s step-start infinite', fontSize: 8 }}>●</span>
+        Join
+      </a>
+    );
+  }
+  if (status === 'completed' && zoom_link) {
+    return (
+      <a
+        href={zoom_link}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 5,
+          background: '#2dce8918', color: '#2dce89', border: '1px solid #2dce8940',
+          borderRadius: 6, padding: '4px 11px', fontSize: 12, fontWeight: 700, textDecoration: 'none',
+        }}
+      >
+        ▶ Replay
+      </a>
+    );
+  }
+  return <span style={{ color: '#d0d5dd' }}>—</span>;
 }
 
 // ─── Filter helpers ──────────────────────────────────────────────────────────
