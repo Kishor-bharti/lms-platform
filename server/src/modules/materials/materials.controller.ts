@@ -1,12 +1,15 @@
 import { Request, Response } from 'express';
 import logger from '../../config/logger';
 import * as materialsService from './materials.service';
+import { hasContentWritePermission } from '../../utils/permissions';
 
 export async function getMaterials(req: Request, res: Response) {
   try {
     const { subjectId } = req.params;
     if (!subjectId) return res.status(400).json({ error: 'subjectId is required' });
-    const materials = await materialsService.getMaterials(subjectId);
+    const role   = req.user?.role ?? 'student';
+    const userId = req.user?.id;
+    const materials = await materialsService.getMaterials(subjectId, role, userId);
     return res.json(materials);
   } catch (err) {
     logger.error('[materials] get:', err);
@@ -18,12 +21,13 @@ export async function addMaterial(req: Request, res: Response) {
   try {
     const userId = req.user!.id;
     const role   = req.user!.role;
-    if (role !== 'teacher' && role !== 'admin') {
-      return res.status(403).json({ error: 'Only teachers can add materials' });
-    }
     const { subjectId, title, description, material_type, file_url, file_size_kb, topicId } = req.body;
     if (!subjectId || !title || !material_type || !file_url) {
       return res.status(400).json({ error: 'subjectId, title, material_type, file_url are required' });
+    }
+    const canCreate = await hasContentWritePermission(userId, role, subjectId);
+    if (!canCreate) {
+      return res.status(403).json({ error: 'Insufficient permissions to add materials in this subject' });
     }
     const valid = ['pdf', 'video', 'link', 'doc', 'image'];
     if (!valid.includes(material_type)) {
@@ -39,10 +43,29 @@ export async function addMaterial(req: Request, res: Response) {
   }
 }
 
+export async function publishMaterial(req: Request, res: Response) {
+  try {
+    const { materialId } = req.params;
+    if (!materialId) return res.status(400).json({ error: 'materialId is required' });
+    if (req.user!.role !== 'admin') {
+      return res.status(403).json({ error: 'Only admins can publish materials' });
+    }
+    const { is_published } = req.body;
+    await materialsService.publishMaterial(materialId, Boolean(is_published));
+    return res.json({ success: true });
+  } catch (err) {
+    logger.error('[materials] publish:', err);
+    return res.status(500).json({ error: 'Failed to update material' });
+  }
+}
+
 export async function deleteMaterial(req: Request, res: Response) {
   try {
     const { materialId } = req.params;
     if (!materialId) return res.status(400).json({ error: 'materialId is required' });
+    if (req.user!.role !== 'admin') {
+      return res.status(403).json({ error: 'Only admins can delete materials' });
+    }
     const userId = req.user!.id;
     await materialsService.deleteMaterial(materialId, userId);
     return res.json({ success: true });

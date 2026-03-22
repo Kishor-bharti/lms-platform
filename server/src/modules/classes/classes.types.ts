@@ -35,6 +35,7 @@ export interface ClassWithTeacher {
   course_name: string;
   course_code: string;
   teacher_name: string;
+  permission_level?: string; // 'read' | 'write' — only present for teacher role
 }
 
 export interface SessionWithDetails {

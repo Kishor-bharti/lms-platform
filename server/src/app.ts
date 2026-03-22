@@ -11,7 +11,8 @@ import progressRouter   from './modules/progress/progress.routes';
 import topicsRouter     from './modules/topics/topics.routes';
 import materialsRouter  from './modules/materials/materials.routes';
 import profileRouter    from './modules/profile/profile.routes';
-import uploadRouter     from './modules/upload/upload.routes';
+import uploadRouter            from './modules/upload/upload.routes';
+import contentAssignmentsRouter from './modules/content-assignments/content-assignments.routes';
 import { env }          from './config/env';
 import { errorHandler } from './middlewares/error.middleware';
 import { httpLogger }   from './middlewares/httpLogger.middleware';
@@ -81,7 +82,8 @@ app.use('/api/progress',    progressRouter);
 app.use('/api/subjects/:subjectId/topics', topicsRouter);
 app.use('/api/materials',   materialsRouter);
 app.use('/api/profile',     profileRouter);
-app.use('/api/upload',      uploadRouter);
+app.use('/api/upload',              uploadRouter);
+app.use('/api/content-assignments', contentAssignmentsRouter);
 
 app.get('/test-latency', async (_req, res) => {
   const start = Date.now();

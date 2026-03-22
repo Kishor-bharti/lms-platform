@@ -343,6 +343,23 @@ export async function removeTeacher(subjectId: string, teacherId: string): Promi
   `, [subjectId, teacherId]);
 }
 
+export async function setTeacherPermission(
+  subjectId: string,
+  teacherId: string,
+  permissionLevel: string
+): Promise<void> {
+  if (!['read', 'write'].includes(permissionLevel)) {
+    throw new Error('INVALID_PERMISSION_LEVEL');
+  }
+  const result = await query<any>(
+    `UPDATE subject_teachers SET permission_level = $1
+     WHERE subject_id = $2 AND teacher_id = $3
+     RETURNING teacher_id`,
+    [permissionLevel, subjectId, teacherId]
+  );
+  if (!result[0]) throw new Error('TEACHER_NOT_ASSIGNED');
+}
+
 export async function enrollStudent(
   subjectId: string, studentId: string, adminId: string
 ): Promise<void> {
@@ -459,10 +476,11 @@ export interface TeacherAllocationStudent {
 }
 
 export interface TeacherAllocation {
-  teacher_id:   string;
-  teacher_name: string;
-  teacher_email: string;
-  students:     TeacherAllocationStudent[];
+  teacher_id:       string;
+  teacher_name:     string;
+  teacher_email:    string;
+  permission_level: string;
+  students:         TeacherAllocationStudent[];
 }
 
 export async function getSubjectAllocations(subjectId: string): Promise<TeacherAllocation[]> {
@@ -471,6 +489,7 @@ export async function getSubjectAllocations(subjectId: string): Promise<TeacherA
       st.teacher_id,
       u_t.first_name || ' ' || u_t.last_name  AS teacher_name,
       u_t.email                                AS teacher_email,
+      st.permission_level,
       COALESCE(
         json_agg(
           json_build_object(
@@ -489,14 +508,15 @@ export async function getSubjectAllocations(subjectId: string): Promise<TeacherA
           AND sts.teacher_id = st.teacher_id
     LEFT JOIN users u_s ON u_s.id = sts.student_id
     WHERE st.subject_id = $1
-    GROUP BY st.teacher_id, u_t.first_name, u_t.last_name, u_t.email
+    GROUP BY st.teacher_id, u_t.first_name, u_t.last_name, u_t.email, st.permission_level
     ORDER BY u_t.first_name
   `, [subjectId]);
 
   return rows.map((r) => ({
-    teacher_id:    r.teacher_id,
-    teacher_name:  r.teacher_name,
-    teacher_email: r.teacher_email,
+    teacher_id:       r.teacher_id,
+    teacher_name:     r.teacher_name,
+    teacher_email:    r.teacher_email,
+    permission_level: r.permission_level,
     students: Array.isArray(r.students)
       ? r.students
       : (r.students ? JSON.parse(r.students) : []),

@@ -179,6 +179,30 @@ export async function removeTeacher(req: Request, res: Response) {
   }
 }
 
+export async function setTeacherPermission(req: Request, res: Response) {
+  try {
+    const { subjectId, teacherId } = req.params;
+    const { permission_level } = req.body;
+    if (!subjectId || !teacherId) {
+      return res.status(400).json({ error: 'subjectId and teacherId are required' });
+    }
+    if (!permission_level) {
+      return res.status(400).json({ error: 'permission_level is required' });
+    }
+    await adminService.setTeacherPermission(subjectId, teacherId, permission_level);
+    return res.json({ success: true });
+  } catch (err: any) {
+    if (err.message === 'INVALID_PERMISSION_LEVEL') {
+      return res.status(400).json({ error: 'permission_level must be read or write' });
+    }
+    if (err.message === 'TEACHER_NOT_ASSIGNED') {
+      return res.status(404).json({ error: 'Teacher is not assigned to this subject' });
+    }
+    logger.error('[admin] setTeacherPermission:', err);
+    return res.status(500).json({ error: 'Failed to update permission' });
+  }
+}
+
 export async function enrollStudent(req: Request, res: Response) {
   try {
     const { subjectId } = req.params;

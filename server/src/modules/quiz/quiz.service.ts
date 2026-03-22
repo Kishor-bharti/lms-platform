@@ -52,9 +52,31 @@ export interface AttemptResult {
   last_question_index: number;
 }
 
-// ---- Teacher: get quizzes for a subject ----
+// ---- Get quizzes for a subject (role-filtered) ----
+// admin: all quizzes (published + draft)
+// teacher: published only
+// student: only quizzes explicitly assigned to them via student_content_assignments
 
-export async function getQuizzesBySubject(subjectId: string, role: string = 'student'): Promise<QuizSummary[]> {
+export async function getQuizzesBySubject(
+  subjectId: string,
+  role: string = 'student',
+  userId?: string
+): Promise<QuizSummary[]> {
+  const params: any[] = [subjectId];
+  let roleFilter = '';
+
+  if (role === 'student') {
+    if (!userId) return [];
+    params.push(userId);
+    roleFilter = `AND q.id IN (
+      SELECT content_id FROM student_content_assignments
+      WHERE content_type = 'quiz' AND student_id = $2 AND subject_id = $1
+    )`;
+  } else if (role === 'teacher') {
+    roleFilter = 'AND q.is_published = true';
+  }
+  // admin: no extra filter
+
   const rows = await query<any>(`
     SELECT
       q.id, q.subject_id, q.topic_id, t.name AS topic_name,
@@ -68,10 +90,10 @@ export async function getQuizzesBySubject(subjectId: string, role: string = 'stu
     LEFT JOIN topics t ON t.id = q.topic_id
     LEFT JOIN users u ON u.id = q.created_by
     WHERE q.subject_id = $1 AND q.is_active = true
-    ${role === 'student' ? 'AND q.is_published = true' : ''}
+    ${roleFilter}
     GROUP BY q.id, t.name, u.first_name, u.last_name
     ORDER BY q.created_at DESC
-  `, [subjectId]);
+  `, params);
 
   return rows.map((r) => ({
     ...r,
@@ -216,24 +238,14 @@ export async function setQuizPublished(quizId: string, published: boolean): Prom
 // ---- Student: start attempt ----
 
 export async function startAttempt(quizId: string, studentId: string): Promise<{ attemptId: string; attempt_number: number }> {
-  // Enrollment check — student must be enrolled in the subject or any subject of the course
-  const enrolled = await query<any>(`
-    SELECT 1
-    FROM quizzes q
-    LEFT JOIN subject_enrollments se
-      ON q.subject_id = se.subject_id AND se.student_id = $2 AND se.enrollment_status = 'active'
-    LEFT JOIN (
-      SELECT DISTINCT s.course_id
-      FROM subject_enrollments se2
-      JOIN subjects s ON s.id = se2.subject_id
-      WHERE se2.student_id = $2 AND se2.enrollment_status = 'active'
-    ) ce ON q.course_id = ce.course_id
-    WHERE q.id = $1
-      AND (se.id IS NOT NULL OR ce.course_id IS NOT NULL)
-  `, [quizId, studentId]);
-
-  if (enrolled.length === 0) {
-    throw new Error('NOT_ENROLLED');
+  // Check that this quiz has been explicitly assigned to the student
+  const assigned = await query<any>(
+    `SELECT 1 FROM student_content_assignments
+     WHERE content_type = 'quiz' AND content_id = $1 AND student_id = $2`,
+    [quizId, studentId]
+  );
+  if (assigned.length === 0) {
+    throw new Error('NOT_ASSIGNED');
   }
 
   // Published + max_attempts check

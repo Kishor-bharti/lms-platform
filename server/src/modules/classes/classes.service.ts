@@ -75,6 +75,7 @@ export async function getTeacherSubjects(teacherId: string): Promise<ClassWithTe
        sub.description,
        c.name  AS course_name,
        c.code  AS course_code,
+       st.permission_level,
        (SELECT STRING_AGG(u2.first_name || ' ' || u2.last_name, ', ' ORDER BY u2.first_name)
         FROM subject_teachers st2 JOIN users u2 ON u2.id = st2.teacher_id
         WHERE st2.subject_id = sub.id) AS teacher_name
@@ -87,11 +88,12 @@ export async function getTeacherSubjects(teacherId: string): Promise<ClassWithTe
   );
 
   return rows.map((r) => ({
-    id:          r.id,
-    title:       r.name,
-    code:        r.code,
-    description: r.description,
-    course_name: r.course_name,
+    id:               r.id,
+    title:            r.name,
+    code:             r.code,
+    description:      r.description,
+    course_name:      r.course_name,
+    permission_level: r.permission_level,
     course_code: r.course_code,
     teacher_name: r.teacher_name ?? 'Unassigned',
   }));

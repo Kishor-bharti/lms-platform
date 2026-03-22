@@ -25,7 +25,6 @@ export default function SubjectTeacher() {
   const navigate = useNavigate();
 
   const userRole = (window.localStorage.getItem('role') || '').toLowerCase();
-  const userId = (() => { try { return JSON.parse(window.localStorage.getItem('user') || '{}').id || null; } catch { return null; } })();
   const isAdmin = userRole === 'admin';
 
   const [tab,             setTab]             = useState('topics');
@@ -40,6 +39,13 @@ export default function SubjectTeacher() {
   const [deleteSessionModal,  setDeleteSessionModal]  = useState({ open: false, session: null });
   const [deleteAssignModal,   setDeleteAssignModal]   = useState({ open: false, assign: null });
   const [deleteMatModal,      setDeleteMatModal]      = useState({ open: false, mat: null });
+
+  // Assign content to students
+  const [assignContentModal,  setAssignContentModal]  = useState({ open: false, type: '', item: null });
+  const [assignContentIds,    setAssignContentIds]    = useState([]);   // selected student IDs
+  const [assignContentSaving, setAssignContentSaving] = useState(false);
+  const [assignContentError,  setAssignContentError]  = useState('');
+  const [contentAssignments,  setContentAssignments]  = useState([]); // all assignments for this subject
 
   // Session date navigation + filters (sessions tab)
   const [sessionDateStr,    setSessionDateStr]    = useState(getTodayLocalDateKey());
@@ -135,7 +141,7 @@ export default function SubjectTeacher() {
 
   const fetchData = async () => {
     try {
-      const [sessRes, classRes, quizRes, assignRes, matRes, topicsRes, studentsRes, teachersRes] = await Promise.all([
+      const [sessRes, classRes, quizRes, assignRes, matRes, topicsRes, studentsRes, teachersRes, caRes] = await Promise.all([
         http.get(withTimeZoneQuery('/api/classes/my-sessions-v2')),
         http.get('/api/classes/my-classes-v2'),
         http.get(`/api/quizzes/subject/${subjectId}`),
@@ -144,6 +150,7 @@ export default function SubjectTeacher() {
         http.get(`/api/subjects/${subjectId}/topics`),
         http.get(`/api/classes/subjects/${subjectId}/students`),
         http.get(`/api/classes/subjects/${subjectId}/teachers`),
+        http.get(`/api/content-assignments/subject/${subjectId}`).catch(() => ({ data: [] })),
       ]);
       setSessions((sessRes.data || []).filter((s) => s.subject_id === subjectId));
       const found = (classRes.data || []).find((c) => c.id === subjectId);
@@ -154,6 +161,7 @@ export default function SubjectTeacher() {
       setTopics(topicsRes.data || []);
       setSubjectStudents(studentsRes.data || []);
       setSubjectTeachers(teachersRes.data || []);
+      setContentAssignments(caRes.data || []);
       errorCount.current = 0;
     } catch (err) {
       console.error('[SubjectTeacher]', err);
@@ -324,13 +332,15 @@ export default function SubjectTeacher() {
     } catch (err) { alert(err?.response?.data?.error || 'Failed to delete assignment'); }
   };
 
-  const canEditItem = (item) => isAdmin || item.created_by === userId;
-  const canEditMaterial = (m) => isAdmin || m.uploaded_by === userId;
+  // Only admin can edit/delete content; write-permission teachers can create
+  const teacherPermission = subject?.permission_level; // 'read' | 'write' | undefined
+  const canCreate = isAdmin || teacherPermission === 'write';
+  const canEditMaterial = () => isAdmin;
+  const canEditQuiz = () => isAdmin;
 
-
-  const canEditQuiz = (quiz) => {
-    return isAdmin || quiz.created_by === userId;
-  };
+  // Helper: count how many students have a content item assigned
+  const assignedCount = (type, itemId) =>
+    contentAssignments.filter(a => a.content_type === type && a.content_id === itemId).length;
 
   const handleDeleteQuiz = async () => {
     if (!deleteQuizModal.quiz) return;
@@ -393,6 +403,46 @@ export default function SubjectTeacher() {
   const toggleAssignPublish = async (assignId, current) => {
     try {
       await http.patch(`/api/assignments/${assignId}/publish`, { is_published: !current });
+      fetchData();
+    } catch (err) { console.error(err); }
+  };
+
+  const toggleMaterialPublish = async (matId, current) => {
+    try {
+      await http.patch(`/api/materials/${matId}/publish`, { is_published: !current });
+      fetchData();
+    } catch (err) { console.error(err); }
+  };
+
+  const openAssignContentModal = (type, item) => {
+    setAssignContentModal({ open: true, type, item });
+    setAssignContentIds([]);
+    setAssignContentError('');
+  };
+
+  const handleAssignContent = async () => {
+    if (assignContentIds.length === 0) {
+      setAssignContentError('Select at least one student'); return;
+    }
+    setAssignContentSaving(true); setAssignContentError('');
+    try {
+      await http.post('/api/content-assignments', {
+        subjectId,
+        contentType: assignContentModal.type,
+        contentId:   assignContentModal.item.id,
+        studentIds:  assignContentIds,
+      });
+      setAssignContentModal({ open: false, type: '', item: null });
+      setAssignContentIds([]);
+      fetchData();
+    } catch (err) {
+      setAssignContentError(err?.response?.data?.error || 'Failed to assign');
+    } finally { setAssignContentSaving(false); }
+  };
+
+  const handleRevokeContentAssignment = async (assignmentId) => {
+    try {
+      await http.delete(`/api/content-assignments/${assignmentId}`);
       fetchData();
     } catch (err) { console.error(err); }
   };
@@ -525,14 +575,23 @@ export default function SubjectTeacher() {
                       <Badge color="light">{subject?.code}</Badge>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <Button color="success" size="sm" style={{ borderRadius: 8 }} onClick={() => setScheduleOpen(true)}>+ Session</Button>
-                    <Button color="primary" size="sm" style={{ borderRadius: 8 }}
-                      onClick={() => navigate('/admin/quiz-builder', { state: { subjectId, subjectName: subject?.title } })}>
-                      + Practice
-                    </Button>
-                    <Button color="warning" size="sm" style={{ borderRadius: 8 }} onClick={() => setAssignOpen(true)}>+ Assignment</Button>
-                    <Button color="secondary" size="sm" style={{ borderRadius: 8 }} onClick={() => setMatModalOpen(true)}>+ Material</Button>
+                    {canCreate && (
+                      <>
+                        <Button color="primary" size="sm" style={{ borderRadius: 8 }}
+                          onClick={() => navigate('/admin/quiz-builder', { state: { subjectId, subjectName: subject?.title } })}>
+                          + Practice
+                        </Button>
+                        <Button color="warning" size="sm" style={{ borderRadius: 8 }} onClick={() => setAssignOpen(true)}>+ Assignment</Button>
+                        <Button color="secondary" size="sm" style={{ borderRadius: 8 }} onClick={() => setMatModalOpen(true)}>+ Material</Button>
+                      </>
+                    )}
+                    {!isAdmin && (
+                      <span style={{ fontSize: 11, color: '#8898aa', alignSelf: 'center', fontWeight: 600 }}>
+                        {teacherPermission === 'write' ? '✏️ Write access' : '👁 Read-only access'}
+                      </span>
+                    )}
                   </div>
                 </div>
               </CardBody>
@@ -821,76 +880,100 @@ export default function SubjectTeacher() {
               <Card className="shadow" style={{ borderRadius: 12 }}>
                 <CardHeader style={{ background: '#eaf3ff', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
                   <div className="d-flex justify-content-between align-items-center">
-                    <CardTitle className="mb-0">Practice Sets</CardTitle>
-                    <Button color="primary" size="sm" style={{ borderRadius: 8 }}
-                      onClick={() => navigate('/admin/quiz-builder', { state: { subjectId, subjectName: subject?.title } })}>
-                      + Create Practice Set
-                    </Button>
+                    <CardTitle className="mb-0">Practice Sets &amp; Quizzes</CardTitle>
+                    {canCreate && (
+                      <Button color="primary" size="sm" style={{ borderRadius: 8 }}
+                        onClick={() => navigate('/admin/quiz-builder', { state: { subjectId, subjectName: subject?.title } })}>
+                        + Create Practice Set
+                      </Button>
+                    )}
                   </div>
                 </CardHeader>
                 <CardBody>
                   {quizzes.length === 0 ? (
                     <div className="text-center py-4">
-                      <p className="text-muted">No practice sets yet</p>
-                      <Button color="primary" size="sm"
-                        onClick={() => navigate('/admin/quiz-builder', { state: { subjectId, subjectName: subject?.title } })}>
-                        Create First Practice Set
-                      </Button>
+                      <p className="text-muted">No practice sets yet{canCreate ? '' : ' — contact admin to create content'}</p>
+                      {canCreate && (
+                        <Button color="primary" size="sm"
+                          onClick={() => navigate('/admin/quiz-builder', { state: { subjectId, subjectName: subject?.title } })}>
+                          Create First Practice Set
+                        </Button>
+                      )}
                     </div>
                   ) : (
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead>
                         <tr style={{ background: '#f8f9fa' }}>
-                          {['Title', 'Topic', 'Creator', 'Questions', 'Duration', 'Status', 'Actions'].map((h) => (
+                          {['Title', 'Topic', 'Type', 'Questions', 'Duration', 'Status', 'Assigned', 'Actions'].map((h) => (
                             <th key={h} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase' }}>{h}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
-                        {quizzes.map((q) => (
-                          <tr key={q.id} style={{ borderBottom: '1px solid #f0f4f8' }}>
-                            <td style={{ padding: '12px 14px', fontWeight: 600, color: '#32325d' }}>{q.title}</td>
-                            <td style={{ padding: '12px 14px' }}>
-                              {q.topic_name
-                                ? <span style={{ fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10 }}>📌 {q.topic_name}</span>
-                                : <span className="text-muted small">—</span>}
-                            </td>
-                            <td style={{ padding: '12px 14px', color: '#525f7f', fontSize: 12 }}>{q.creator_name || '—'}</td>
-                            <td style={{ padding: '12px 14px', color: '#525f7f' }}>{q.question_count}</td>
-                            <td style={{ padding: '12px 14px', color: '#525f7f' }}>{q.duration_minutes ? `${q.duration_minutes}m` : '∞'}</td>
-                            <td style={{ padding: '12px 14px' }}>
-                              <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
-                                background: q.is_published ? '#d4edda' : '#fff3cd',
-                                color: q.is_published ? '#155724' : '#856404' }}>
-                                {q.is_published ? 'Published' : 'Draft'}
-                              </span>
-                            </td>
-                            <td style={{ padding: '12px 14px' }}>
-                              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                                {canEditQuiz(q) && (
-                                  <Button size="sm" color="info" outline style={{ borderRadius: 20, fontSize: 11 }}
-                                    onClick={() => navigate('/admin/quiz-builder', {
-                                      state: { subjectId, subjectName: subject?.title, editQuizId: q.id }
-                                    })}>
-                                    Edit
-                                  </Button>
-                                )}
-                                {isAdmin && (
-                                  <Button size="sm" color={q.is_published ? 'warning' : 'success'} outline style={{ borderRadius: 20, fontSize: 11 }}
-                                    onClick={() => toggleQuizPublish(q.id, q.is_published)}>
-                                    {q.is_published ? 'Unpublish' : 'Publish'}
-                                  </Button>
-                                )}
-                                {isAdmin && (
-                                  <Button size="sm" color="danger" outline style={{ borderRadius: 20, fontSize: 11 }}
-                                    onClick={() => setDeleteQuizModal({ open: true, quiz: q })}>
-                                    Delete
-                                  </Button>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
+                        {quizzes.map((q) => {
+                          const aCount = assignedCount('quiz', q.id);
+                          return (
+                            <tr key={q.id} style={{ borderBottom: '1px solid #f0f4f8' }}>
+                              <td style={{ padding: '12px 14px', fontWeight: 600, color: '#32325d' }}>{q.title}</td>
+                              <td style={{ padding: '12px 14px' }}>
+                                {q.topic_name
+                                  ? <span style={{ fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10 }}>📌 {q.topic_name}</span>
+                                  : <span className="text-muted small">—</span>}
+                              </td>
+                              <td style={{ padding: '12px 14px' }}>
+                                <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 10,
+                                  background: q.quiz_type === 'test' ? '#fde8ec' : '#e3f9fc',
+                                  color: q.quiz_type === 'test' ? '#f5365c' : '#11cdef' }}>
+                                  {q.quiz_type}
+                                </span>
+                              </td>
+                              <td style={{ padding: '12px 14px', color: '#525f7f' }}>{q.question_count}</td>
+                              <td style={{ padding: '12px 14px', color: '#525f7f' }}>{q.duration_minutes ? `${q.duration_minutes}m` : '∞'}</td>
+                              <td style={{ padding: '12px 14px' }}>
+                                <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+                                  background: q.is_published ? '#d4edda' : '#fff3cd',
+                                  color: q.is_published ? '#155724' : '#856404' }}>
+                                  {q.is_published ? 'Published' : 'Draft'}
+                                </span>
+                              </td>
+                              <td style={{ padding: '12px 14px', color: '#525f7f', fontSize: 12 }}>
+                                {aCount > 0
+                                  ? <span style={{ fontWeight: 700, color: '#2dce89' }}>{aCount} student{aCount !== 1 ? 's' : ''}</span>
+                                  : <span className="text-muted">None</span>}
+                              </td>
+                              <td style={{ padding: '12px 14px' }}>
+                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                  {canEditQuiz() && (
+                                    <Button size="sm" color="info" outline style={{ borderRadius: 20, fontSize: 11 }}
+                                      onClick={() => navigate('/admin/quiz-builder', {
+                                        state: { subjectId, subjectName: subject?.title, editQuizId: q.id }
+                                      })}>
+                                      Edit
+                                    </Button>
+                                  )}
+                                  {isAdmin && (
+                                    <Button size="sm" color={q.is_published ? 'warning' : 'success'} outline style={{ borderRadius: 20, fontSize: 11 }}
+                                      onClick={() => toggleQuizPublish(q.id, q.is_published)}>
+                                      {q.is_published ? 'Unpublish' : 'Publish'}
+                                    </Button>
+                                  )}
+                                  {q.is_published && (
+                                    <Button size="sm" color="primary" outline style={{ borderRadius: 20, fontSize: 11 }}
+                                      onClick={() => openAssignContentModal('quiz', q)}>
+                                      Assign
+                                    </Button>
+                                  )}
+                                  {isAdmin && (
+                                    <Button size="sm" color="danger" outline style={{ borderRadius: 20, fontSize: 11 }}
+                                      onClick={() => setDeleteQuizModal({ open: true, quiz: q })}>
+                                      Delete
+                                    </Button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   )}
@@ -908,53 +991,78 @@ export default function SubjectTeacher() {
                 <CardHeader style={{ background: '#eaf3ff', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
                   <div className="d-flex justify-content-between align-items-center">
                     <CardTitle className="mb-0">Assignments</CardTitle>
-                    <Button color="warning" size="sm" style={{ borderRadius: 8 }} onClick={() => setAssignOpen(true)}>
-                      + Create Assignment
-                    </Button>
+                    {canCreate && (
+                      <Button color="warning" size="sm" style={{ borderRadius: 8 }} onClick={() => setAssignOpen(true)}>
+                        + Create Assignment
+                      </Button>
+                    )}
                   </div>
                 </CardHeader>
                 <CardBody>
                   {assignments.length === 0 ? (
                     <div className="text-center py-4">
-                      <p className="text-muted">No assignments yet</p>
-                      <Button color="warning" size="sm" onClick={() => setAssignOpen(true)}>Create First</Button>
+                      <p className="text-muted">No assignments yet{canCreate ? '' : ' — contact admin to create content'}</p>
+                      {canCreate && <Button color="warning" size="sm" onClick={() => setAssignOpen(true)}>Create First</Button>}
                     </div>
                   ) : (
                     <>
-                      {assignments.map((a) => (
-                        <div key={a.id} className="mb-3 p-3 bg-white border rounded" style={{ borderLeft: '3px solid #fb6340' }}>
-                          <div className="d-flex justify-content-between align-items-start flex-wrap" style={{ gap: 8 }}>
-                            <div>
-                              <strong style={{ color: '#32325d' }}>{a.title}</strong>
-                              {a.topic_name && (
-                                <span style={{ display: 'inline-block', marginLeft: 8, fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10 }}>📌 {a.topic_name}</span>
-                              )}
-                              {a.description && <p className="small text-muted mb-1 mt-1">{a.description}</p>}
-                              <div className="small text-muted">
-                                <span className="mr-3">Max points: {a.max_marks}</span>
-                                {a.due_date && <span>Due: {new Date(a.due_date).toLocaleDateString('en-US')}</span>}
-                                <span className="ml-3">Submissions: {a.submission_count || 0}</span>
+                      {assignments.map((a) => {
+                        const aCount = assignedCount('assignment', a.id);
+                        return (
+                          <div key={a.id} className="mb-3 p-3 bg-white border rounded" style={{ borderLeft: '3px solid #fb6340' }}>
+                            <div className="d-flex justify-content-between align-items-start flex-wrap" style={{ gap: 8 }}>
+                              <div>
+                                <div className="d-flex align-items-center flex-wrap" style={{ gap: 8 }}>
+                                  <strong style={{ color: '#32325d' }}>{a.title}</strong>
+                                  <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+                                    background: a.is_published ? '#d4edda' : '#fff3cd',
+                                    color: a.is_published ? '#155724' : '#856404' }}>
+                                    {a.is_published ? 'Published' : 'Draft'}
+                                  </span>
+                                  {aCount > 0 && (
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#2dce89' }}>
+                                      {aCount} student{aCount !== 1 ? 's' : ''} assigned
+                                    </span>
+                                  )}
+                                </div>
+                                {a.topic_name && (
+                                  <span style={{ display: 'inline-block', marginTop: 4, fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10 }}>📌 {a.topic_name}</span>
+                                )}
+                                {a.description && <p className="small text-muted mb-1 mt-1">{a.description}</p>}
+                                <div className="small text-muted mt-1">
+                                  <span className="mr-3">Max points: {a.max_marks}</span>
+                                  {a.due_date && <span>Due: {new Date(a.due_date).toLocaleDateString('en-US')}</span>}
+                                  <span className="ml-3">Submissions: {a.submission_count || 0}</span>
+                                </div>
+                              </div>
+                              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                <Button size="sm" color="info" outline style={{ borderRadius: 20, fontSize: 11 }}
+                                  onClick={() => loadSubmissions(a.id)}>
+                                  View Submissions
+                                </Button>
+                                {a.is_published && (
+                                  <Button size="sm" color="primary" outline style={{ borderRadius: 20, fontSize: 11 }}
+                                    onClick={() => openAssignContentModal('assignment', a)}>
+                                    Assign
+                                  </Button>
+                                )}
+                                {isAdmin && (
+                                  <Button size="sm" color={a.is_published ? 'warning' : 'success'} outline style={{ borderRadius: 20, fontSize: 11 }}
+                                    onClick={() => toggleAssignPublish(a.id, a.is_published)}>
+                                    {a.is_published ? 'Unpublish' : 'Publish'}
+                                  </Button>
+                                )}
+                                {isAdmin && (
+                                  <Button size="sm" color="danger" outline style={{ borderRadius: 20, fontSize: 11 }}
+                                    onClick={() => setDeleteAssignModal({ open: true, assign: a })}>
+                                    Delete
+                                  </Button>
+                                )}
                               </div>
                             </div>
-                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                              <Button size="sm" color="info" outline style={{ borderRadius: 20, fontSize: 11 }}
-                                onClick={() => loadSubmissions(a.id)}>
-                                View Submissions
-                              </Button>
-                              <Button size="sm" color={a.is_published ? 'warning' : 'success'} outline style={{ borderRadius: 20, fontSize: 11 }}
-                                onClick={() => toggleAssignPublish(a.id, a.is_published)}>
-                                {a.is_published ? 'Unpublish' : 'Publish'}
-                              </Button>
-                              {canEditItem(a) && (
-                                <Button size="sm" color="danger" outline style={{ borderRadius: 20, fontSize: 11 }}
-                                  onClick={() => setDeleteAssignModal({ open: true, assign: a })}>
-                                  Delete
-                                </Button>
-                              )}
-                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </>
                   )}
                 </CardBody>
@@ -1042,21 +1150,24 @@ export default function SubjectTeacher() {
                 <CardHeader style={{ background: '#eaf3ff', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
                   <div className="d-flex justify-content-between align-items-center">
                     <CardTitle className="mb-0">Study Materials</CardTitle>
-                    <Button color="secondary" size="sm" style={{ borderRadius: 8 }} onClick={() => setMatModalOpen(true)}>
-                      + Add Material
-                    </Button>
+                    {canCreate && (
+                      <Button color="secondary" size="sm" style={{ borderRadius: 8 }} onClick={() => setMatModalOpen(true)}>
+                        + Add Material
+                      </Button>
+                    )}
                   </div>
                 </CardHeader>
                 <CardBody>
                   {materials.length === 0 ? (
                     <div className="text-center py-4">
-                      <p className="text-muted">No materials yet. Add PDFs, videos, or links.</p>
-                      <Button color="secondary" size="sm" onClick={() => setMatModalOpen(true)}>Add First Material</Button>
+                      <p className="text-muted">No materials yet{canCreate ? '. Add PDFs, videos, or links.' : ' — contact admin to add content'}</p>
+                      {canCreate && <Button color="secondary" size="sm" onClick={() => setMatModalOpen(true)}>Add First Material</Button>}
                     </div>
                   ) : (
                     materials.map((m) => {
                       const typeIcon = { pdf: '📄', video: '🎥', link: '🔗', doc: '📝', image: '🖼' }[m.material_type] || '📁';
                       const typeColor = { pdf: '#f5365c', video: '#825ee4', link: '#5e72e4', doc: '#fb6340', image: '#2dce89' }[m.material_type] || '#8898aa';
+                      const mCount = assignedCount('material', m.id);
                       return (
                         <div key={m.id} className="d-flex align-items-center mb-3 p-3 bg-white border rounded" style={{ borderLeft: `3px solid ${typeColor}`, gap: 12 }}>
                           <div style={{ fontSize: 24, flexShrink: 0 }}>{typeIcon}</div>
@@ -1068,12 +1179,36 @@ export default function SubjectTeacher() {
                               {m.topic_name && (
                                 <span style={{ fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10 }}>📌 {m.topic_name}</span>
                               )}
+                              <span style={{ padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700,
+                                background: m.is_published ? '#d4edda' : '#fff3cd',
+                                color: m.is_published ? '#155724' : '#856404' }}>
+                                {m.is_published ? 'Published' : 'Draft'}
+                              </span>
+                              {mCount > 0 && (
+                                <span style={{ fontSize: 11, fontWeight: 700, color: '#2dce89' }}>
+                                  {mCount} student{mCount !== 1 ? 's' : ''} assigned
+                                </span>
+                              )}
                             </div>
                           </div>
-                          {canEditMaterial(m) && (
-                            <Button size="sm" color="danger" outline style={{ borderRadius: 20, fontSize: 11, flexShrink: 0 }}
-                              onClick={() => setDeleteMatModal({ open: true, mat: m })}>Remove</Button>
-                          )}
+                          <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap' }}>
+                            {m.is_published && (
+                              <Button size="sm" color="primary" outline style={{ borderRadius: 20, fontSize: 11 }}
+                                onClick={() => openAssignContentModal('material', m)}>
+                                Assign
+                              </Button>
+                            )}
+                            {isAdmin && (
+                              <Button size="sm" color={m.is_published ? 'warning' : 'success'} outline style={{ borderRadius: 20, fontSize: 11 }}
+                                onClick={() => toggleMaterialPublish(m.id, m.is_published)}>
+                                {m.is_published ? 'Unpublish' : 'Publish'}
+                              </Button>
+                            )}
+                            {canEditMaterial() && (
+                              <Button size="sm" color="danger" outline style={{ borderRadius: 20, fontSize: 11 }}
+                                onClick={() => setDeleteMatModal({ open: true, mat: m })}>Remove</Button>
+                            )}
+                          </div>
                         </div>
                       );
                     })
@@ -1516,6 +1651,85 @@ export default function SubjectTeacher() {
           <ModalFooter className="justify-content-center">
             <Button color="danger" onClick={handleDeleteMaterial}>Yes, Remove</Button>
             <Button color="secondary" outline onClick={() => setDeleteMatModal({ open: false, mat: null })}>Cancel</Button>
+          </ModalFooter>
+        </Modal>
+
+        {/* Assign Content to Students Modal */}
+        <Modal isOpen={assignContentModal.open} toggle={() => setAssignContentModal({ open: false, type: '', item: null })} centered>
+          <ModalHeader toggle={() => setAssignContentModal({ open: false, type: '', item: null })}
+            style={{ background: 'linear-gradient(135deg,#3b4a67,#5e72e4)', color: '#fff', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
+            Assign to Students
+          </ModalHeader>
+          <ModalBody style={{ background: '#f8fbff' }}>
+            {assignContentModal.item && (
+              <div style={{ marginBottom: 16, padding: '10px 14px', background: '#eef0fd', borderRadius: 10, border: '1px solid #d1d8f8' }}>
+                <div style={{ fontSize: 12, color: '#8898aa', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>{assignContentModal.type}</div>
+                <div style={{ fontWeight: 700, color: '#32325d' }}>{assignContentModal.item.title}</div>
+              </div>
+            )}
+            <div style={{ marginBottom: 10, fontWeight: 600, color: '#525f7f', fontSize: 13 }}>
+              Select students to assign this content:
+            </div>
+            {subjectStudents.length === 0 ? (
+              <p className="text-muted small text-center py-3">No students enrolled in this subject.</p>
+            ) : (
+              <div style={{ maxHeight: 240, overflowY: 'auto', border: '1px solid #e9ecef', borderRadius: 8, padding: 8, background: '#fff' }}>
+                <div style={{ marginBottom: 8 }}>
+                  <button type="button" onClick={() => setAssignContentIds(subjectStudents.map(s => s.id))}
+                    style={{ fontSize: 11, color: '#5e72e4', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 700, marginRight: 12 }}>
+                    Select All
+                  </button>
+                  <button type="button" onClick={() => setAssignContentIds([])}
+                    style={{ fontSize: 11, color: '#8898aa', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 700 }}>
+                    Clear
+                  </button>
+                </div>
+                {subjectStudents.map(s => {
+                  const alreadyAssigned = contentAssignments.some(
+                    a => a.content_type === assignContentModal.type && a.content_id === assignContentModal.item?.id && a.student_id === s.id
+                  );
+                  return (
+                    <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid #f0f4f8' }}>
+                      <input type="checkbox" id={`ca-${s.id}`}
+                        checked={assignContentIds.includes(s.id) || alreadyAssigned}
+                        disabled={alreadyAssigned}
+                        onChange={() => {
+                          if (alreadyAssigned) return;
+                          setAssignContentIds(prev =>
+                            prev.includes(s.id) ? prev.filter(x => x !== s.id) : [...prev, s.id]
+                          );
+                        }} />
+                      <label htmlFor={`ca-${s.id}`} style={{ margin: 0, cursor: alreadyAssigned ? 'default' : 'pointer', fontSize: 13, flex: 1 }}>
+                        {s.first_name} {s.last_name}
+                        <span style={{ color: '#8898aa', marginLeft: 6 }}>({s.email})</span>
+                      </label>
+                      {alreadyAssigned && (() => {
+                        const ca = contentAssignments.find(
+                          a => a.content_type === assignContentModal.type && a.content_id === assignContentModal.item?.id && a.student_id === s.id
+                        );
+                        return ca ? (
+                          <button type="button" onClick={() => handleRevokeContentAssignment(ca.id)}
+                            style={{ fontSize: 10, color: '#f5365c', fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                            title="Revoke assignment">
+                            Revoke
+                          </button>
+                        ) : (
+                          <span style={{ fontSize: 10, color: '#2dce89', fontWeight: 700 }}>Assigned</span>
+                        );
+                      })()}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {assignContentError && <p className="text-danger small mt-2 mb-0">{assignContentError}</p>}
+          </ModalBody>
+          <ModalFooter style={{ background: '#f8fbff' }}>
+            <Button color="primary" disabled={assignContentSaving || assignContentIds.length === 0}
+              onClick={handleAssignContent}>
+              {assignContentSaving ? 'Assigning...' : `Assign to ${assignContentIds.length} student${assignContentIds.length !== 1 ? 's' : ''}`}
+            </Button>
+            <Button color="link" onClick={() => setAssignContentModal({ open: false, type: '', item: null })}>Cancel</Button>
           </ModalFooter>
         </Modal>
 

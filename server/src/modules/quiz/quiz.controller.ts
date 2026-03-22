@@ -2,15 +2,17 @@ import { Request, Response } from 'express';
 import logger from '../../config/logger';
 import { query } from '../../config/db';
 import * as quizService from './quiz.service';
+import { hasContentWritePermission } from '../../utils/permissions';
 
 export async function getQuizzesBySubject(req: Request, res: Response) {
   try {
     const { subjectId } = req.params;
     const role = req.user?.role ?? 'student';
+    const userId = req.user?.id;
     if (!subjectId) {
       return res.status(400).json({ error: 'subjectId is required' });
     }
-    const quizzes = await quizService.getQuizzesBySubject(subjectId, role);
+    const quizzes = await quizService.getQuizzesBySubject(subjectId, role, userId);
     return res.json(quizzes);
   } catch (err) {
     logger.error('[quiz] getQuizzesBySubject:', err);
@@ -38,10 +40,14 @@ export async function createQuiz(req: Request, res: Response) {
   try {
     const userId = req.user!.id;
     const role = req.user!.role;
-    if (role !== 'teacher' && role !== 'admin') {
-      return res.status(403).json({ error: 'Only teachers can create quizzes' });
-    }
     const { subjectId, courseId, topicId, title, quiz_type, description, duration_minutes, max_attempts, questions } = req.body;
+
+    // Admin always allowed; teachers need write permission on the subject
+    const canCreate = await hasContentWritePermission(userId, role, subjectId ?? courseId ?? '');
+    if (!canCreate) {
+      return res.status(403).json({ error: 'Insufficient permissions to create quizzes in this subject' });
+    }
+
     const quiz = await quizService.createQuiz({
       subjectId, courseId, topicId, createdBy: userId, title, quiz_type, description,
       duration_minutes, max_attempts, questions: questions ?? [],
@@ -85,8 +91,8 @@ export async function startAttempt(req: Request, res: Response) {
     const result = await quizService.startAttempt(quizId, studentId);
     return res.status(201).json(result);
   } catch (err: any) {
-    if (err.message === 'NOT_ENROLLED') {
-      return res.status(403).json({ error: 'Not enrolled in this subject' });
+    if (err.message === 'NOT_ASSIGNED') {
+      return res.status(403).json({ error: 'This quiz has not been assigned to you' });
     }
     if (err.message === 'QUIZ_NOT_FOUND') {
       return res.status(404).json({ error: 'Quiz not found' });
@@ -161,19 +167,10 @@ export async function updateQuiz(req: Request, res: Response) {
     const { quizId } = req.params;
     const userId = req.user!.id;
     const role = req.user!.role;
-    if (role !== 'teacher' && role !== 'admin') {
-      return res.status(403).json({ error: 'Only teachers can edit quizzes' });
-    }
 
-    // Ownership check (skip for admin)
-    if (role === 'teacher') {
-      const owned = await query<any>(
-        `SELECT id FROM quizzes WHERE id = $1 AND created_by = $2`,
-        [quizId, userId]
-      );
-      if (!owned[0]) {
-        return res.status(403).json({ error: 'You do not own this quiz' });
-      }
+    // Only admin can edit quizzes
+    if (role !== 'admin') {
+      return res.status(403).json({ error: 'Only admins can edit quizzes' });
     }
 
     const { topicId, title, quiz_type, description, duration_minutes, max_attempts, questions } = req.body;

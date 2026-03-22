@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import logger from '../../config/logger';
 import * as assignmentService from './assignment.service';
+import { hasContentWritePermission } from '../../utils/permissions';
 
 export async function getAssignmentsBySubject(req: Request, res: Response) {
   try {
@@ -26,12 +27,13 @@ export async function createAssignment(req: Request, res: Response) {
   try {
     const userId = req.user!.id;
     const role = req.user!.role;
-    if (role !== 'teacher' && role !== 'admin') {
-      return res.status(403).json({ error: 'Only teachers can create assignments' });
-    }
     const { subjectId, title, description, due_date, max_marks, attachment_url, topicId, assignedTo } = req.body;
     if (!subjectId || !title) {
       return res.status(400).json({ error: 'subjectId and title are required' });
+    }
+    const canCreate = await hasContentWritePermission(userId, role, subjectId);
+    if (!canCreate) {
+      return res.status(403).json({ error: 'Insufficient permissions to create assignments in this subject' });
     }
     const assignment = await assignmentService.createAssignment({
       subjectId, createdBy: userId, title, description, due_date, max_marks, attachment_url, topicId,
@@ -55,8 +57,8 @@ export async function publishAssignment(req: Request, res: Response) {
     }
     const { is_published } = req.body;
     const role = req.user!.role;
-    if (role !== 'teacher' && role !== 'admin') {
-      return res.status(403).json({ error: 'Only teachers can publish assignments' });
+    if (role !== 'admin') {
+      return res.status(403).json({ error: 'Only admins can publish assignments' });
     }
     await assignmentService.setAssignmentPublished(assignmentId, Boolean(is_published));
     return res.json({ success: true });
@@ -134,8 +136,8 @@ export async function deleteAssignment(req: Request, res: Response) {
     const assignmentId = req.params.assignmentId as string;
     const requesterId = req.user!.id as string;
     const role = req.user!.role;
-    if (role !== 'teacher' && role !== 'admin') {
-      return res.status(403).json({ error: 'Only teachers and admins can delete assignments' });
+    if (role !== 'admin') {
+      return res.status(403).json({ error: 'Only admins can delete assignments' });
     }
     await assignmentService.deleteAssignment(assignmentId, requesterId);
     return res.json({ success: true });

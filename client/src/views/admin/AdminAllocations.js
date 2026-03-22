@@ -44,6 +44,9 @@ export default function AdminAllocations() {
   const [removeModal, setRemoveModal] = useState({ open: false, teacherId: '', teacherName: '', studentId: '', studentName: '' });
   const [removing,    setRemoving]    = useState(false);
 
+  // Permission level toggle
+  const [permissionSaving, setPermissionSaving] = useState(null); // teacherId while saving
+
   /* fetch courses + all subjects once */
   useEffect(() => {
     setSubjectsLoading(true);
@@ -151,6 +154,19 @@ export default function AdminAllocations() {
 
   const openRemoveModal = (teacherId, teacherName, studentId, studentName) => {
     setRemoveModal({ open: true, teacherId, teacherName, studentId, studentName });
+  };
+
+  const togglePermission = async (teacherId, currentLevel) => {
+    const newLevel = currentLevel === 'write' ? 'read' : 'write';
+    setPermissionSaving(teacherId);
+    try {
+      await http.patch(`/api/admin/subjects/${selectedSubject}/teachers/${teacherId}/permission`, { permissionLevel: newLevel });
+      setAllocations(prev => prev.map(a => a.teacher_id === teacherId ? { ...a, permission_level: newLevel } : a));
+    } catch (err) {
+      console.error('[togglePermission]', err);
+    } finally {
+      setPermissionSaving(null);
+    }
   };
 
   const handleRemove = async () => {
@@ -349,6 +365,15 @@ export default function AdminAllocations() {
                           <div style={{ textAlign: 'right', flexShrink: 0 }}>
                             <div style={{ fontWeight: 800, fontSize: 20, color, lineHeight: 1 }}>{allocated}</div>
                             <div style={{ fontSize: 10, color: '#8898aa', fontWeight: 600 }}>allocated</div>
+                            <div style={{ marginTop: 4 }}>
+                              <span style={{
+                                fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 10,
+                                background: teacher.permission_level === 'write' ? '#d4edda' : '#fff3cd',
+                                color: teacher.permission_level === 'write' ? '#155724' : '#856404',
+                              }}>
+                                {teacher.permission_level === 'write' ? 'Write' : 'Read-only'}
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -424,8 +449,8 @@ export default function AdminAllocations() {
                           )}
                         </div>
 
-                        {/* Assign button */}
-                        <div className="mt-3">
+                        {/* Actions: Assign + Permission toggle */}
+                        <div className="mt-3 d-flex flex-wrap align-items-center" style={{ gap: 8 }}>
                           <Button
                             size="sm"
                             onClick={() => openAddModal(teacher.teacher_id, teacher.teacher_name)}
@@ -438,8 +463,21 @@ export default function AdminAllocations() {
                           >
                             + Assign Student
                           </Button>
+                          <Button
+                            size="sm"
+                            outline
+                            color={teacher.permission_level === 'write' ? 'warning' : 'success'}
+                            disabled={permissionSaving === teacher.teacher_id}
+                            onClick={() => togglePermission(teacher.teacher_id, teacher.permission_level)}
+                            style={{ borderRadius: 20, fontWeight: 700, fontSize: 11, padding: '4px 12px' }}
+                            title={teacher.permission_level === 'write' ? 'Revoke write access' : 'Grant write access'}
+                          >
+                            {permissionSaving === teacher.teacher_id
+                              ? '...'
+                              : teacher.permission_level === 'write' ? 'Make Read-only' : 'Grant Write'}
+                          </Button>
                           {unallocated > 0 && (
-                            <span style={{ marginLeft: 8, fontSize: 11, color: '#8898aa' }}>
+                            <span style={{ fontSize: 11, color: '#8898aa' }}>
                               {unallocated} available
                             </span>
                           )}

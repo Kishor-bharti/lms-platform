@@ -61,6 +61,10 @@ export async function getAssignmentsBySubject(
 }
 
 // ---- Student: get assignments with my submission status ----
+// Visibility: student sees an assignment if:
+//   (a) a teacher has explicitly assigned it via student_content_assignments, OR
+//   (b) legacy: assignment.assigned_to IS NULL (all enrolled students), OR
+//   (c) legacy: assignment.assigned_to = this student
 
 export async function getStudentAssignments(
   subjectId: string,
@@ -80,7 +84,14 @@ export async function getStudentAssignments(
     LEFT JOIN topics t ON t.id = a.topic_id
     WHERE a.subject_id = $1
       AND a.is_published = true
-      AND (a.assigned_to IS NULL OR a.assigned_to = $2)
+      AND (
+        EXISTS (
+          SELECT 1 FROM student_content_assignments
+          WHERE content_type = 'assignment' AND content_id = a.id AND student_id = $2
+        )
+        OR a.assigned_to IS NULL
+        OR a.assigned_to = $2
+      )
     ORDER BY a.due_date ASC NULLS LAST
   `, [subjectId, studentId]);
 

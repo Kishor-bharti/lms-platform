@@ -82,7 +82,7 @@ export default function SubjectStudent() {
       setSessions((sessRes.data || []).filter((s) => s.subject_id === subjectId));
       const found = (classRes.data || []).find((c) => c.id === subjectId);
       if (found) setSubject(found);
-      setQuizzes((quizRes.data || []).filter((q) => q.is_published));
+      setQuizzes(quizRes.data || []);
       setAssignments(assignRes.data || []);
       setMaterials(matRes.data || []);
       setTopics(topicsRes.data || []);

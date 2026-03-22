@@ -14,25 +14,58 @@ export interface Material {
   file_size_kb: number | null;
   order_index: number;
   is_active: boolean;
+  is_published: boolean;
   created_at: string;
 }
 
-export async function getMaterials(subjectId: string): Promise<Material[]> {
+// ---- Get materials (role-filtered) ----
+// admin: all active materials (published + draft)
+// teacher: published only
+// student: only materials assigned via student_content_assignments
+
+export async function getMaterials(
+  subjectId: string,
+  role: string = 'teacher',
+  userId?: string
+): Promise<Material[]> {
+  const params: any[] = [subjectId];
+  let roleFilter = '';
+
+  if (role === 'student') {
+    if (!userId) return [];
+    params.push(userId);
+    roleFilter = `AND sm.id IN (
+      SELECT content_id FROM student_content_assignments
+      WHERE content_type = 'material' AND student_id = $2 AND subject_id = $1
+    )`;
+  } else if (role === 'teacher') {
+    roleFilter = 'AND sm.is_published = true';
+  }
+  // admin: no extra filter
+
   const rows = await query<any>(`
     SELECT
       sm.id, sm.subject_id, sm.topic_id, t.name AS topic_name,
       sm.uploaded_by,
       u.first_name || ' ' || u.last_name AS uploader_name,
       sm.title, sm.description, sm.material_type,
-      sm.file_url, sm.file_size_kb, sm.order_index, sm.is_active, sm.created_at
+      sm.file_url, sm.file_size_kb, sm.order_index, sm.is_active, sm.is_published, sm.created_at
     FROM subject_materials sm
     JOIN users u ON u.id = sm.uploaded_by
     LEFT JOIN topics t ON t.id = sm.topic_id
     WHERE sm.subject_id = $1 AND sm.is_active = true
+    ${roleFilter}
     ORDER BY sm.order_index, sm.created_at
-  `, [subjectId]);
+  `, params);
 
   return rows;
+}
+
+export async function publishMaterial(materialId: string, published: boolean): Promise<void> {
+  await query(
+    `UPDATE subject_materials SET is_published = $1, updated_at = now() WHERE id = $2`,
+    [published, materialId]
+  );
 }
 
 export async function addMaterial(data: {
