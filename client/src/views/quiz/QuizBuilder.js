@@ -25,15 +25,17 @@ const BLANK_QUESTION = (idx) => ({
 export default function QuizBuilder() {
   const navigate  = useNavigate();
   const location  = useLocation();
-  const subjectId   = location.state?.subjectId;
-  const subjectName = location.state?.subjectName;
-  const editQuizId  = location.state?.editQuizId; // present only in edit mode
+  const subjectId    = location.state?.subjectId;
+  const subjectName  = location.state?.subjectName;
+  const editQuizId   = location.state?.editQuizId; // present only in edit mode
   const courseId     = location.state?.courseId;
-  const courseName  = location.state?.courseName;
+  const courseName   = location.state?.courseName;
   const isCourseQuiz = location.state?.isCourseQuiz;
 
   const userRole = (window.localStorage.getItem('role') || '').toLowerCase();
   const isAdmin  = userRole === 'admin';
+  // teacherEditMode: teacher with write-permission editing — no delete questions, save as draft only
+  const teacherEditMode = !isAdmin && !!editQuizId;
 
   const [meta, setMeta] = useState({
     title: '',
@@ -306,11 +308,16 @@ export default function QuizBuilder() {
                   </h3>
                   {subjectName && <small className="text-muted">for {subjectName}</small>}
                   {isCourseQuiz && courseName && <small className="text-muted">for {courseName}</small>}
+                  {teacherEditMode && (
+                    <div style={{ marginTop: 6, padding: '4px 12px', background: '#fff3cd', borderRadius: 8, fontSize: 12, color: '#856404', fontWeight: 600, display: 'inline-block' }}>
+                      ✏️ Teacher edit mode — saves as draft for admin review
+                    </div>
+                  )}
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <Button color="secondary" outline style={{ borderRadius: 8 }} onClick={() => navigate(-1)}>Cancel</Button>
                   <Button color="primary"  style={{ borderRadius: 8 }} disabled={saving} onClick={() => handleSave(false)}>
-                    {saving ? 'Saving...' : 'Save Draft'}
+                    {saving ? 'Saving...' : teacherEditMode ? 'Save Draft (Admin Review)' : 'Save Draft'}
                   </Button>
                   {isAdmin && (
                     <Button color="success" style={{ borderRadius: 8 }} disabled={saving} onClick={() => handleSave(true)}>
@@ -430,7 +437,7 @@ export default function QuizBuilder() {
                       <Input type="number" bsSize="sm" value={q.marks} min={0.5} step={0.5} style={{ width: 70 }}
                         onChange={(e) => updateQuestion(qi, 'marks', Number(e.target.value))}
                         title="Points" />
-                      {questions.length > 1 && (
+                      {questions.length > 1 && !teacherEditMode && (
                         <Button size="sm" color="danger" outline style={{ borderRadius: 20, padding: '2px 10px' }}
                           onClick={() => removeQuestion(qi)}>Remove</Button>
                       )}

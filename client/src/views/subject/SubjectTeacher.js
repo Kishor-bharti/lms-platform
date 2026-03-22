@@ -47,6 +47,13 @@ export default function SubjectTeacher() {
   const [assignContentError,  setAssignContentError]  = useState('');
   const [contentAssignments,  setContentAssignments]  = useState([]); // all assignments for this subject
 
+  // Teacher permissions modal (admin: manage read/write per teacher for this subject)
+  const [permissionsModal,  setPermissionsModal]  = useState({ open: false, item: null, type: '' });
+  const [permissionsSaving, setPermissionsSaving] = useState({}); // { [teacherId]: bool }
+
+  // Assignment detail popup (Assigned By / Assigned To drill-down)
+  const [detailModal, setDetailModal] = useState({ open: false, field: '', contentType: '', itemId: '', itemTitle: '' });
+
   // Session date navigation + filters (sessions tab)
   const [sessionDateStr,    setSessionDateStr]    = useState(getTodayLocalDateKey());
   const [sessStatusFilter,  setSessStatusFilter]  = useState('all');
@@ -332,15 +339,36 @@ export default function SubjectTeacher() {
     } catch (err) { alert(err?.response?.data?.error || 'Failed to delete assignment'); }
   };
 
-  // Only admin can edit/delete content; write-permission teachers can create
+  // Only admin can edit/delete content; write-permission teachers can create/edit
   const teacherPermission = subject?.permission_level; // 'read' | 'write' | undefined
-  const canCreate = isAdmin || teacherPermission === 'write';
+  const canCreate   = isAdmin || teacherPermission === 'write';
+  const canEditQuiz = () => isAdmin || teacherPermission === 'write';
   const canEditMaterial = () => isAdmin;
-  const canEditQuiz = () => isAdmin;
 
   // Helper: count how many students have a content item assigned
   const assignedCount = (type, itemId) =>
     contentAssignments.filter(a => a.content_type === type && a.content_id === itemId).length;
+
+  // Helper: count distinct assigners for a content item
+  const assignedByCount = (type, itemId) =>
+    new Set(contentAssignments.filter(a => a.content_type === type && a.content_id === itemId).map(a => a.assigned_by)).size;
+
+  // Get all assignment rows for a detail popup
+  const getItemAssignments = (type, itemId) =>
+    contentAssignments.filter(a => a.content_type === type && a.content_id === itemId);
+
+  // Set permission level for a teacher on this subject
+  const handleSetTeacherPermission = async (teacherId, level) => {
+    setPermissionsSaving(prev => ({ ...prev, [teacherId]: true }));
+    try {
+      await http.patch(`/api/admin/subjects/${subjectId}/teachers/${teacherId}/permission`, { permissionLevel: level });
+      fetchData();
+    } catch (err) {
+      console.error('[permission]', err);
+    } finally {
+      setPermissionsSaving(prev => ({ ...prev, [teacherId]: false }));
+    }
+  };
 
   const handleDeleteQuiz = async () => {
     if (!deleteQuizModal.quiz) return;
@@ -904,14 +932,15 @@ export default function SubjectTeacher() {
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead>
                         <tr style={{ background: '#f8f9fa' }}>
-                          {['Title', 'Topic', 'Type', 'Questions', 'Duration', 'Status', 'Assigned', 'Actions'].map((h) => (
-                            <th key={h} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase' }}>{h}</th>
+                          {['Title', 'Topic', 'Type', 'Questions', 'Duration', 'Status', 'Assigned By', 'Assigned To', 'Actions'].map((h) => (
+                            <th key={h} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
                         {quizzes.map((q) => {
-                          const aCount = assignedCount('quiz', q.id);
+                          const aTo  = assignedCount('quiz', q.id);
+                          const aBy  = assignedByCount('quiz', q.id);
                           return (
                             <tr key={q.id} style={{ borderBottom: '1px solid #f0f4f8' }}>
                               <td style={{ padding: '12px 14px', fontWeight: 600, color: '#32325d' }}>{q.title}</td>
@@ -936,10 +965,21 @@ export default function SubjectTeacher() {
                                   {q.is_published ? 'Published' : 'Draft'}
                                 </span>
                               </td>
-                              <td style={{ padding: '12px 14px', color: '#525f7f', fontSize: 12 }}>
-                                {aCount > 0
-                                  ? <span style={{ fontWeight: 700, color: '#2dce89' }}>{aCount} student{aCount !== 1 ? 's' : ''}</span>
-                                  : <span className="text-muted">None</span>}
+                              <td style={{ padding: '12px 14px' }}>
+                                {aBy > 0
+                                  ? <button type="button" onClick={() => setDetailModal({ open: true, field: 'by', contentType: 'quiz', itemId: q.id, itemTitle: q.title })}
+                                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#5e72e4', fontWeight: 700, fontSize: 13 }}>
+                                      {aBy} teacher{aBy !== 1 ? 's' : ''}
+                                    </button>
+                                  : <span className="text-muted small">—</span>}
+                              </td>
+                              <td style={{ padding: '12px 14px' }}>
+                                {aTo > 0
+                                  ? <button type="button" onClick={() => setDetailModal({ open: true, field: 'to', contentType: 'quiz', itemId: q.id, itemTitle: q.title })}
+                                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#2dce89', fontWeight: 700, fontSize: 13 }}>
+                                      {aTo} student{aTo !== 1 ? 's' : ''}
+                                    </button>
+                                  : <span className="text-muted small">—</span>}
                               </td>
                               <td style={{ padding: '12px 14px' }}>
                                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -961,6 +1001,12 @@ export default function SubjectTeacher() {
                                     <Button size="sm" color="primary" outline style={{ borderRadius: 20, fontSize: 11 }}
                                       onClick={() => openAssignContentModal('quiz', q)}>
                                       Assign
+                                    </Button>
+                                  )}
+                                  {isAdmin && (
+                                    <Button size="sm" color="secondary" outline style={{ borderRadius: 20, fontSize: 11 }}
+                                      onClick={() => setPermissionsModal({ open: true, item: q, type: 'quiz' })}>
+                                      Permissions
                                     </Button>
                                   )}
                                   {isAdmin && (
@@ -1005,65 +1051,95 @@ export default function SubjectTeacher() {
                       {canCreate && <Button color="warning" size="sm" onClick={() => setAssignOpen(true)}>Create First</Button>}
                     </div>
                   ) : (
-                    <>
-                      {assignments.map((a) => {
-                        const aCount = assignedCount('assignment', a.id);
-                        return (
-                          <div key={a.id} className="mb-3 p-3 bg-white border rounded" style={{ borderLeft: '3px solid #fb6340' }}>
-                            <div className="d-flex justify-content-between align-items-start flex-wrap" style={{ gap: 8 }}>
-                              <div>
-                                <div className="d-flex align-items-center flex-wrap" style={{ gap: 8 }}>
-                                  <strong style={{ color: '#32325d' }}>{a.title}</strong>
-                                  <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700,
-                                    background: a.is_published ? '#d4edda' : '#fff3cd',
-                                    color: a.is_published ? '#155724' : '#856404' }}>
-                                    {a.is_published ? 'Published' : 'Draft'}
-                                  </span>
-                                  {aCount > 0 && (
-                                    <span style={{ fontSize: 11, fontWeight: 700, color: '#2dce89' }}>
-                                      {aCount} student{aCount !== 1 ? 's' : ''} assigned
-                                    </span>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ background: '#f8f9fa' }}>
+                          {['Title', 'Topic', 'Due Date', 'Points', 'Status', 'Submissions', 'Assigned By', 'Assigned To', 'Actions'].map(h => (
+                            <th key={h} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {assignments.map((a) => {
+                          const aTo = assignedCount('assignment', a.id);
+                          const aBy = assignedByCount('assignment', a.id);
+                          return (
+                            <tr key={a.id} style={{ borderBottom: '1px solid #f0f4f8' }}>
+                              <td style={{ padding: '12px 14px', fontWeight: 600, color: '#32325d' }}>
+                                {a.title}
+                                {a.description && <div className="small text-muted mt-1">{a.description}</div>}
+                              </td>
+                              <td style={{ padding: '12px 14px' }}>
+                                {a.topic_name
+                                  ? <span style={{ fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10 }}>📌 {a.topic_name}</span>
+                                  : <span className="text-muted small">—</span>}
+                              </td>
+                              <td style={{ padding: '12px 14px', color: '#525f7f', fontSize: 12, whiteSpace: 'nowrap' }}>
+                                {a.due_date ? new Date(a.due_date).toLocaleDateString('en-US') : '—'}
+                              </td>
+                              <td style={{ padding: '12px 14px', color: '#525f7f' }}>{a.max_marks}</td>
+                              <td style={{ padding: '12px 14px' }}>
+                                <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+                                  background: a.is_published ? '#d4edda' : '#fff3cd',
+                                  color: a.is_published ? '#155724' : '#856404' }}>
+                                  {a.is_published ? 'Published' : 'Draft'}
+                                </span>
+                              </td>
+                              <td style={{ padding: '12px 14px', color: '#525f7f' }}>
+                                <button type="button" onClick={() => loadSubmissions(a.id)}
+                                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#fb6340', fontWeight: 700, fontSize: 13 }}>
+                                  {a.submission_count || 0}
+                                </button>
+                              </td>
+                              <td style={{ padding: '12px 14px' }}>
+                                {aBy > 0
+                                  ? <button type="button" onClick={() => setDetailModal({ open: true, field: 'by', contentType: 'assignment', itemId: a.id, itemTitle: a.title })}
+                                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#5e72e4', fontWeight: 700, fontSize: 13 }}>
+                                      {aBy} teacher{aBy !== 1 ? 's' : ''}
+                                    </button>
+                                  : <span className="text-muted small">—</span>}
+                              </td>
+                              <td style={{ padding: '12px 14px' }}>
+                                {aTo > 0
+                                  ? <button type="button" onClick={() => setDetailModal({ open: true, field: 'to', contentType: 'assignment', itemId: a.id, itemTitle: a.title })}
+                                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#2dce89', fontWeight: 700, fontSize: 13 }}>
+                                      {aTo} student{aTo !== 1 ? 's' : ''}
+                                    </button>
+                                  : <span className="text-muted small">—</span>}
+                              </td>
+                              <td style={{ padding: '12px 14px' }}>
+                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                  {a.is_published && (
+                                    <Button size="sm" color="primary" outline style={{ borderRadius: 20, fontSize: 11 }}
+                                      onClick={() => openAssignContentModal('assignment', a)}>
+                                      Assign
+                                    </Button>
+                                  )}
+                                  {isAdmin && (
+                                    <Button size="sm" color="secondary" outline style={{ borderRadius: 20, fontSize: 11 }}
+                                      onClick={() => setPermissionsModal({ open: true, item: a, type: 'assignment' })}>
+                                      Permissions
+                                    </Button>
+                                  )}
+                                  {isAdmin && (
+                                    <Button size="sm" color={a.is_published ? 'warning' : 'success'} outline style={{ borderRadius: 20, fontSize: 11 }}
+                                      onClick={() => toggleAssignPublish(a.id, a.is_published)}>
+                                      {a.is_published ? 'Unpublish' : 'Publish'}
+                                    </Button>
+                                  )}
+                                  {isAdmin && (
+                                    <Button size="sm" color="danger" outline style={{ borderRadius: 20, fontSize: 11 }}
+                                      onClick={() => setDeleteAssignModal({ open: true, assign: a })}>
+                                      Delete
+                                    </Button>
                                   )}
                                 </div>
-                                {a.topic_name && (
-                                  <span style={{ display: 'inline-block', marginTop: 4, fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10 }}>📌 {a.topic_name}</span>
-                                )}
-                                {a.description && <p className="small text-muted mb-1 mt-1">{a.description}</p>}
-                                <div className="small text-muted mt-1">
-                                  <span className="mr-3">Max points: {a.max_marks}</span>
-                                  {a.due_date && <span>Due: {new Date(a.due_date).toLocaleDateString('en-US')}</span>}
-                                  <span className="ml-3">Submissions: {a.submission_count || 0}</span>
-                                </div>
-                              </div>
-                              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                                <Button size="sm" color="info" outline style={{ borderRadius: 20, fontSize: 11 }}
-                                  onClick={() => loadSubmissions(a.id)}>
-                                  View Submissions
-                                </Button>
-                                {a.is_published && (
-                                  <Button size="sm" color="primary" outline style={{ borderRadius: 20, fontSize: 11 }}
-                                    onClick={() => openAssignContentModal('assignment', a)}>
-                                    Assign
-                                  </Button>
-                                )}
-                                {isAdmin && (
-                                  <Button size="sm" color={a.is_published ? 'warning' : 'success'} outline style={{ borderRadius: 20, fontSize: 11 }}
-                                    onClick={() => toggleAssignPublish(a.id, a.is_published)}>
-                                    {a.is_published ? 'Unpublish' : 'Publish'}
-                                  </Button>
-                                )}
-                                {isAdmin && (
-                                  <Button size="sm" color="danger" outline style={{ borderRadius: 20, fontSize: 11 }}
-                                    onClick={() => setDeleteAssignModal({ open: true, assign: a })}>
-                                    Delete
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   )}
                 </CardBody>
               </Card>
@@ -1164,54 +1240,90 @@ export default function SubjectTeacher() {
                       {canCreate && <Button color="secondary" size="sm" onClick={() => setMatModalOpen(true)}>Add First Material</Button>}
                     </div>
                   ) : (
-                    materials.map((m) => {
-                      const typeIcon = { pdf: '📄', video: '🎥', link: '🔗', doc: '📝', image: '🖼' }[m.material_type] || '📁';
-                      const typeColor = { pdf: '#f5365c', video: '#825ee4', link: '#5e72e4', doc: '#fb6340', image: '#2dce89' }[m.material_type] || '#8898aa';
-                      const mCount = assignedCount('material', m.id);
-                      return (
-                        <div key={m.id} className="d-flex align-items-center mb-3 p-3 bg-white border rounded" style={{ borderLeft: `3px solid ${typeColor}`, gap: 12 }}>
-                          <div style={{ fontSize: 24, flexShrink: 0 }}>{typeIcon}</div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <a href={m.file_url} target="_blank" rel="noreferrer" style={{ fontWeight: 700, color: '#32325d', display: 'block' }}>{m.title}</a>
-                            {m.description && <p className="small text-muted mb-0 mt-1">{m.description}</p>}
-                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4, alignItems: 'center' }}>
-                              <span style={{ fontSize: 10, color: typeColor, fontWeight: 700, textTransform: 'uppercase', background: typeColor + '20', padding: '2px 8px', borderRadius: 10 }}>{m.material_type}</span>
-                              {m.topic_name && (
-                                <span style={{ fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10 }}>📌 {m.topic_name}</span>
-                              )}
-                              <span style={{ padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700,
-                                background: m.is_published ? '#d4edda' : '#fff3cd',
-                                color: m.is_published ? '#155724' : '#856404' }}>
-                                {m.is_published ? 'Published' : 'Draft'}
-                              </span>
-                              {mCount > 0 && (
-                                <span style={{ fontSize: 11, fontWeight: 700, color: '#2dce89' }}>
-                                  {mCount} student{mCount !== 1 ? 's' : ''} assigned
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ background: '#f8f9fa' }}>
+                          {['Title', 'Type', 'Topic', 'Status', 'Assigned By', 'Assigned To', 'Actions'].map(h => (
+                            <th key={h} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {materials.map((m) => {
+                          const typeIcon  = { pdf: '📄', video: '🎥', link: '🔗', doc: '📝', image: '🖼' }[m.material_type] || '📁';
+                          const typeColor = { pdf: '#f5365c', video: '#825ee4', link: '#5e72e4', doc: '#fb6340', image: '#2dce89' }[m.material_type] || '#8898aa';
+                          const mTo = assignedCount('material', m.id);
+                          const mBy = assignedByCount('material', m.id);
+                          return (
+                            <tr key={m.id} style={{ borderBottom: '1px solid #f0f4f8' }}>
+                              <td style={{ padding: '12px 14px' }}>
+                                <a href={m.file_url} target="_blank" rel="noreferrer" style={{ fontWeight: 700, color: '#32325d' }}>{m.title}</a>
+                                {m.description && <div className="small text-muted mt-1">{m.description}</div>}
+                              </td>
+                              <td style={{ padding: '12px 14px' }}>
+                                <span style={{ fontSize: 10, color: typeColor, fontWeight: 700, textTransform: 'uppercase', background: typeColor + '20', padding: '2px 8px', borderRadius: 10 }}>
+                                  {typeIcon} {m.material_type}
                                 </span>
-                              )}
-                            </div>
-                          </div>
-                          <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap' }}>
-                            {m.is_published && (
-                              <Button size="sm" color="primary" outline style={{ borderRadius: 20, fontSize: 11 }}
-                                onClick={() => openAssignContentModal('material', m)}>
-                                Assign
-                              </Button>
-                            )}
-                            {isAdmin && (
-                              <Button size="sm" color={m.is_published ? 'warning' : 'success'} outline style={{ borderRadius: 20, fontSize: 11 }}
-                                onClick={() => toggleMaterialPublish(m.id, m.is_published)}>
-                                {m.is_published ? 'Unpublish' : 'Publish'}
-                              </Button>
-                            )}
-                            {canEditMaterial() && (
-                              <Button size="sm" color="danger" outline style={{ borderRadius: 20, fontSize: 11 }}
-                                onClick={() => setDeleteMatModal({ open: true, mat: m })}>Remove</Button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })
+                              </td>
+                              <td style={{ padding: '12px 14px' }}>
+                                {m.topic_name
+                                  ? <span style={{ fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10 }}>📌 {m.topic_name}</span>
+                                  : <span className="text-muted small">—</span>}
+                              </td>
+                              <td style={{ padding: '12px 14px' }}>
+                                <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+                                  background: m.is_published ? '#d4edda' : '#fff3cd',
+                                  color: m.is_published ? '#155724' : '#856404' }}>
+                                  {m.is_published ? 'Published' : 'Draft'}
+                                </span>
+                              </td>
+                              <td style={{ padding: '12px 14px' }}>
+                                {mBy > 0
+                                  ? <button type="button" onClick={() => setDetailModal({ open: true, field: 'by', contentType: 'material', itemId: m.id, itemTitle: m.title })}
+                                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#5e72e4', fontWeight: 700, fontSize: 13 }}>
+                                      {mBy} teacher{mBy !== 1 ? 's' : ''}
+                                    </button>
+                                  : <span className="text-muted small">—</span>}
+                              </td>
+                              <td style={{ padding: '12px 14px' }}>
+                                {mTo > 0
+                                  ? <button type="button" onClick={() => setDetailModal({ open: true, field: 'to', contentType: 'material', itemId: m.id, itemTitle: m.title })}
+                                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#2dce89', fontWeight: 700, fontSize: 13 }}>
+                                      {mTo} student{mTo !== 1 ? 's' : ''}
+                                    </button>
+                                  : <span className="text-muted small">—</span>}
+                              </td>
+                              <td style={{ padding: '12px 14px' }}>
+                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                  {m.is_published && (
+                                    <Button size="sm" color="primary" outline style={{ borderRadius: 20, fontSize: 11 }}
+                                      onClick={() => openAssignContentModal('material', m)}>
+                                      Assign
+                                    </Button>
+                                  )}
+                                  {isAdmin && (
+                                    <Button size="sm" color="secondary" outline style={{ borderRadius: 20, fontSize: 11 }}
+                                      onClick={() => setPermissionsModal({ open: true, item: m, type: 'material' })}>
+                                      Permissions
+                                    </Button>
+                                  )}
+                                  {isAdmin && (
+                                    <Button size="sm" color={m.is_published ? 'warning' : 'success'} outline style={{ borderRadius: 20, fontSize: 11 }}
+                                      onClick={() => toggleMaterialPublish(m.id, m.is_published)}>
+                                      {m.is_published ? 'Unpublish' : 'Publish'}
+                                    </Button>
+                                  )}
+                                  {canEditMaterial() && (
+                                    <Button size="sm" color="danger" outline style={{ borderRadius: 20, fontSize: 11 }}
+                                      onClick={() => setDeleteMatModal({ open: true, mat: m })}>Remove</Button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   )}
                 </CardBody>
               </Card>
@@ -1730,6 +1842,133 @@ export default function SubjectTeacher() {
               {assignContentSaving ? 'Assigning...' : `Assign to ${assignContentIds.length} student${assignContentIds.length !== 1 ? 's' : ''}`}
             </Button>
             <Button color="link" onClick={() => setAssignContentModal({ open: false, type: '', item: null })}>Cancel</Button>
+          </ModalFooter>
+        </Modal>
+
+        {/* ---- Teacher Permissions Modal (Admin only) ---- */}
+        <Modal isOpen={permissionsModal.open} toggle={() => setPermissionsModal({ open: false, item: null, type: '' })} centered>
+          <ModalHeader toggle={() => setPermissionsModal({ open: false, item: null, type: '' })}
+            style={{ background: 'linear-gradient(135deg,#3b4a67,#6286c3)', color: '#fff', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
+            Teacher Permissions
+          </ModalHeader>
+          <ModalBody style={{ background: '#f8fbff' }}>
+            {permissionsModal.item && (
+              <div style={{ marginBottom: 16, padding: '10px 14px', background: '#eef0fd', borderRadius: 10, border: '1px solid #d1d8f8' }}>
+                <div style={{ fontSize: 11, color: '#8898aa', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>{permissionsModal.type}</div>
+                <div style={{ fontWeight: 700, color: '#32325d' }}>{permissionsModal.item.title}</div>
+              </div>
+            )}
+            <p className="small text-muted mb-3">
+              Set each teacher's access level for this subject. <strong>Write</strong> = can add questions (saved as draft for admin review). <strong>Read</strong> = view published content only.
+            </p>
+            {subjectTeachers.length === 0 ? (
+              <p className="text-muted text-center py-3">No teachers allocated to this subject yet.</p>
+            ) : (
+              <div>
+                {subjectTeachers.map(t => (
+                  <div key={t.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f0f4f8' }}>
+                    <div>
+                      <div style={{ fontWeight: 600, color: '#32325d', fontSize: 14 }}>{t.first_name} {t.last_name}</div>
+                      <div style={{ fontSize: 12, color: '#8898aa' }}>{t.email}</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <span style={{ fontSize: 11, color: '#8898aa', marginRight: 4 }}>Current:</span>
+                      <span style={{ padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+                        background: t.permission_level === 'write' ? '#d4edda' : '#e9ecef',
+                        color: t.permission_level === 'write' ? '#155724' : '#525f7f' }}>
+                        {t.permission_level === 'write' ? '✏️ Write' : '👁 Read'}
+                      </span>
+                      <Button size="sm"
+                        color={t.permission_level === 'write' ? 'warning' : 'success'}
+                        outline
+                        style={{ borderRadius: 20, fontSize: 11 }}
+                        disabled={permissionsSaving[t.id]}
+                        onClick={() => handleSetTeacherPermission(t.id, t.permission_level === 'write' ? 'read' : 'write')}>
+                        {permissionsSaving[t.id] ? '...' : t.permission_level === 'write' ? 'Set Read' : 'Grant Write'}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </ModalBody>
+          <ModalFooter style={{ background: '#f8fbff' }}>
+            <Button color="secondary" outline onClick={() => setPermissionsModal({ open: false, item: null, type: '' })}>Close</Button>
+          </ModalFooter>
+        </Modal>
+
+        {/* ---- Assignment Detail Modal (Assigned By / Assigned To drill-down) ---- */}
+        <Modal isOpen={detailModal.open} toggle={() => setDetailModal({ open: false, field: '', contentType: '', itemId: '', itemTitle: '' })} centered>
+          <ModalHeader toggle={() => setDetailModal({ open: false, field: '', contentType: '', itemId: '', itemTitle: '' })}
+            style={{ background: detailModal.field === 'by' ? 'linear-gradient(135deg,#3b4a67,#5e72e4)' : 'linear-gradient(135deg,#1a7a49,#2dce89)', color: '#fff', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
+            {detailModal.field === 'by' ? 'Assigned By — Teachers' : 'Assigned To — Students'}
+          </ModalHeader>
+          <ModalBody style={{ background: '#f8fbff' }}>
+            {detailModal.itemTitle && (
+              <div style={{ marginBottom: 14, padding: '8px 12px', background: '#eef0fd', borderRadius: 8, fontSize: 13, fontWeight: 700, color: '#32325d' }}>
+                {detailModal.contentType}: {detailModal.itemTitle}
+              </div>
+            )}
+            {(() => {
+              const rows = getItemAssignments(detailModal.contentType, detailModal.itemId);
+              if (rows.length === 0) return <p className="text-muted text-center py-3">No assignments found.</p>;
+
+              if (detailModal.field === 'by') {
+                // Group by assigner
+                const byTeacher = {};
+                rows.forEach(r => {
+                  if (!byTeacher[r.assigned_by]) byTeacher[r.assigned_by] = { name: r.assigner_name, count: 0, latestAt: r.assigned_at };
+                  byTeacher[r.assigned_by].count += 1;
+                  if (r.assigned_at > byTeacher[r.assigned_by].latestAt) byTeacher[r.assigned_by].latestAt = r.assigned_at;
+                });
+                return (
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ background: '#f8f9fa' }}>
+                        {['Teacher', 'Students Assigned', 'Last Assignment Date'].map(h => (
+                          <th key={h} style={{ padding: '8px 12px', fontSize: 11, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.values(byTeacher).map((t, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid #f0f4f8' }}>
+                          <td style={{ padding: '10px 12px', fontWeight: 600, color: '#32325d' }}>{t.name}</td>
+                          <td style={{ padding: '10px 12px', color: '#525f7f' }}>{t.count}</td>
+                          <td style={{ padding: '10px 12px', color: '#8898aa', fontSize: 12 }}>{new Date(t.latestAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                );
+              } else {
+                // List each student
+                return (
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ background: '#f8f9fa' }}>
+                        {['Student', 'Email', 'Assigned By', 'Assigned At'].map(h => (
+                          <th key={h} style={{ padding: '8px 12px', fontSize: 11, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map(r => (
+                        <tr key={r.id} style={{ borderBottom: '1px solid #f0f4f8' }}>
+                          <td style={{ padding: '10px 12px', fontWeight: 600, color: '#32325d' }}>{r.student_name}</td>
+                          <td style={{ padding: '10px 12px', color: '#8898aa', fontSize: 12 }}>{r.student_email}</td>
+                          <td style={{ padding: '10px 12px', color: '#525f7f' }}>{r.assigner_name}</td>
+                          <td style={{ padding: '10px 12px', color: '#8898aa', fontSize: 12 }}>{new Date(r.assigned_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                );
+              }
+            })()}
+          </ModalBody>
+          <ModalFooter style={{ background: '#f8fbff' }}>
+            <Button color="secondary" outline onClick={() => setDetailModal({ open: false, field: '', contentType: '', itemId: '', itemTitle: '' })}>Close</Button>
           </ModalFooter>
         </Modal>
 

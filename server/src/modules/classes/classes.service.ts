@@ -745,10 +745,10 @@ export async function createSession(input: CreateSessionInput): Promise<{ sessio
 // ─── GET teachers assigned to a subject ────────────────────────
 
 export async function getSubjectTeachers(subjectId: string): Promise<Array<{
-  id: string; first_name: string; last_name: string; email: string;
+  id: string; first_name: string; last_name: string; email: string; permission_level: string;
 }>> {
   return query<any>(
-    `SELECT u.id, u.first_name, u.last_name, u.email
+    `SELECT u.id, u.first_name, u.last_name, u.email, st.permission_level
      FROM   subject_teachers st
      JOIN   users u ON u.id = st.teacher_id
      WHERE  st.subject_id = $1
