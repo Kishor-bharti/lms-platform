@@ -63,8 +63,8 @@ export async function deleteMaterial(req: Request, res: Response) {
   try {
     const { materialId } = req.params;
     if (!materialId) return res.status(400).json({ error: 'materialId is required' });
-    if (req.user!.role !== 'admin') {
-      return res.status(403).json({ error: 'Only admins can delete materials' });
+    if (req.user!.role !== 'admin' && req.user!.role !== 'teacher') {
+      return res.status(403).json({ error: 'Forbidden' });
     }
     const userId = req.user!.id;
     await materialsService.deleteMaterial(materialId, userId);

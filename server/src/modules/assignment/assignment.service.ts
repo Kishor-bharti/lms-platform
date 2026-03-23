@@ -83,14 +83,15 @@ export async function getStudentAssignments(
       ON sub.assignment_id = a.id AND sub.student_id = $2
     LEFT JOIN topics t ON t.id = a.topic_id
     WHERE a.subject_id = $1
-      AND a.is_published = true
       AND (
         EXISTS (
           SELECT 1 FROM student_content_assignments
           WHERE content_type = 'assignment' AND content_id = a.id AND student_id = $2
         )
-        OR a.assigned_to IS NULL
-        OR a.assigned_to = $2
+        OR (
+          a.is_published = true
+          AND (a.assigned_to IS NULL OR a.assigned_to = $2)
+        )
       )
     ORDER BY a.due_date ASC NULLS LAST
   `, [subjectId, studentId]);

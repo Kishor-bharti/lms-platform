@@ -39,7 +39,12 @@ export async function getMaterials(
       WHERE content_type = 'material' AND student_id = $2 AND subject_id = $1
     )`;
   } else if (role === 'teacher') {
-    roleFilter = 'AND sm.is_published = true';
+    if (userId) {
+      params.push(userId);
+      roleFilter = `AND (sm.is_published = true OR sm.uploaded_by = $${params.length})`;
+    } else {
+      roleFilter = 'AND sm.is_published = true';
+    }
   }
   // admin: no extra filter
 

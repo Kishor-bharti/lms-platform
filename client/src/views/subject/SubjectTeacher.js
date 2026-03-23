@@ -26,6 +26,7 @@ export default function SubjectTeacher() {
 
   const userRole = (window.localStorage.getItem('role') || '').toLowerCase();
   const isAdmin = userRole === 'admin';
+  const userId = JSON.parse(window.localStorage.getItem('user') || '{}').id;
 
   const [tab,             setTab]             = useState('topics');
   const [subject,         setSubject]         = useState(null);
@@ -102,6 +103,10 @@ export default function SubjectTeacher() {
   const [matForm,      setMatForm]      = useState({ title: '', description: '', material_type: 'link', file_url: '', topicId: '' });
   const [matSaving,    setMatSaving]    = useState(false);
   const [matError,     setMatError]     = useState('');
+
+  // Preview modals
+  const [previewAssign, setPreviewAssign] = useState(null);
+  const [previewMat,    setPreviewMat]    = useState(null);
 
   // Submissions panel
   const [viewSubs,      setViewSubs]      = useState(null); // assignmentId
@@ -345,7 +350,6 @@ export default function SubjectTeacher() {
   const teacherPermission = subject?.permission_level; // 'read' | 'write' | undefined
   const canCreateQuiz    = isAdmin;
   const canCreateContent = isAdmin || userRole === 'teacher'; // all teachers can create assignments/materials
-  const canEditMaterial  = () => isAdmin;
 
   // Helper: count how many students have a content item assigned
   const assignedCount = (type, itemId) =>
@@ -1152,7 +1156,11 @@ export default function SubjectTeacher() {
                               </td>
                               <td style={{ padding: '12px 14px' }}>
                                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                                  {a.is_published && (
+                                  <Button size="sm" color="info" outline style={{ borderRadius: 20, fontSize: 11 }}
+                                    onClick={() => setPreviewAssign(a)}>
+                                    Preview
+                                  </Button>
+                                  {(a.is_published || isAdmin || a.created_by === userId) && (
                                     <Button size="sm" color="primary" outline style={{ borderRadius: 20, fontSize: 11 }}
                                       onClick={() => openAssignContentModal('assignment', a)}>
                                       Assign
@@ -1170,7 +1178,7 @@ export default function SubjectTeacher() {
                                       {a.is_published ? 'Unpublish' : 'Publish'}
                                     </Button>
                                   )}
-                                  {isAdmin && (
+                                  {(isAdmin || a.created_by === userId) && (
                                     <Button size="sm" color="danger" outline style={{ borderRadius: 20, fontSize: 11 }}
                                       onClick={() => setDeleteAssignModal({ open: true, assign: a })}>
                                       Delete
@@ -1338,7 +1346,11 @@ export default function SubjectTeacher() {
                               </td>
                               <td style={{ padding: '12px 14px' }}>
                                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                                  {m.is_published && (
+                                  <Button size="sm" color="info" outline style={{ borderRadius: 20, fontSize: 11 }}
+                                    onClick={() => setPreviewMat(m)}>
+                                    Preview
+                                  </Button>
+                                  {(m.is_published || isAdmin || m.uploaded_by === userId) && (
                                     <Button size="sm" color="primary" outline style={{ borderRadius: 20, fontSize: 11 }}
                                       onClick={() => openAssignContentModal('material', m)}>
                                       Assign
@@ -1356,7 +1368,7 @@ export default function SubjectTeacher() {
                                       {m.is_published ? 'Unpublish' : 'Publish'}
                                     </Button>
                                   )}
-                                  {canEditMaterial() && (
+                                  {(isAdmin || m.uploaded_by === userId) && (
                                     <Button size="sm" color="danger" outline style={{ borderRadius: 20, fontSize: 11 }}
                                       onClick={() => setDeleteMatModal({ open: true, mat: m })}>Remove</Button>
                                   )}
@@ -1806,6 +1818,118 @@ export default function SubjectTeacher() {
           <ModalFooter className="justify-content-center">
             <Button color="danger" onClick={handleDeleteMaterial}>Yes, Remove</Button>
             <Button color="secondary" outline onClick={() => setDeleteMatModal({ open: false, mat: null })}>Cancel</Button>
+          </ModalFooter>
+        </Modal>
+
+        {/* Preview Assignment Modal */}
+        <Modal isOpen={Boolean(previewAssign)} toggle={() => setPreviewAssign(null)} centered>
+          <ModalHeader toggle={() => setPreviewAssign(null)}
+            style={{ background: 'linear-gradient(135deg,#3b4a67,#5e72e4)', color: '#fff', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
+            Assignment Preview
+          </ModalHeader>
+          <ModalBody style={{ background: '#f8fbff' }}>
+            {previewAssign && (
+              <div>
+                <h5 style={{ color: '#32325d', marginBottom: 8 }}>{previewAssign.title}</h5>
+                {previewAssign.topic_name && (
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10, display: 'inline-block', marginBottom: 12 }}>
+                    📌 {previewAssign.topic_name}
+                  </span>
+                )}
+                {previewAssign.description && (
+                  <p style={{ color: '#525f7f', marginBottom: 14, whiteSpace: 'pre-wrap' }}>{previewAssign.description}</p>
+                )}
+                <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 14 }}>
+                  <div>
+                    <div style={{ fontSize: 11, color: '#8898aa', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>Due Date</div>
+                    <div style={{ color: '#32325d', fontWeight: 600 }}>{previewAssign.due_date ? new Date(previewAssign.due_date).toLocaleDateString('en-US') : '—'}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, color: '#8898aa', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>Max Marks</div>
+                    <div style={{ color: '#32325d', fontWeight: 600 }}>{previewAssign.max_marks}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, color: '#8898aa', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>Status</div>
+                    <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+                      background: previewAssign.is_published ? '#d4edda' : '#fff3cd',
+                      color: previewAssign.is_published ? '#155724' : '#856404' }}>
+                      {previewAssign.is_published ? 'Published' : 'Draft'}
+                    </span>
+                  </div>
+                  {previewAssign.creator_name && (
+                    <div>
+                      <div style={{ fontSize: 11, color: '#8898aa', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>Created By</div>
+                      <div style={{ color: '#32325d', fontWeight: 600 }}>{previewAssign.creator_name}</div>
+                    </div>
+                  )}
+                </div>
+                {previewAssign.attachment_url && (
+                  <a href={previewAssign.attachment_url} target="_blank" rel="noreferrer"
+                    style={{ color: '#5e72e4', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    📎 View Attachment
+                  </a>
+                )}
+              </div>
+            )}
+          </ModalBody>
+          <ModalFooter style={{ background: '#f8fbff' }}>
+            <Button color="secondary" outline onClick={() => setPreviewAssign(null)}>Close</Button>
+          </ModalFooter>
+        </Modal>
+
+        {/* Preview Material Modal */}
+        <Modal isOpen={Boolean(previewMat)} toggle={() => setPreviewMat(null)} centered>
+          <ModalHeader toggle={() => setPreviewMat(null)}
+            style={{ background: 'linear-gradient(135deg,#3b4a67,#5e72e4)', color: '#fff', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
+            Material Preview
+          </ModalHeader>
+          <ModalBody style={{ background: '#f8fbff' }}>
+            {previewMat && (
+              <div>
+                <h5 style={{ color: '#32325d', marginBottom: 8 }}>{previewMat.title}</h5>
+                {previewMat.topic_name && (
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10, display: 'inline-block', marginBottom: 12 }}>
+                    📌 {previewMat.topic_name}
+                  </span>
+                )}
+                {previewMat.description && (
+                  <p style={{ color: '#525f7f', marginBottom: 14 }}>{previewMat.description}</p>
+                )}
+                <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 16 }}>
+                  <div>
+                    <div style={{ fontSize: 11, color: '#8898aa', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>Type</div>
+                    <div style={{ color: '#32325d', fontWeight: 600 }}>{previewMat.material_type?.toUpperCase()}</div>
+                  </div>
+                  {previewMat.file_size_kb && (
+                    <div>
+                      <div style={{ fontSize: 11, color: '#8898aa', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>Size</div>
+                      <div style={{ color: '#32325d', fontWeight: 600 }}>{(previewMat.file_size_kb / 1024).toFixed(1)} MB</div>
+                    </div>
+                  )}
+                  <div>
+                    <div style={{ fontSize: 11, color: '#8898aa', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>Status</div>
+                    <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+                      background: previewMat.is_published ? '#d4edda' : '#fff3cd',
+                      color: previewMat.is_published ? '#155724' : '#856404' }}>
+                      {previewMat.is_published ? 'Published' : 'Draft'}
+                    </span>
+                  </div>
+                  {previewMat.uploader_name && (
+                    <div>
+                      <div style={{ fontSize: 11, color: '#8898aa', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>Uploaded By</div>
+                      <div style={{ color: '#32325d', fontWeight: 600 }}>{previewMat.uploader_name}</div>
+                    </div>
+                  )}
+                </div>
+                <a href={previewMat.file_url} target="_blank" rel="noreferrer"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#5e72e4', color: '#fff', padding: '8px 18px', borderRadius: 8, fontWeight: 600, textDecoration: 'none' }}>
+                  🔗 Open Material
+                </a>
+              </div>
+            )}
+          </ModalBody>
+          <ModalFooter style={{ background: '#f8fbff' }}>
+            <Button color="secondary" outline onClick={() => setPreviewMat(null)}>Close</Button>
           </ModalFooter>
         </Modal>
 

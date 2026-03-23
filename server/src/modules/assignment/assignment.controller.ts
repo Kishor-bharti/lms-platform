@@ -136,8 +136,8 @@ export async function deleteAssignment(req: Request, res: Response) {
     const assignmentId = req.params.assignmentId as string;
     const requesterId = req.user!.id as string;
     const role = req.user!.role;
-    if (role !== 'admin') {
-      return res.status(403).json({ error: 'Only admins can delete assignments' });
+    if (role !== 'admin' && role !== 'teacher') {
+      return res.status(403).json({ error: 'Forbidden' });
     }
     await assignmentService.deleteAssignment(assignmentId, requesterId);
     return res.json({ success: true });
