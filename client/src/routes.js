@@ -160,7 +160,6 @@ var routes = [
     icon: 'ni ni-collection text-primary',
     component: <QuizTaker />,
     layout: '/admin',
-    roles: ['STUDENT'],
     hidden: true,
   },
   {
