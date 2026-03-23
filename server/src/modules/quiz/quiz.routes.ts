@@ -64,6 +64,9 @@ router.patch('/:quizId/publish', quizController.publishQuiz);
 router.put('/:quizId', validateBody(updateQuizSchema), quizController.updateQuiz);
 router.delete('/:quizId', quizController.deleteQuiz);
 
+// Teacher: append-only question submission (concurrent-safe)
+router.post('/:quizId/questions', quizController.appendQuestions);
+
 // Per-quiz write permissions (admin only)
 router.get('/:quizId/permissions', quizController.getQuizWritePermissions);
 router.post('/:quizId/permissions', quizController.grantQuizWritePermission);

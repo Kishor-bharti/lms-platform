@@ -198,6 +198,38 @@ export async function updateQuiz(req: Request, res: Response) {
   }
 }
 
+// ---- Teacher: append questions (append-only, concurrent-safe) ----
+
+export async function appendQuestions(req: Request, res: Response) {
+  try {
+    const { quizId } = req.params;
+    const userId = req.user!.id;
+    const role   = req.user!.role;
+    const { questions } = req.body;
+
+    if (!Array.isArray(questions) || questions.length === 0) {
+      return res.status(400).json({ error: 'questions array is required' });
+    }
+
+    const quizRows = await query<any>(
+      'SELECT subject_id FROM quizzes WHERE id = $1 AND is_active = true',
+      [quizId]
+    );
+    if (!quizRows[0]) return res.status(404).json({ error: 'Quiz not found' });
+
+    const canEdit = await hasQuizWritePermission(userId, role, quizId!, quizRows[0].subject_id);
+    if (!canEdit) {
+      return res.status(403).json({ error: 'You do not have write permission for this quiz' });
+    }
+
+    await quizService.appendQuestionsToQuiz(quizId!, userId, questions);
+    return res.json({ success: true });
+  } catch (err: any) {
+    logger.error('[quiz] appendQuestions:', err);
+    return res.status(500).json({ error: 'Failed to append questions' });
+  }
+}
+
 // ---- Per-quiz write permission endpoints (admin only) ----
 
 export async function getQuizWritePermissions(req: Request, res: Response) {

@@ -45,7 +45,10 @@ export default function QuizBuilder() {
     max_attempts: 1,
     topicId: '',
   });
-  const [questions, setQuestions] = useState([BLANK_QUESTION(0)]);
+  const [questions,    setQuestions]    = useState([BLANK_QUESTION(0)]);
+  // teacherEditMode: existing questions (read-only) vs new questions being appended
+  const [existingQuestions, setExistingQuestions] = useState([]); // loaded read-only display
+  const [newQuestions,      setNewQuestions]      = useState([BLANK_QUESTION(0)]); // teacher appends
   const [saving,    setSaving]    = useState(false);
   const [loadingQuiz, setLoadingQuiz] = useState(false);
   const [error,     setError]     = useState('');
@@ -87,24 +90,30 @@ export default function QuizBuilder() {
           max_attempts:     q.max_attempts || 1,
           topicId:          q.topic_id || '',
         });
-        setQuestions(
-          (q.questions || []).map((qItem, idx) => ({
-            question_text: qItem.question_text,
-            explanation:   qItem.explanation || '',
-            explanation_image_url: qItem.explanation_image_url || '',
-            difficulty:    qItem.difficulty || 'medium',
-            marks:         qItem.marks || 1,
-            order_index:   qItem.order_index ?? idx,
-            image_url:     qItem.image_url || '',
-            topic_id:      qItem.topic_id  || '',
-            options: (qItem.options || []).map(o => ({
-              label:      o.option_label,
-              text:       o.option_text || '',
-              imageUrl:   o.option_image_url || '',
-              is_correct: Boolean(o.is_correct),
-            })),
-          }))
-        );
+        const mappedQuestions = (q.questions || []).map((qItem, idx) => ({
+          question_text: qItem.question_text,
+          explanation:   qItem.explanation || '',
+          explanation_image_url: qItem.explanation_image_url || '',
+          difficulty:    qItem.difficulty || 'medium',
+          marks:         qItem.marks || 1,
+          order_index:   qItem.order_index ?? idx,
+          image_url:     qItem.image_url || '',
+          topic_id:      qItem.topic_id  || '',
+          options: (qItem.options || []).map(o => ({
+            label:      o.option_label,
+            text:       o.option_text || '',
+            imageUrl:   o.option_image_url || '',
+            is_correct: Boolean(o.is_correct),
+          })),
+        }));
+
+        if (teacherEditMode) {
+          // Teacher sees existing as read-only; starts with one blank new question
+          setExistingQuestions(mappedQuestions);
+          setNewQuestions([BLANK_QUESTION(mappedQuestions.length)]);
+        } else {
+          setQuestions(mappedQuestions);
+        }
         // Auto-enable option images toggle if any existing option has an image
         const hasOptionImages = (q.questions || []).some(qItem =>
           (qItem.options || []).some(o => o.option_image_url)
@@ -202,12 +211,48 @@ export default function QuizBuilder() {
     }));
   };
 
+  // New-question helpers for teacher append mode
+  const updateNewQuestion = (qi, field, value) => {
+    setNewQuestions((prev) => prev.map((q, i) => i === qi ? { ...q, [field]: value } : q));
+  };
+
+  const updateNewOption = (qi, oi, field, value) => {
+    setNewQuestions((prev) => prev.map((q, i) => {
+      if (i !== qi) return q;
+      const opts = q.options.map((o, j) => {
+        if (j !== oi) return field === 'is_correct' ? { ...o, is_correct: false } : o;
+        return { ...o, [field]: value };
+      });
+      return { ...q, options: opts };
+    }));
+  };
+
   const addQuestion = () => setQuestions((prev) => [...prev, BLANK_QUESTION(prev.length)]);
 
   const removeQuestion = (qi) => setQuestions((prev) => prev.filter((_, i) => i !== qi));
 
   const handleSave = async (publish) => {
     setError('');
+
+    // ── Teacher append mode ──────────────────────────────────────────────
+    if (teacherEditMode) {
+      for (let i = 0; i < newQuestions.length; i++) {
+        const q = newQuestions[i];
+        if (!q.question_text.trim()) { setError(`New question ${i + 1} is missing text`); return; }
+        if (!q.options.some(o => o.is_correct)) { setError(`New question ${i + 1} has no correct answer`); return; }
+        if (!q.topic_id) { setError(`New question ${i + 1}: topic is required`); return; }
+      }
+      setSaving(true);
+      try {
+        await http.post(`/api/quizzes/${editQuizId}/questions`, { questions: newQuestions });
+        navigate(-1);
+      } catch (err) {
+        setError(err?.response?.data?.error || 'Failed to submit questions');
+      } finally { setSaving(false); }
+      return;
+    }
+
+    // ── Admin / full edit mode ───────────────────────────────────────────
     if (!meta.title) { setError('Quiz title is required'); return; }
     if (!subjectId && !editQuizId && !isCourseQuiz) { setError('No subject selected — go back and try again'); return; }
     if (topics.length === 0) {
@@ -225,16 +270,13 @@ export default function QuizBuilder() {
       if (!q.question_text.trim()) { setError(`Question ${i + 1} is missing text`); return; }
       const hasCorrect = q.options.some((o) => o.is_correct);
       if (!hasCorrect) { setError(`Question ${i + 1} has no correct answer selected`); return; }
-      if (!q.topic_id) {
-        setError(`Question ${i + 1}: topic is required`); return;
-      }
+      if (!q.topic_id) { setError(`Question ${i + 1}: topic is required`); return; }
     }
 
     setSaving(true);
     try {
       let savedId;
       if (editQuizId) {
-        // Edit mode — PUT to update existing quiz
         const res = await http.put(`/api/quizzes/${editQuizId}`, {
           title: meta.title,
           quiz_type: meta.quiz_type,
@@ -245,12 +287,7 @@ export default function QuizBuilder() {
           questions,
         });
         savedId = res.data.id;
-        // Teachers: auto-unpublish after edit — admin must review before re-publishing
-        if (!isAdmin) {
-          await http.patch(`/api/quizzes/${savedId}/publish`, { is_published: false });
-        }
       } else {
-        // Create mode — POST
         const payload = {
           title: meta.title,
           quiz_type: meta.quiz_type,
@@ -336,8 +373,8 @@ export default function QuizBuilder() {
           </Row>
         )}
 
-        {/* Quiz meta */}
-        <Row className="mb-4">
+        {/* Quiz meta — hidden in teacher append mode */}
+        {!teacherEditMode && <Row className="mb-4">
           <Col>
             <Card className="shadow" style={{ borderRadius: 12 }}>
               <CardHeader style={{ background: '#eaf3ff', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
@@ -417,10 +454,136 @@ export default function QuizBuilder() {
               </CardBody>
             </Card>
           </Col>
-        </Row>
+        </Row>}
 
-        {/* Questions */}
-        {questions.map((q, qi) => (
+        {/* ── TEACHER MODE: read-only existing questions ── */}
+        {teacherEditMode && existingQuestions.length > 0 && (
+          <Row className="mb-3">
+            <Col>
+              <Card className="shadow" style={{ borderRadius: 12, border: '1px solid #e9ecef' }}>
+                <CardHeader style={{ background: '#f0f4f8', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
+                  <div className="d-flex justify-content-between align-items-center">
+                    <div>
+                      <span style={{ fontWeight: 700, color: '#32325d' }}>Existing Questions ({existingQuestions.length})</span>
+                      <span style={{ marginLeft: 10, fontSize: 12, color: '#8898aa' }}>Read-only — these cannot be edited or deleted by teachers</span>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardBody style={{ padding: 0 }}>
+                  {existingQuestions.map((q, qi) => (
+                    <div key={qi} style={{ padding: '12px 16px', borderBottom: '1px solid #f0f4f8', opacity: 0.75 }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                        <span style={{ fontWeight: 700, color: '#8898aa', fontSize: 12, minWidth: 28, paddingTop: 2 }}>Q{qi + 1}.</span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 13, color: '#32325d', fontWeight: 500 }}>{q.question_text}</div>
+                          <div style={{ marginTop: 6, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            {q.options.map((o, oi) => (
+                              <span key={oi} style={{
+                                fontSize: 12, padding: '2px 10px', borderRadius: 20,
+                                background: o.is_correct ? '#d4edda' : '#f8f9fa',
+                                color: o.is_correct ? '#155724' : '#525f7f',
+                                fontWeight: o.is_correct ? 700 : 400,
+                                border: o.is_correct ? '1px solid #c3e6cb' : '1px solid #e9ecef',
+                              }}>
+                                {o.label}. {o.text || '(image)'}
+                              </span>
+                            ))}
+                          </div>
+                          <div style={{ marginTop: 4, display: 'flex', gap: 8 }}>
+                            <span style={{ fontSize: 11, color: '#8898aa' }}>{q.difficulty}</span>
+                            <span style={{ fontSize: 11, color: '#8898aa' }}>{q.marks} pt{q.marks !== 1 ? 's' : ''}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </CardBody>
+              </Card>
+            </Col>
+          </Row>
+        )}
+
+        {/* ── TEACHER MODE: new questions to append ── */}
+        {teacherEditMode && (
+          <>
+            <Row className="mb-2">
+              <Col>
+                <div style={{ padding: '10px 16px', background: '#e8f5e9', borderRadius: 10, border: '1px solid #c8e6c9', fontSize: 13, color: '#2e7d32', fontWeight: 600 }}>
+                  ✏️ Add your new questions below. They will be appended to the quiz as a draft for admin review.
+                </div>
+              </Col>
+            </Row>
+            {newQuestions.map((q, qi) => (
+              <Row key={qi} className="mb-3">
+                <Col>
+                  <Card className="shadow" style={{ borderRadius: 12, borderLeft: '4px solid #2dce89' }}>
+                    <CardHeader style={{ background: '#f8f9fa', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
+                      <div className="d-flex justify-content-between align-items-center">
+                        <span style={{ fontWeight: 700, color: '#32325d' }}>New Question {qi + 1}</span>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <Input type="select" bsSize="sm" value={q.difficulty} style={{ width: 110 }}
+                            onChange={(e) => updateNewQuestion(qi, 'difficulty', e.target.value)}>
+                            <option value="easy">Easy</option>
+                            <option value="medium">Medium</option>
+                            <option value="hard">Hard</option>
+                          </Input>
+                          <Input type="number" bsSize="sm" value={q.marks} min={0.5} step={0.5} style={{ width: 70 }}
+                            onChange={(e) => updateNewQuestion(qi, 'marks', Number(e.target.value))}
+                            title="Points" />
+                          {newQuestions.length > 1 && (
+                            <Button size="sm" color="danger" outline style={{ borderRadius: 20, padding: '2px 10px' }}
+                              onClick={() => setNewQuestions(prev => prev.filter((_, i) => i !== qi))}>Remove</Button>
+                          )}
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardBody>
+                      <FormGroup>
+                        <Label style={{ fontSize: 12, color: '#8898aa' }}>Question Text <span style={{ fontWeight: 400 }}>(use $...$ for inline math)</span></Label>
+                        <Input type="textarea" rows={3} placeholder="Enter question text..."
+                          value={q.question_text}
+                          onChange={(e) => updateNewQuestion(qi, 'question_text', e.target.value)} />
+                      </FormGroup>
+                      {topics.length > 0 && (
+                        <FormGroup>
+                          <Label style={{ fontSize: 12, color: '#8898aa' }}>Topic <span className="text-danger">*</span></Label>
+                          <Input type="select" bsSize="sm" value={q.topic_id}
+                            onChange={(e) => updateNewQuestion(qi, 'topic_id', e.target.value)}>
+                            <option value="">— Select topic —</option>
+                            {topics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                          </Input>
+                        </FormGroup>
+                      )}
+                      <Label style={{ fontSize: 12, color: '#8898aa' }}>Answer Options (select the correct one)</Label>
+                      {q.options.map((opt, oi) => (
+                        <div key={oi} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, padding: '6px 10px', background: opt.is_correct ? '#f0fff4' : '#f8f9fa', borderRadius: 8, border: `1px solid ${opt.is_correct ? '#c3e6cb' : '#e9ecef'}` }}>
+                          <input type="radio" name={`new-correct-${qi}`} checked={opt.is_correct}
+                            onChange={() => updateNewOption(qi, oi, 'is_correct', true)}
+                            style={{ cursor: 'pointer', width: 16, height: 16, flexShrink: 0 }} />
+                          <span style={{ fontWeight: 700, color: '#5e72e4', minWidth: 20 }}>{opt.label}.</span>
+                          <Input bsSize="sm" value={opt.text} placeholder={`Option ${opt.label}...`}
+                            onChange={(e) => updateNewOption(qi, oi, 'text', e.target.value)}
+                            style={{ border: 'none', background: 'transparent', padding: 0, boxShadow: 'none' }} />
+                        </div>
+                      ))}
+                    </CardBody>
+                  </Card>
+                </Col>
+              </Row>
+            ))}
+            <Row className="mb-4">
+              <Col className="text-center">
+                <Button color="success" outline style={{ borderRadius: 20, padding: '8px 24px' }}
+                  onClick={() => setNewQuestions(prev => [...prev, BLANK_QUESTION(existingQuestions.length + prev.length)])}>
+                  + Add Another Question
+                </Button>
+              </Col>
+            </Row>
+          </>
+        )}
+
+        {/* ── ADMIN / full edit mode questions ── */}
+        {!teacherEditMode && questions.map((q, qi) => (
           <Row key={qi} className="mb-3">
             <Col>
               <Card className="shadow" style={{ borderRadius: 12, borderLeft: '4px solid #5e72e4' }}>
@@ -628,14 +791,14 @@ export default function QuizBuilder() {
           </Row>
         ))}
 
-        {/* Add question */}
-        <Row>
+        {/* Add question — admin mode only */}
+        {!teacherEditMode && <Row>
           <Col className="text-center">
             <Button color="primary" outline style={{ borderRadius: 20, padding: '8px 24px' }} onClick={addQuestion}>
               + Add Question
             </Button>
           </Col>
-        </Row>
+        </Row>}
       </Container>
     </>
   );

@@ -738,6 +738,60 @@ export async function updateQuiz(data: {
   });
 }
 
+// ---- Teacher: append questions to a quiz (never deletes existing) ----
+// Safe for concurrent use — each teacher only inserts their own questions.
+// Auto-unpublishes the quiz so admin must review before re-publishing.
+
+export async function appendQuestionsToQuiz(
+  quizId: string,
+  addedBy: string,
+  questions: Array<{
+    question_text: string;
+    image_url?: string;
+    explanation?: string;
+    explanation_image_url?: string;
+    difficulty: string;
+    marks: number;
+    topic_id?: string;
+    options: Array<{ label: string; text: string; imageUrl?: string; is_correct: boolean }>;
+  }>
+): Promise<void> {
+  // Compute next order_index to append after existing questions
+  const maxRows = await query<any>(
+    `SELECT COALESCE(MAX(order_index), -1) AS max_idx
+     FROM questions WHERE quiz_id = $1 AND is_active = true`,
+    [quizId]
+  );
+  let nextIndex = Number(maxRows[0].max_idx) + 1;
+
+  await withTransaction(async (client) => {
+    for (const q of questions) {
+      const qRows = await queryWithClient<any>(client, `
+        INSERT INTO questions
+          (quiz_id, question_text, image_url, explanation, explanation_image_url,
+           difficulty, marks, order_index, topic_id, created_by)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        RETURNING id
+      `, [quizId, q.question_text, q.image_url ?? null, q.explanation ?? null,
+          q.explanation_image_url ?? null, q.difficulty, q.marks, nextIndex++,
+          q.topic_id ?? null, addedBy]);
+
+      const questionId = qRows[0].id;
+      for (const opt of q.options) {
+        await queryWithClient(client, `
+          INSERT INTO options (question_id, option_label, option_text, option_image_url, is_correct)
+          VALUES ($1,$2,$3,$4,$5)
+        `, [questionId, opt.label, opt.text || null, opt.imageUrl ?? null, opt.is_correct]);
+      }
+    }
+    // Keep quiz unpublished — admin reviews before publishing
+    await queryWithClient(client,
+      `UPDATE quizzes SET is_published = false, updated_at = now() WHERE id = $1`,
+      [quizId]
+    );
+  });
+}
+
 // ---- Admin: delete quiz (soft delete by marking inactive) ----
 
 export async function deleteQuiz(quizId: string): Promise<void> {

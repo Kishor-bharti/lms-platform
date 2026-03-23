@@ -1955,13 +1955,13 @@ export default function SubjectTeacher() {
                             <span style={{ fontSize: 11, color: '#8898aa', fontStyle: 'italic' }}>Via subject</span>
                           ) : hasQuizWrite ? (
                             <Button size="sm" color="warning" outline style={{ borderRadius: 20, fontSize: 11 }}
-                              disabled={saving}
+                              disabled={Boolean(saving)}
                               onClick={() => handleRevokeQuizWrite(t.id)}>
                               {saving === 'revoke' ? '...' : 'Revoke Write'}
                             </Button>
                           ) : (
                             <Button size="sm" color="success" outline style={{ borderRadius: 20, fontSize: 11 }}
-                              disabled={saving}
+                              disabled={Boolean(saving)}
                               onClick={() => handleGrantQuizWrite(t.id)}>
                               {saving === 'grant' ? '...' : 'Grant Write'}
                             </Button>
