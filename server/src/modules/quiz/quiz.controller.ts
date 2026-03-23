@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import logger from '../../config/logger';
 import { query } from '../../config/db';
 import * as quizService from './quiz.service';
-import { hasContentWritePermission } from '../../utils/permissions';
+import { hasContentWritePermission, hasQuizWritePermission } from '../../utils/permissions';
 
 export async function getQuizzesBySubject(req: Request, res: Response) {
   try {
@@ -168,9 +168,15 @@ export async function updateQuiz(req: Request, res: Response) {
     const userId = req.user!.id;
     const role = req.user!.role;
 
-    // Only admin can edit quizzes
-    if (role !== 'admin') {
-      return res.status(403).json({ error: 'Only admins can edit quizzes' });
+    // Look up quiz to get subjectId for permission check
+    const quizRows = await query<any>('SELECT subject_id FROM quizzes WHERE id = $1', [quizId]);
+    if (!quizRows[0]) return res.status(404).json({ error: 'Quiz not found' });
+    const subjectId = quizRows[0].subject_id;
+
+    // Admin always allowed; teacher needs subject-level write OR per-quiz write
+    const canEdit = await hasQuizWritePermission(userId, role, quizId!, subjectId);
+    if (!canEdit) {
+      return res.status(403).json({ error: 'You do not have write permission for this quiz' });
     }
 
     const { topicId, title, quiz_type, description, duration_minutes, max_attempts, questions } = req.body;
@@ -178,11 +184,57 @@ export async function updateQuiz(req: Request, res: Response) {
       quizId: quizId!, updatedBy: userId, topicId, title, quiz_type, description,
       duration_minutes, max_attempts, questions: questions ?? [],
     });
+
+    // If a teacher edited, auto-unpublish so admin must review before re-publishing
+    if (role === 'teacher') {
+      await quizService.setQuizPublished(quizId!, false);
+    }
+
     return res.json(quiz);
   } catch (err: any) {
     if (err.message === 'Quiz not found') return res.status(404).json({ error: 'Quiz not found' });
     logger.error('[quiz] updateQuiz:', err);
     return res.status(500).json({ error: err.message || 'Failed to update quiz' });
+  }
+}
+
+// ---- Per-quiz write permission endpoints (admin only) ----
+
+export async function getQuizWritePermissions(req: Request, res: Response) {
+  try {
+    if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+    const { quizId } = req.params;
+    const perms = await quizService.getQuizWritePermissions(quizId!);
+    return res.json(perms);
+  } catch (err) {
+    logger.error('[quiz] getQuizWritePermissions:', err);
+    return res.status(500).json({ error: 'Failed to fetch permissions' });
+  }
+}
+
+export async function grantQuizWritePermission(req: Request, res: Response) {
+  try {
+    if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+    const { quizId } = req.params;
+    const { teacherId } = req.body;
+    if (!teacherId) return res.status(400).json({ error: 'teacherId is required' });
+    await quizService.grantQuizWritePermission(quizId!, teacherId, req.user!.id);
+    return res.json({ success: true });
+  } catch (err) {
+    logger.error('[quiz] grantQuizWritePermission:', err);
+    return res.status(500).json({ error: 'Failed to grant permission' });
+  }
+}
+
+export async function revokeQuizWritePermission(req: Request, res: Response) {
+  try {
+    if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+    const { quizId, teacherId } = req.params;
+    await quizService.revokeQuizWritePermission(quizId!, teacherId!);
+    return res.json({ success: true });
+  } catch (err) {
+    logger.error('[quiz] revokeQuizWritePermission:', err);
+    return res.status(500).json({ error: 'Failed to revoke permission' });
   }
 }
 

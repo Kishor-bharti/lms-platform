@@ -14,6 +14,16 @@ export interface QuizSummary {
   max_attempts: number | null;
   question_count: number;
   created_at: string;
+  can_edit: boolean;            // true = this user can edit the quiz
+  write_teacher_count?: number; // admin only: how many teachers have per-quiz write
+}
+
+export interface QuizWritePermission {
+  teacher_id: string;
+  teacher_name: string;
+  teacher_email: string;
+  granted_by_name: string;
+  granted_at: string;
 }
 
 export interface QuizWithQuestions extends QuizSummary {
@@ -53,53 +63,152 @@ export interface AttemptResult {
 }
 
 // ---- Get quizzes for a subject (role-filtered) ----
-// admin: all quizzes (published + draft)
-// teacher: published only
-// student: only quizzes explicitly assigned to them via student_content_assignments
+// admin   : all quizzes, can_edit=true, write_teacher_count per quiz
+// teacher : published quizzes + unpublished quizzes where teacher has subject-level or per-quiz write
+//           can_edit = has subject-level write OR per-quiz write permission
+// student : only quizzes explicitly assigned via student_content_assignments
 
 export async function getQuizzesBySubject(
   subjectId: string,
   role: string = 'student',
   userId?: string
 ): Promise<QuizSummary[]> {
-  const params: any[] = [subjectId];
-  let roleFilter = '';
 
+  // ── student ──────────────────────────────────────────────────────────
   if (role === 'student') {
     if (!userId) return [];
-    params.push(userId);
-    roleFilter = `AND q.id IN (
-      SELECT content_id FROM student_content_assignments
-      WHERE content_type = 'quiz' AND student_id = $2 AND subject_id = $1
-    )`;
-  } else if (role === 'teacher') {
-    roleFilter = 'AND q.is_published = true';
+    const rows = await query<any>(`
+      SELECT q.id, q.subject_id, q.topic_id, t.name AS topic_name,
+             q.title, q.quiz_type, q.description,
+             q.duration_minutes, q.passing_score, q.is_published, q.max_attempts,
+             q.created_at, q.created_by,
+             u.first_name || ' ' || u.last_name AS creator_name,
+             COUNT(qs.id) AS question_count
+      FROM quizzes q
+      LEFT JOIN questions qs ON qs.quiz_id = q.id AND qs.is_active = true
+      LEFT JOIN topics t ON t.id = q.topic_id
+      LEFT JOIN users u ON u.id = q.created_by
+      WHERE q.subject_id = $1 AND q.is_active = true
+        AND q.id IN (
+          SELECT content_id FROM student_content_assignments
+          WHERE content_type = 'quiz' AND student_id = $2 AND subject_id = $1
+        )
+      GROUP BY q.id, t.name, u.first_name, u.last_name
+      ORDER BY q.created_at DESC
+    `, [subjectId, userId]);
+    return rows.map(r => ({
+      ...r,
+      question_count: Number(r.question_count),
+      passing_score: r.passing_score ? Number(r.passing_score) : null,
+      can_edit: false,
+    }));
   }
-  // admin: no extra filter
 
+  // ── teacher ──────────────────────────────────────────────────────────
+  // Visible: published OR has subject-level write OR has per-quiz write
+  // can_edit: has subject-level write OR has per-quiz write
+  if (role === 'teacher') {
+    if (!userId) return [];
+    const rows = await query<any>(`
+      SELECT q.id, q.subject_id, q.topic_id, t.name AS topic_name,
+             q.title, q.quiz_type, q.description,
+             q.duration_minutes, q.passing_score, q.is_published, q.max_attempts,
+             q.created_at, q.created_by,
+             u.first_name || ' ' || u.last_name AS creator_name,
+             COUNT(qs.id) AS question_count,
+             (
+               EXISTS (SELECT 1 FROM quiz_write_permissions qwp
+                        WHERE qwp.quiz_id = q.id AND qwp.teacher_id = $2)
+               OR EXISTS (SELECT 1 FROM subject_teachers st
+                           WHERE st.subject_id = q.subject_id AND st.teacher_id = $2
+                             AND st.permission_level = 'write')
+             ) AS can_edit
+      FROM quizzes q
+      LEFT JOIN questions qs ON qs.quiz_id = q.id AND qs.is_active = true
+      LEFT JOIN topics t ON t.id = q.topic_id
+      LEFT JOIN users u ON u.id = q.created_by
+      WHERE q.subject_id = $1 AND q.is_active = true
+        AND (
+          q.is_published = true
+          OR EXISTS (SELECT 1 FROM quiz_write_permissions qwp
+                      WHERE qwp.quiz_id = q.id AND qwp.teacher_id = $2)
+          OR EXISTS (SELECT 1 FROM subject_teachers st
+                      WHERE st.subject_id = q.subject_id AND st.teacher_id = $2
+                        AND st.permission_level = 'write')
+        )
+      GROUP BY q.id, t.name, u.first_name, u.last_name
+      ORDER BY q.created_at DESC
+    `, [subjectId, userId]);
+    return rows.map(r => ({
+      ...r,
+      question_count: Number(r.question_count),
+      passing_score: r.passing_score ? Number(r.passing_score) : null,
+      can_edit: Boolean(r.can_edit),
+    }));
+  }
+
+  // ── admin ─────────────────────────────────────────────────────────────
   const rows = await query<any>(`
-    SELECT
-      q.id, q.subject_id, q.topic_id, t.name AS topic_name,
-      q.title, q.quiz_type, q.description,
-      q.duration_minutes, q.passing_score, q.is_published, q.max_attempts,
-      q.created_at, q.created_by,
-      u.first_name || ' ' || u.last_name AS creator_name,
-      COUNT(qs.id) AS question_count
+    SELECT q.id, q.subject_id, q.topic_id, t.name AS topic_name,
+           q.title, q.quiz_type, q.description,
+           q.duration_minutes, q.passing_score, q.is_published, q.max_attempts,
+           q.created_at, q.created_by,
+           u.first_name || ' ' || u.last_name AS creator_name,
+           COUNT(qs.id) AS question_count,
+           true AS can_edit,
+           (SELECT COUNT(*)::int FROM quiz_write_permissions qwp
+             WHERE qwp.quiz_id = q.id) AS write_teacher_count
     FROM quizzes q
     LEFT JOIN questions qs ON qs.quiz_id = q.id AND qs.is_active = true
     LEFT JOIN topics t ON t.id = q.topic_id
     LEFT JOIN users u ON u.id = q.created_by
     WHERE q.subject_id = $1 AND q.is_active = true
-    ${roleFilter}
     GROUP BY q.id, t.name, u.first_name, u.last_name
     ORDER BY q.created_at DESC
-  `, params);
-
-  return rows.map((r) => ({
+  `, [subjectId]);
+  return rows.map(r => ({
     ...r,
     question_count: Number(r.question_count),
     passing_score: r.passing_score ? Number(r.passing_score) : null,
+    can_edit: true,
+    write_teacher_count: Number(r.write_teacher_count),
   }));
+}
+
+// ---- Per-quiz write permissions (admin manages) ----
+
+export async function getQuizWritePermissions(quizId: string): Promise<QuizWritePermission[]> {
+  return query<any>(`
+    SELECT qwp.teacher_id,
+           t.first_name || ' ' || t.last_name AS teacher_name,
+           t.email AS teacher_email,
+           g.first_name || ' ' || g.last_name AS granted_by_name,
+           qwp.granted_at
+    FROM quiz_write_permissions qwp
+    JOIN users t ON t.id = qwp.teacher_id
+    JOIN users g ON g.id = qwp.granted_by
+    WHERE qwp.quiz_id = $1
+    ORDER BY qwp.granted_at DESC
+  `, [quizId]);
+}
+
+export async function grantQuizWritePermission(
+  quizId: string, teacherId: string, grantedBy: string
+): Promise<void> {
+  await query(`
+    INSERT INTO quiz_write_permissions (quiz_id, teacher_id, granted_by)
+    VALUES ($1, $2, $3)
+    ON CONFLICT (quiz_id, teacher_id) DO NOTHING
+  `, [quizId, teacherId, grantedBy]);
+}
+
+export async function revokeQuizWritePermission(
+  quizId: string, teacherId: string
+): Promise<void> {
+  await query(
+    `DELETE FROM quiz_write_permissions WHERE quiz_id = $1 AND teacher_id = $2`,
+    [quizId, teacherId]
+  );
 }
 
 // ---- Get quiz with questions (teacher sees correct answers, student does not) ----

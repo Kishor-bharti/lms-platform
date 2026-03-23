@@ -47,9 +47,11 @@ export default function SubjectTeacher() {
   const [assignContentError,  setAssignContentError]  = useState('');
   const [contentAssignments,  setContentAssignments]  = useState([]); // all assignments for this subject
 
-  // Teacher permissions modal (admin: manage read/write per teacher for this subject)
-  const [permissionsModal,  setPermissionsModal]  = useState({ open: false, item: null, type: '' });
-  const [permissionsSaving, setPermissionsSaving] = useState({}); // { [teacherId]: bool }
+  // Per-quiz write-permissions modal (admin: manage which teachers can edit a specific quiz)
+  const [permissionsModal,     setPermissionsModal]     = useState({ open: false, item: null, type: '' });
+  const [quizPermissions,      setQuizPermissions]      = useState([]); // teachers with per-quiz write
+  const [quizPermissionsLoading, setQuizPermissionsLoading] = useState(false);
+  const [permissionsSaving,    setPermissionsSaving]    = useState({}); // { [teacherId]: bool }
 
   // Assignment detail popup (Assigned By / Assigned To drill-down)
   const [detailModal, setDetailModal] = useState({ open: false, field: '', contentType: '', itemId: '', itemTitle: '' });
@@ -341,8 +343,7 @@ export default function SubjectTeacher() {
 
   // Only admin can edit/delete content; write-permission teachers can create/edit
   const teacherPermission = subject?.permission_level; // 'read' | 'write' | undefined
-  const canCreate   = isAdmin || teacherPermission === 'write';
-  const canEditQuiz = () => isAdmin || teacherPermission === 'write';
+  const canCreate       = isAdmin || teacherPermission === 'write';
   const canEditMaterial = () => isAdmin;
 
   // Helper: count how many students have a content item assigned
@@ -357,17 +358,41 @@ export default function SubjectTeacher() {
   const getItemAssignments = (type, itemId) =>
     contentAssignments.filter(a => a.content_type === type && a.content_id === itemId);
 
-  // Set permission level for a teacher on this subject
-  const handleSetTeacherPermission = async (teacherId, level) => {
-    setPermissionsSaving(prev => ({ ...prev, [teacherId]: true }));
-    try {
-      await http.patch(`/api/admin/subjects/${subjectId}/teachers/${teacherId}/permission`, { permissionLevel: level });
-      fetchData();
-    } catch (err) {
-      console.error('[permission]', err);
-    } finally {
-      setPermissionsSaving(prev => ({ ...prev, [teacherId]: false }));
+  // Open permissions modal for a quiz and fetch its current per-quiz write permissions
+  const openPermissionsModal = async (item, type) => {
+    setPermissionsModal({ open: true, item, type });
+    setQuizPermissions([]);
+    if (type === 'quiz') {
+      setQuizPermissionsLoading(true);
+      try {
+        const res = await http.get(`/api/quizzes/${item.id}/permissions`);
+        setQuizPermissions(res.data || []);
+      } catch (err) { console.error('[quiz permissions]', err); }
+      finally { setQuizPermissionsLoading(false); }
     }
+  };
+
+  const handleGrantQuizWrite = async (teacherId) => {
+    if (!permissionsModal.item) return;
+    setPermissionsSaving(prev => ({ ...prev, [teacherId]: 'grant' }));
+    try {
+      await http.post(`/api/quizzes/${permissionsModal.item.id}/permissions`, { teacherId });
+      const res = await http.get(`/api/quizzes/${permissionsModal.item.id}/permissions`);
+      setQuizPermissions(res.data || []);
+      fetchData(); // refresh write_teacher_count in quiz list
+    } catch (err) { console.error('[grant quiz write]', err); }
+    finally { setPermissionsSaving(prev => ({ ...prev, [teacherId]: false })); }
+  };
+
+  const handleRevokeQuizWrite = async (teacherId) => {
+    if (!permissionsModal.item) return;
+    setPermissionsSaving(prev => ({ ...prev, [teacherId]: 'revoke' }));
+    try {
+      await http.delete(`/api/quizzes/${permissionsModal.item.id}/permissions/${teacherId}`);
+      setQuizPermissions(prev => prev.filter(p => p.teacher_id !== teacherId));
+      fetchData();
+    } catch (err) { console.error('[revoke quiz write]', err); }
+    finally { setPermissionsSaving(prev => ({ ...prev, [teacherId]: false })); }
   };
 
   const handleDeleteQuiz = async () => {
@@ -982,8 +1007,18 @@ export default function SubjectTeacher() {
                                   : <span className="text-muted small">—</span>}
                               </td>
                               <td style={{ padding: '12px 14px' }}>
-                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                                  {canEditQuiz() && (
+                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                                  {/* Write-access badge: show how many teachers have per-quiz write (admin only) */}
+                                  {isAdmin && q.write_teacher_count > 0 && (
+                                    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10,
+                                      background: '#fff3cd', color: '#856404', cursor: 'pointer' }}
+                                      title="Teachers with write access to this quiz"
+                                      onClick={() => openPermissionsModal(q, 'quiz')}>
+                                      ✏️ {q.write_teacher_count} writer{q.write_teacher_count !== 1 ? 's' : ''}
+                                    </span>
+                                  )}
+                                  {/* Edit: admin always, teacher if can_edit (subject-level or per-quiz write) */}
+                                  {q.can_edit && (
                                     <Button size="sm" color="info" outline style={{ borderRadius: 20, fontSize: 11 }}
                                       onClick={() => navigate('/admin/quiz-builder', {
                                         state: { subjectId, subjectName: subject?.title, editQuizId: q.id }
@@ -1005,7 +1040,7 @@ export default function SubjectTeacher() {
                                   )}
                                   {isAdmin && (
                                     <Button size="sm" color="secondary" outline style={{ borderRadius: 20, fontSize: 11 }}
-                                      onClick={() => setPermissionsModal({ open: true, item: q, type: 'quiz' })}>
+                                      onClick={() => openPermissionsModal(q, 'quiz')}>
                                       Permissions
                                     </Button>
                                   )}
@@ -1117,7 +1152,7 @@ export default function SubjectTeacher() {
                                   )}
                                   {isAdmin && (
                                     <Button size="sm" color="secondary" outline style={{ borderRadius: 20, fontSize: 11 }}
-                                      onClick={() => setPermissionsModal({ open: true, item: a, type: 'assignment' })}>
+                                      onClick={() => openPermissionsModal(a, 'assignment')}>
                                       Permissions
                                     </Button>
                                   )}
@@ -1303,7 +1338,7 @@ export default function SubjectTeacher() {
                                   )}
                                   {isAdmin && (
                                     <Button size="sm" color="secondary" outline style={{ borderRadius: 20, fontSize: 11 }}
-                                      onClick={() => setPermissionsModal({ open: true, item: m, type: 'material' })}>
+                                      onClick={() => openPermissionsModal(m, 'material')}>
                                       Permissions
                                     </Button>
                                   )}
@@ -1845,51 +1880,98 @@ export default function SubjectTeacher() {
           </ModalFooter>
         </Modal>
 
-        {/* ---- Teacher Permissions Modal (Admin only) ---- */}
-        <Modal isOpen={permissionsModal.open} toggle={() => setPermissionsModal({ open: false, item: null, type: '' })} centered>
+        {/* ---- Quiz Write Permissions Modal (Admin only) ---- */}
+        <Modal isOpen={permissionsModal.open} toggle={() => setPermissionsModal({ open: false, item: null, type: '' })} centered size="lg">
           <ModalHeader toggle={() => setPermissionsModal({ open: false, item: null, type: '' })}
             style={{ background: 'linear-gradient(135deg,#3b4a67,#6286c3)', color: '#fff', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
-            Teacher Permissions
+            Quiz Write Permissions
           </ModalHeader>
           <ModalBody style={{ background: '#f8fbff' }}>
             {permissionsModal.item && (
-              <div style={{ marginBottom: 16, padding: '10px 14px', background: '#eef0fd', borderRadius: 10, border: '1px solid #d1d8f8' }}>
-                <div style={{ fontSize: 11, color: '#8898aa', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>{permissionsModal.type}</div>
-                <div style={{ fontWeight: 700, color: '#32325d' }}>{permissionsModal.item.title}</div>
+              <div style={{ marginBottom: 14, padding: '10px 14px', background: '#eef0fd', borderRadius: 10, border: '1px solid #d1d8f8' }}>
+                <div style={{ fontSize: 11, color: '#8898aa', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>Quiz</div>
+                <div style={{ fontWeight: 700, color: '#32325d', fontSize: 15 }}>{permissionsModal.item.title}</div>
+                <div style={{ fontSize: 12, color: '#8898aa', marginTop: 2 }}>
+                  Status: <strong style={{ color: permissionsModal.item.is_published ? '#155724' : '#856404' }}>
+                    {permissionsModal.item.is_published ? 'Published' : 'Draft (unpublished)'}
+                  </strong>
+                </div>
               </div>
             )}
-            <p className="small text-muted mb-3">
-              Set each teacher's access level for this subject. <strong>Write</strong> = can add questions (saved as draft for admin review). <strong>Read</strong> = view published content only.
-            </p>
+
+            <div style={{ marginBottom: 14, padding: '10px 14px', background: '#fff8e1', borderRadius: 10, fontSize: 13, color: '#856404' }}>
+              <strong>How this works:</strong> Grant write access so a teacher can see this quiz (even unpublished) and add questions. Their edits save as draft. When the quiz is complete, <strong>revoke all write access</strong> before publishing so the quiz locks down for teachers.
+            </div>
+
             {subjectTeachers.length === 0 ? (
               <p className="text-muted text-center py-3">No teachers allocated to this subject yet.</p>
+            ) : quizPermissionsLoading ? (
+              <p className="text-muted text-center py-3">Loading...</p>
             ) : (
-              <div>
-                {subjectTeachers.map(t => (
-                  <div key={t.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f0f4f8' }}>
-                    <div>
-                      <div style={{ fontWeight: 600, color: '#32325d', fontSize: 14 }}>{t.first_name} {t.last_name}</div>
-                      <div style={{ fontSize: 12, color: '#8898aa' }}>{t.email}</div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                      <span style={{ fontSize: 11, color: '#8898aa', marginRight: 4 }}>Current:</span>
-                      <span style={{ padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
-                        background: t.permission_level === 'write' ? '#d4edda' : '#e9ecef',
-                        color: t.permission_level === 'write' ? '#155724' : '#525f7f' }}>
-                        {t.permission_level === 'write' ? '✏️ Write' : '👁 Read'}
-                      </span>
-                      <Button size="sm"
-                        color={t.permission_level === 'write' ? 'warning' : 'success'}
-                        outline
-                        style={{ borderRadius: 20, fontSize: 11 }}
-                        disabled={permissionsSaving[t.id]}
-                        onClick={() => handleSetTeacherPermission(t.id, t.permission_level === 'write' ? 'read' : 'write')}>
-                        {permissionsSaving[t.id] ? '...' : t.permission_level === 'write' ? 'Set Read' : 'Grant Write'}
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: '#f8f9fa' }}>
+                    {['Teacher', 'Subject Access', 'Quiz Write Access', 'Granted At', 'Action'].map(h => (
+                      <th key={h} style={{ padding: '8px 12px', fontSize: 11, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {subjectTeachers.map(t => {
+                    const quizPerm = quizPermissions.find(p => p.teacher_id === t.id);
+                    const hasQuizWrite = Boolean(quizPerm);
+                    const saving = permissionsSaving[t.id];
+                    return (
+                      <tr key={t.id} style={{ borderBottom: '1px solid #f0f4f8' }}>
+                        <td style={{ padding: '10px 12px' }}>
+                          <div style={{ fontWeight: 600, color: '#32325d' }}>{t.first_name} {t.last_name}</div>
+                          <div style={{ fontSize: 11, color: '#8898aa' }}>{t.email}</div>
+                        </td>
+                        <td style={{ padding: '10px 12px' }}>
+                          <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+                            background: t.permission_level === 'write' ? '#d4edda' : '#e9ecef',
+                            color: t.permission_level === 'write' ? '#155724' : '#525f7f' }}>
+                            {t.permission_level === 'write' ? '✏️ Write (all)' : '👁 Read-only'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 12px' }}>
+                          {t.permission_level === 'write' ? (
+                            <span style={{ fontSize: 12, color: '#5e72e4', fontStyle: 'italic' }}>Inherited (subject write)</span>
+                          ) : hasQuizWrite ? (
+                            <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: '#d4edda', color: '#155724' }}>
+                              ✏️ Write (this quiz)
+                            </span>
+                          ) : (
+                            <span style={{ padding: '2px 8px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: '#f0f4f8', color: '#8898aa' }}>
+                              No access
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ padding: '10px 12px', fontSize: 12, color: '#8898aa' }}>
+                          {quizPerm ? new Date(quizPerm.granted_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : '—'}
+                        </td>
+                        <td style={{ padding: '10px 12px' }}>
+                          {t.permission_level === 'write' ? (
+                            <span style={{ fontSize: 11, color: '#8898aa', fontStyle: 'italic' }}>Via subject</span>
+                          ) : hasQuizWrite ? (
+                            <Button size="sm" color="warning" outline style={{ borderRadius: 20, fontSize: 11 }}
+                              disabled={saving}
+                              onClick={() => handleRevokeQuizWrite(t.id)}>
+                              {saving === 'revoke' ? '...' : 'Revoke Write'}
+                            </Button>
+                          ) : (
+                            <Button size="sm" color="success" outline style={{ borderRadius: 20, fontSize: 11 }}
+                              disabled={saving}
+                              onClick={() => handleGrantQuizWrite(t.id)}>
+                              {saving === 'grant' ? '...' : 'Grant Write'}
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             )}
           </ModalBody>
           <ModalFooter style={{ background: '#f8fbff' }}>

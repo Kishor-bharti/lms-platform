@@ -54,7 +54,7 @@ const updateQuizSchema = z.object({
   questions:         z.array(questionSchema).min(1),
 });
 
-// Quiz CRUD (teacher)
+// Quiz CRUD
 router.post('/', validateBody(createQuizSchema), quizController.createQuiz);
 router.get('/course/:courseId', quizController.getQuizzesByCourse);
 router.get('/subject/:subjectId', quizController.getQuizzesBySubject);
@@ -63,6 +63,11 @@ router.get('/:quizId', quizController.getQuizDetail);
 router.patch('/:quizId/publish', quizController.publishQuiz);
 router.put('/:quizId', validateBody(updateQuizSchema), quizController.updateQuiz);
 router.delete('/:quizId', quizController.deleteQuiz);
+
+// Per-quiz write permissions (admin only)
+router.get('/:quizId/permissions', quizController.getQuizWritePermissions);
+router.post('/:quizId/permissions', quizController.grantQuizWritePermission);
+router.delete('/:quizId/permissions/:teacherId', quizController.revokeQuizWritePermission);
 
 // Attempts (student)
 router.post('/:quizId/attempts', quizController.startAttempt);
