@@ -1178,7 +1178,7 @@ export default function SubjectTeacher() {
                                       {a.is_published ? 'Unpublish' : 'Publish'}
                                     </Button>
                                   )}
-                                  {(isAdmin || a.created_by === userId) && (
+                                  {(isAdmin || (a.created_by === userId && !a.is_published)) && (
                                     <Button size="sm" color="danger" outline style={{ borderRadius: 20, fontSize: 11 }}
                                       onClick={() => setDeleteAssignModal({ open: true, assign: a })}>
                                       Delete
@@ -1368,7 +1368,7 @@ export default function SubjectTeacher() {
                                       {m.is_published ? 'Unpublish' : 'Publish'}
                                     </Button>
                                   )}
-                                  {(isAdmin || m.uploaded_by === userId) && (
+                                  {(isAdmin || (m.uploaded_by === userId && !m.is_published)) && (
                                     <Button size="sm" color="danger" outline style={{ borderRadius: 20, fontSize: 11 }}
                                       onClick={() => setDeleteMatModal({ open: true, mat: m })}>Remove</Button>
                                   )}

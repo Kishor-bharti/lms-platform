@@ -69,7 +69,8 @@ export async function deleteMaterial(req: Request, res: Response) {
     const userId = req.user!.id;
     await materialsService.deleteMaterial(materialId, userId);
     return res.json({ success: true });
-  } catch (err) {
+  } catch (err: any) {
+    if (err.message === 'FORBIDDEN') return res.status(403).json({ error: 'Cannot remove a published material. Unpublish it first or contact admin.' });
     logger.error('[materials] delete:', err);
     return res.status(500).json({ error: 'Failed to delete material' });
   }

@@ -109,14 +109,21 @@ export async function addMaterial(data: {
 }
 
 export async function deleteMaterial(materialId: string, requesterId: string): Promise<void> {
-  // Soft-delete, only owner or admin can delete
-  await query(`
+  // Soft-delete: teachers can only delete their own drafts; published content requires admin
+  const result = await query<any>(`
     UPDATE subject_materials SET is_active = false, updated_at = now()
-    WHERE id = $1 AND (uploaded_by = $2 OR EXISTS (
-      SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id
-      WHERE ur.user_id = $2 AND r.name = 'admin'
-    ))
+    WHERE id = $1
+      AND (
+        (uploaded_by = $2 AND is_published = false)
+        OR EXISTS (
+          SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id
+          WHERE ur.user_id = $2 AND r.name = 'admin'
+        )
+      )
+    RETURNING id
   `, [materialId, requesterId]);
+
+  if (!result[0]) throw new Error('FORBIDDEN');
 }
 
 export async function reorderMaterials(subjectId: string, orderedIds: string[]): Promise<void> {

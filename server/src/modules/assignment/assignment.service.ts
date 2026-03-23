@@ -164,10 +164,13 @@ export async function deleteAssignment(assignmentId: string, requesterId: string
   const result = await query<any>(`
     DELETE FROM assignments
     WHERE id = $1
-      AND (created_by = $2 OR EXISTS (
-        SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id
-        WHERE ur.user_id = $2 AND r.name = 'admin'
-      ))
+      AND (
+        (created_by = $2 AND is_published = false)
+        OR EXISTS (
+          SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id
+          WHERE ur.user_id = $2 AND r.name = 'admin'
+        )
+      )
     RETURNING id
   `, [assignmentId, requesterId]);
 
