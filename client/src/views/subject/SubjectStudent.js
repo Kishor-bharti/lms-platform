@@ -35,32 +35,32 @@ export default function SubjectStudent() {
   const { subjectId } = useParams();
   const navigate      = useNavigate();
 
-  const [tab,             setTab]             = useState('sessions');
-  const [subject,         setSubject]         = useState(null);
-  const [sessions,        setSessions]        = useState([]);
-  const [sessionDateStr,  setSessionDateStr]  = useState(() => {
+  const [tab,              setTab]              = useState('quizzes');
+  const [subject,          setSubject]          = useState(null);
+  const [sessions,         setSessions]         = useState([]);
+  const [sessionDateStr,   setSessionDateStr]   = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   });
   const [sessStatusFilter, setSessStatusFilter] = useState('all');
   const [sessTopicFilter,  setSessTopicFilter]  = useState('all');
-  const [quizzes,     setQuizzes]     = useState([]);
-  const [quizStatuses, setQuizStatuses] = useState({});
-  const [assignments, setAssignments] = useState([]);
-  const [loading,     setLoading]     = useState(true);
-  const [materials,   setMaterials]   = useState([]);
-  const [topics,      setTopics]      = useState([]);
-  const [topicView,   setTopicView]   = useState(null);
+  const [quizzes,          setQuizzes]          = useState([]);
+  const [quizStatuses,     setQuizStatuses]     = useState({});
+  const [assignments,      setAssignments]      = useState([]);
+  const [loading,          setLoading]          = useState(true);
+  const [materials,        setMaterials]        = useState([]);
+  const [topics,           setTopics]           = useState([]);
+  const [topicFilter,      setTopicFilter]      = useState(null); // null = all
 
   // Assignment submit modal
-  const [submitOpen,       setSubmitOpen]       = useState(false);
-  const [submitTarget,     setSubmitTarget]      = useState(null);
-  const [submitForm,       setSubmitForm]        = useState({ submission_url: '', notes: '' });
-  const [submitting,       setSubmitting]        = useState(false);
-  const [submitError,      setSubmitError]       = useState('');
-  const [submitSuccess,    setSubmitSuccess]     = useState('');
-  const [submitUploading,  setSubmitUploading]   = useState(false);
-  const [submitFileName,   setSubmitFileName]    = useState('');
+  const [submitOpen,      setSubmitOpen]      = useState(false);
+  const [submitTarget,    setSubmitTarget]    = useState(null);
+  const [submitForm,      setSubmitForm]      = useState({ submission_url: '', notes: '' });
+  const [submitting,      setSubmitting]      = useState(false);
+  const [submitError,     setSubmitError]     = useState('');
+  const [submitSuccess,   setSubmitSuccess]   = useState('');
+  const [submitUploading, setSubmitUploading] = useState(false);
+  const [submitFileName,  setSubmitFileName]  = useState('');
   const submitFileRef = useRef(null);
 
   useEffect(() => {
@@ -86,7 +86,6 @@ export default function SubjectStudent() {
       setAssignments(assignRes.data || []);
       setMaterials(matRes.data || []);
       setTopics(topicsRes.data || []);
-      // Fetch attempt status for all quizzes in one call
       try {
         const statusRes = await http.get(`/api/quizzes/subject/${subjectId}/status`);
         setQuizStatuses(statusRes.data || {});
@@ -149,8 +148,6 @@ export default function SubjectStudent() {
     }
   };
 
-  const allSessions = sessions.filter((s) => !topicView || s.topic_id === topicView.id);
-
   const formatTimetz = (timetz) => {
     if (!timetz) return '';
     const [h, m] = timetz.slice(0, 5).split(':').map(Number);
@@ -169,21 +166,24 @@ export default function SubjectStudent() {
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   })();
 
-  const sessionDaySessions = allSessions
+  // Apply topic filter to each content type
+  const filteredSessions    = topicFilter ? sessions.filter(s => s.topic_id === topicFilter)    : sessions;
+  const filteredQuizzes     = topicFilter ? quizzes.filter(q => q.topic_id === topicFilter)     : quizzes;
+  const filteredAssignments = topicFilter ? assignments.filter(a => a.topic_id === topicFilter) : assignments;
+  const filteredMaterials   = topicFilter ? materials.filter(m => m.topic_id === topicFilter)   : materials;
+
+  const sessionDaySessions = filteredSessions
     .filter(s => (s.session_date || s.scheduled_at?.slice(0, 10)) === sessionDateStr)
     .filter(s => sessStatusFilter === 'all' || s.status   === sessStatusFilter)
     .filter(s => sessTopicFilter  === 'all' || s.topic_id === sessTopicFilter)
     .sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
-  const allPracticeQuizzes = quizzes.filter(q => q.quiz_type === 'practice');
-  const practiceQuizzes = allPracticeQuizzes.filter(q => !topicView || q.topic_id === topicView.id);
-  const filteredAssignments = topicView ? assignments.filter(a => a.topic_id === topicView.id) : assignments;
-  const filteredMaterials   = topicView ? materials.filter(m => m.topic_id === topicView.id) : materials;
 
   const TABS = [
-    { key: 'sessions',    label: `Sessions (${allSessions.length})` },
-    { key: 'quizzes',     label: `Practice (${practiceQuizzes.length})` },
+    { key: 'quizzes',     label: `Quizzes (${filteredQuizzes.length})` },
+    { key: 'sessions',    label: `Sessions (${filteredSessions.length})` },
     { key: 'assignments', label: `Assignments (${filteredAssignments.length})` },
     { key: 'materials',   label: `Materials (${filteredMaterials.length})` },
+    { key: 'topics',      label: `Topics (${topics.length})` },
   ];
 
   if (loading) return (
@@ -195,91 +195,16 @@ export default function SubjectStudent() {
     </>
   );
 
-  // ---- TOPICS LIST VIEW ----
-  if (!topicView) {
-    return (
-      <>
-        <Header />
-        <Container className="mt--7" fluid style={{ backgroundColor: 'rgb(196,214,226)', minHeight: '100vh', paddingTop: 30, paddingBottom: 30 }}>
-
-          {/* Subject header */}
-          <Row className="mb-4">
-            <Col>
-              <Card className="shadow" style={{ borderRadius: 12, borderLeft: '5px solid #11cdef' }}>
-                <CardBody>
-                  <div className="d-flex align-items-center justify-content-between flex-wrap" style={{ gap: 10 }}>
-                    <div>
-                      <h2 style={{ margin: 0, color: '#32325d' }}>{subject?.title || 'Subject'}</h2>
-                      <div className="text-muted small mt-1">
-                        <span className="mr-3">Course: {subject?.course_name}</span>
-                        <Badge color="light">{subject?.code}</Badge>
-                      </div>
-                      {subject?.teacher_name && (
-                        <div className="text-muted small mt-1">Teacher: {subject.teacher_name}</div>
-                      )}
-                    </div>
-                  </div>
-                </CardBody>
-              </Card>
-            </Col>
-          </Row>
-
-          {/* Topics grid */}
-          <Row className="mb-3">
-            <Col>
-              <h4 style={{ color: '#32325d', marginBottom: 16 }}>📚 Topics</h4>
-            </Col>
-          </Row>
-          <Row>
-            {topics.length === 0 ? (
-              <Col>
-                <Card className="shadow" style={{ borderRadius: 12 }}>
-                  <CardBody className="text-center py-5">
-                    <div style={{ fontSize: 40, marginBottom: 12 }}>📚</div>
-                    <p className="text-muted">No topics available yet for this subject.</p>
-                  </CardBody>
-                </Card>
-              </Col>
-            ) : (
-              topics.map(topic => (
-                <Col key={topic.id} md="4" lg="3" className="mb-4">
-                  <Card className="shadow" style={{ borderRadius: 14, cursor: 'pointer', border: '2px solid transparent', transition: 'all 0.2s ease' }}
-                    onClick={() => setTopicView(topic)}
-                    onMouseEnter={e => e.currentTarget.style.borderColor = '#5e72e4'}
-                    onMouseLeave={e => e.currentTarget.style.borderColor = 'transparent'}>
-                    <CardBody style={{ padding: 20, textAlign: 'center' }}>
-                      <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'linear-gradient(135deg,#5e72e4,#825ee4)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', fontSize: 20, color: '#fff' }}>
-                        📖
-                      </div>
-                      <h6 style={{ color: '#32325d', marginBottom: 4, lineHeight: 1.3 }}>{topic.name}</h6>
-                      {topic.description && <p style={{ fontSize: 12, color: '#8898aa', marginBottom: 0 }}>{topic.description}</p>}
-                    </CardBody>
-                  </Card>
-                </Col>
-              ))
-            )}
-          </Row>
-        </Container>
-        <style>{`
-          @keyframes liveBlink { 0%,100%{opacity:1} 50%{opacity:.4} }
-          .live-blink { animation: liveBlink 1s infinite; }
-        `}</style>
-      </>
-    );
-  }
-
-  // ---- TABBED VIEW (selected topic) ----
   return (
     <>
       <Header />
       <Container className="mt--7" fluid style={{ backgroundColor: 'rgb(196,214,226)', minHeight: '100vh', paddingTop: 30, paddingBottom: 30 }}>
 
         {/* Subject header */}
-        <Row className="mb-4">
+        <Row className="mb-3">
           <Col>
             <Card className="shadow" style={{ borderRadius: 12, borderLeft: '5px solid #11cdef' }}>
-              <CardBody>
+              <CardBody style={{ padding: '16px 20px' }}>
                 <div className="d-flex align-items-center justify-content-between flex-wrap" style={{ gap: 10 }}>
                   <div>
                     <h2 style={{ margin: 0, color: '#32325d' }}>{subject?.title || 'Subject'}</h2>
@@ -297,21 +222,45 @@ export default function SubjectStudent() {
           </Col>
         </Row>
 
-        {/* Back to Topics breadcrumb */}
-        <Row className="mb-2">
-          <Col>
-            <button onClick={() => setTopicView(null)} style={{ background: 'none', border: 'none', color: '#5e72e4', fontWeight: 700, cursor: 'pointer', padding: 0, fontSize: 13 }}>
-              ← Back to Topics
-            </button>
-            <span style={{ color: '#8898aa', margin: '0 8px' }}>›</span>
-            <span style={{ color: '#32325d', fontWeight: 600, fontSize: 13 }}>{topicView.name}</span>
-          </Col>
-        </Row>
+        {/* Topic filter pills */}
+        {topics.length > 0 && (
+          <Row className="mb-3">
+            <Col>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={{ fontSize: 12, color: '#8898aa', fontWeight: 700, marginRight: 4 }}>Topic:</span>
+                <button
+                  onClick={() => setTopicFilter(null)}
+                  style={{
+                    padding: '5px 14px', borderRadius: 20, border: 'none', cursor: 'pointer',
+                    fontWeight: 700, fontSize: 12,
+                    background: topicFilter === null ? '#5e72e4' : '#fff',
+                    color: topicFilter === null ? '#fff' : '#525f7f',
+                    boxShadow: topicFilter === null ? '0 4px 10px rgba(94,114,228,.3)' : '0 1px 3px rgba(0,0,0,.1)',
+                  }}>
+                  All
+                </button>
+                {topics.map(t => (
+                  <button key={t.id}
+                    onClick={() => setTopicFilter(t.id)}
+                    style={{
+                      padding: '5px 14px', borderRadius: 20, border: 'none', cursor: 'pointer',
+                      fontWeight: 700, fontSize: 12,
+                      background: topicFilter === t.id ? '#5e72e4' : '#fff',
+                      color: topicFilter === t.id ? '#fff' : '#525f7f',
+                      boxShadow: topicFilter === t.id ? '0 4px 10px rgba(94,114,228,.3)' : '0 1px 3px rgba(0,0,0,.1)',
+                    }}>
+                    {t.name}
+                  </button>
+                ))}
+              </div>
+            </Col>
+          </Row>
+        )}
 
         {/* Tab nav */}
         <Row className="mb-3">
           <Col>
-            <div style={{ display: 'flex', gap: 6 }}>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {TABS.map((t) => (
                 <button key={t.key} onClick={() => setTab(t.key)} style={{
                   padding: '8px 18px', borderRadius: 20, border: 'none', cursor: 'pointer',
@@ -327,15 +276,110 @@ export default function SubjectStudent() {
           </Col>
         </Row>
 
+        {/* ---- QUIZZES TAB ---- */}
+        {tab === 'quizzes' && (
+          <Row>
+            <Col>
+              {filteredQuizzes.length === 0 ? (
+                <Card className="shadow" style={{ borderRadius: 12 }}>
+                  <CardBody className="text-center py-5">
+                    <div style={{ fontSize: 40, marginBottom: 12 }}>📝</div>
+                    <p className="text-muted mb-0">
+                      {topicFilter ? 'No quizzes published for this topic yet.' : 'No quizzes published yet.'}
+                    </p>
+                  </CardBody>
+                </Card>
+              ) : (
+                <Row>
+                  {filteredQuizzes.map((q) => {
+                    const locked = !q.is_assigned;
+                    const s = quizStatuses[q.id];
+                    const accentColor = locked ? '#adb5bd' : q.quiz_type === 'test' ? '#f5365c' : '#5e72e4';
+                    return (
+                      <Col key={q.id} lg="4" md="6" className="mb-4">
+                        <Card className="shadow h-100" style={{
+                          borderRadius: 12,
+                          borderTop: `4px solid ${accentColor}`,
+                          opacity: locked ? 0.75 : 1,
+                        }}>
+                          <CardBody style={{ padding: 20, display: 'flex', flexDirection: 'column' }}>
+                            <div style={{ flex: 1 }}>
+                              <div className="d-flex justify-content-between align-items-start mb-2">
+                                <h5 style={{ color: '#32325d', marginBottom: 4, lineHeight: 1.3 }}>{q.title}</h5>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end', flexShrink: 0, marginLeft: 8 }}>
+                                  <Badge color={q.quiz_type === 'test' ? 'danger' : 'info'} style={{ textTransform: 'capitalize' }}>
+                                    {q.quiz_type}
+                                  </Badge>
+                                  {locked ? (
+                                    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10,
+                                      background: '#f0f0f0', color: '#8898aa' }}>🔒 Locked</span>
+                                  ) : (() => {
+                                    if (!s || s.attempts_used === 0) return (
+                                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10,
+                                        background: '#eef0fd', color: '#5e72e4' }}>Not Attempted</span>
+                                    );
+                                    if (s.has_submitted) return (
+                                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10,
+                                        background: '#d4edda', color: '#155724' }}>✓ Submitted</span>
+                                    );
+                                    if (s.has_partial) return (
+                                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10,
+                                        background: '#fff3cd', color: '#856404' }}>⏸ In Progress</span>
+                                    );
+                                    return null;
+                                  })()}
+                                </div>
+                              </div>
+                              {q.topic_name && (
+                                <span style={{ fontSize: 11, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10, marginBottom: 8, display: 'inline-block' }}>
+                                  📌 {q.topic_name}
+                                </span>
+                              )}
+                              {q.description && <p className="text-muted small mb-3" style={{ marginTop: q.topic_name ? 8 : 0 }}>{q.description}</p>}
+
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
+                                {[
+                                  { icon: '❓', val: `${q.question_count} questions` },
+                                  { icon: '⏱', val: q.duration_minutes ? `${q.duration_minutes} mins` : 'No timer' },
+                                  { icon: '✅', val: q.passing_score ? `${q.passing_score}% to pass` : 'No pass mark' },
+                                  { icon: '🔄', val: q.max_attempts ? `${q.max_attempts} attempt${q.max_attempts !== 1 ? 's' : ''}` : 'Unlimited' },
+                                ].map((item) => (
+                                  <div key={item.icon} style={{ background: '#f8f9fa', borderRadius: 8, padding: '8px 10px', fontSize: 12, color: '#525f7f' }}>
+                                    {item.icon} {item.val}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            {locked ? (
+                              <div style={{ textAlign: 'center', padding: '10px 0', color: '#8898aa', fontSize: 13 }}>
+                                🔒 Assigned by a teacher to unlock
+                              </div>
+                            ) : (
+                              <Button color="primary" style={{ borderRadius: 8, fontWeight: 700 }}
+                                onClick={() => navigate(`/admin/quiz/${q.id}`)}>
+                                {s?.has_submitted ? 'View Results' : s?.has_partial ? 'Resume' : 'Attempt Quiz'}
+                              </Button>
+                            )}
+                          </CardBody>
+                        </Card>
+                      </Col>
+                    );
+                  })}
+                </Row>
+              )}
+            </Col>
+          </Row>
+        )}
+
         {/* ---- SESSIONS TAB ---- */}
         {tab === 'sessions' && (
           <Row>
             <Col className="mb-4">
               <Card className="shadow" style={{ borderRadius: 12 }}>
                 <CardHeader style={{ background: '#e3f9fc', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
-                  {/* Row 1: title + date nav */}
                   <div className="d-flex justify-content-between align-items-center flex-wrap" style={{ gap: 10, marginBottom: 10 }}>
-                    <CardTitle className="mb-0">Sessions ({allSessions.length})</CardTitle>
+                    <CardTitle className="mb-0">Sessions ({filteredSessions.length})</CardTitle>
                     <div className="d-flex align-items-center" style={{ gap: 6 }}>
                       <button onClick={() => navSessionDate(-1)}
                         style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #dee2e6', background: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -356,7 +400,6 @@ export default function SubjectStudent() {
                       )}
                     </div>
                   </div>
-                  {/* Row 2: filters */}
                   <div className="d-flex align-items-center flex-wrap" style={{ gap: 8 }}>
                     <select value={sessStatusFilter} onChange={e => setSessStatusFilter(e.target.value)}
                       style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12, background: '#fff', color: '#525f7f', cursor: 'pointer' }}>
@@ -399,7 +442,6 @@ export default function SubjectStudent() {
                         <div key={s.id} className="mb-3 bg-white border rounded shadow-sm"
                           style={{ borderLeft: `4px solid ${borderColor}`, padding: '14px 16px' }}>
                           <div className="d-flex justify-content-between align-items-start flex-wrap" style={{ gap: 10 }}>
-                            {/* Left: info */}
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div className="d-flex align-items-center flex-wrap" style={{ gap: 6, marginBottom: 6 }}>
                                 <span style={{ fontWeight: 700, fontSize: 15, color: '#32325d' }}>{s.title}</span>
@@ -419,7 +461,6 @@ export default function SubjectStudent() {
                                 )}
                               </div>
                             </div>
-                            {/* Right: action */}
                             <div style={{ flexShrink: 0 }}>
                               {isLive && s.zoom_link && (
                                 <a href={s.zoom_link} target="_blank" rel="noreferrer">
@@ -440,80 +481,6 @@ export default function SubjectStudent() {
           </Row>
         )}
 
-        {/* ---- QUIZZES TAB ---- */}
-        {tab === 'quizzes' && (
-          <Row>
-            <Col>
-              {practiceQuizzes.length === 0 ? (
-                <Card className="shadow" style={{ borderRadius: 12 }}>
-                  <CardBody className="text-center py-5">
-                    <p className="text-muted">No practice quizzes published yet{topicView ? ' for this topic' : ''}</p>
-                  </CardBody>
-                </Card>
-              ) : (
-                <Row>
-                  {practiceQuizzes.map((q) => (
-                    <Col key={q.id} lg="4" md="6" className="mb-4">
-                      <Card className="shadow h-100" style={{ borderRadius: 12, borderTop: '4px solid #5e72e4' }}>
-                        <CardBody style={{ padding: 20, display: 'flex', flexDirection: 'column' }}>
-                          <div style={{ flex: 1 }}>
-                            <div className="d-flex justify-content-between align-items-start mb-2">
-                              <h5 style={{ color: '#32325d', marginBottom: 4, lineHeight: 1.3 }}>{q.title}</h5>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end', flexShrink: 0, marginLeft: 8 }}>
-                                <Badge color={q.quiz_type === 'test' ? 'danger' : 'info'} style={{ textTransform: 'capitalize' }}>
-                                  {q.quiz_type}
-                                </Badge>
-                                {(() => {
-                                  const s = quizStatuses[q.id];
-                                  if (!s || s.attempts_used === 0) return (
-                                    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10,
-                                      background: '#f0f0f0', color: '#8898aa' }}>Not Attempted</span>
-                                  );
-                                  if (s.has_submitted) return (
-                                    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10,
-                                      background: '#d4edda', color: '#155724' }}>✓ Submitted</span>
-                                  );
-                                  if (s.has_partial) return (
-                                    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10,
-                                      background: '#fff3cd', color: '#856404' }}>⏸ In Progress</span>
-                                  );
-                                  return null;
-                                })()}
-                              </div>
-                            </div>
-                            {q.description && <p className="text-muted small mb-3">{q.description}</p>}
-
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
-                              {[
-                                { icon: '❓', val: `${q.question_count} questions` },
-                                { icon: '⏱', val: `${q.duration_minutes} mins` },
-                                { icon: '✅', val: q.passing_score ? `${q.passing_score}% to pass` : 'No pass points' },
-                                { icon: '🔄', val: q.max_attempts ? `${q.max_attempts} attempts` : 'Unlimited' },
-                              ].map((item) => (
-                                <div key={item.icon} style={{ background: '#f8f9fa', borderRadius: 8, padding: '8px 10px', fontSize: 12, color: '#525f7f' }}>
-                                  {item.icon} {item.val}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-
-                          <Button
-                            color="primary"
-                            style={{ borderRadius: 8, fontWeight: 700 }}
-                            onClick={() => navigate(`/admin/quiz/${q.id}`)}
-                          >
-                            {quizStatuses[q.id]?.has_submitted ? 'View Results' : quizStatuses[q.id]?.has_partial ? 'Resume' : 'Attempt Quiz'}
-                          </Button>
-                        </CardBody>
-                      </Card>
-                    </Col>
-                  ))}
-                </Row>
-              )}
-            </Col>
-          </Row>
-        )}
-
         {/* ---- ASSIGNMENTS TAB ---- */}
         {tab === 'assignments' && (
           <Row>
@@ -521,7 +488,10 @@ export default function SubjectStudent() {
               {filteredAssignments.length === 0 ? (
                 <Card className="shadow" style={{ borderRadius: 12 }}>
                   <CardBody className="text-center py-5">
-                    <p className="text-muted">No assignments yet{topicView ? ' for this topic' : ''}</p>
+                    <div style={{ fontSize: 40, marginBottom: 12 }}>📋</div>
+                    <p className="text-muted mb-0">
+                      {topicFilter ? 'No assignments for this topic yet.' : 'No assignments yet.'}
+                    </p>
                   </CardBody>
                 </Card>
               ) : (
@@ -550,7 +520,6 @@ export default function SubjectStudent() {
                               )}
                             </div>
 
-                            {/* Submission status */}
                             {isSubmitted && (
                               <div style={{ marginTop: 10, padding: '10px 14px', background: isGraded ? '#eafaf1' : '#eef0fd', borderRadius: 8 }}>
                                 {isGraded ? (
@@ -601,7 +570,10 @@ export default function SubjectStudent() {
               {filteredMaterials.length === 0 ? (
                 <Card className="shadow" style={{ borderRadius: 12 }}>
                   <CardBody className="text-center py-5">
-                    <p className="text-muted">No materials uploaded yet{topicView ? ' for this topic' : ''}.</p>
+                    <div style={{ fontSize: 40, marginBottom: 12 }}>📁</div>
+                    <p className="text-muted mb-0">
+                      {topicFilter ? 'No materials for this topic yet.' : 'No materials uploaded yet.'}
+                    </p>
                   </CardBody>
                 </Card>
               ) : (
@@ -634,6 +606,47 @@ export default function SubjectStudent() {
                 </Row>
               )}
             </Col>
+          </Row>
+        )}
+
+        {/* ---- TOPICS TAB ---- */}
+        {tab === 'topics' && (
+          <Row>
+            {topics.length === 0 ? (
+              <Col>
+                <Card className="shadow" style={{ borderRadius: 12 }}>
+                  <CardBody className="text-center py-5">
+                    <div style={{ fontSize: 40, marginBottom: 12 }}>📚</div>
+                    <p className="text-muted">No topics available yet for this subject.</p>
+                  </CardBody>
+                </Card>
+              </Col>
+            ) : (
+              topics.map(topic => (
+                <Col key={topic.id} md="4" lg="3" className="mb-4">
+                  <Card className="shadow" style={{
+                    borderRadius: 14, cursor: 'pointer',
+                    border: `2px solid ${topicFilter === topic.id ? '#5e72e4' : 'transparent'}`,
+                    transition: 'all 0.2s ease',
+                  }}
+                    onClick={() => {
+                      setTopicFilter(topicFilter === topic.id ? null : topic.id);
+                      setTab('quizzes');
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = '#5e72e4'}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = topicFilter === topic.id ? '#5e72e4' : 'transparent'}>
+                    <CardBody style={{ padding: 20, textAlign: 'center' }}>
+                      <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'linear-gradient(135deg,#5e72e4,#825ee4)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', fontSize: 20, color: '#fff' }}>
+                        📖
+                      </div>
+                      <h6 style={{ color: '#32325d', marginBottom: 4, lineHeight: 1.3 }}>{topic.name}</h6>
+                      {topic.description && <p style={{ fontSize: 12, color: '#8898aa', marginBottom: 0 }}>{topic.description}</p>}
+                    </CardBody>
+                  </Card>
+                </Col>
+              ))
+            )}
           </Row>
         )}
 

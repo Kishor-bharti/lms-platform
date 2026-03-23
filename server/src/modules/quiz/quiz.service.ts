@@ -16,6 +16,7 @@ export interface QuizSummary {
   created_at: string;
   can_edit: boolean;            // true = this user can edit the quiz
   write_teacher_count?: number; // admin only: how many teachers have per-quiz write
+  is_assigned?: boolean;        // student only: whether this student has been assigned this quiz
 }
 
 export interface QuizWritePermission {
@@ -75,6 +76,8 @@ export async function getQuizzesBySubject(
 ): Promise<QuizSummary[]> {
 
   // ── student ──────────────────────────────────────────────────────────
+  // All published quizzes are visible; is_assigned indicates whether the student
+  // has been explicitly assigned this quiz by a teacher (required to attempt it).
   if (role === 'student') {
     if (!userId) return [];
     const rows = await query<any>(`
@@ -83,16 +86,17 @@ export async function getQuizzesBySubject(
              q.duration_minutes, q.passing_score, q.is_published, q.max_attempts,
              q.created_at, q.created_by,
              u.first_name || ' ' || u.last_name AS creator_name,
-             COUNT(qs.id) AS question_count
+             COUNT(qs.id) AS question_count,
+             EXISTS (
+               SELECT 1 FROM student_content_assignments sca
+               WHERE sca.content_type = 'quiz' AND sca.content_id = q.id
+                 AND sca.student_id = $2 AND sca.subject_id = $1
+             ) AS is_assigned
       FROM quizzes q
       LEFT JOIN questions qs ON qs.quiz_id = q.id AND qs.is_active = true
       LEFT JOIN topics t ON t.id = q.topic_id
       LEFT JOIN users u ON u.id = q.created_by
-      WHERE q.subject_id = $1 AND q.is_active = true
-        AND q.id IN (
-          SELECT content_id FROM student_content_assignments
-          WHERE content_type = 'quiz' AND student_id = $2 AND subject_id = $1
-        )
+      WHERE q.subject_id = $1 AND q.is_active = true AND q.is_published = true
       GROUP BY q.id, t.name, u.first_name, u.last_name
       ORDER BY q.created_at DESC
     `, [subjectId, userId]);
@@ -101,6 +105,7 @@ export async function getQuizzesBySubject(
       question_count: Number(r.question_count),
       passing_score: r.passing_score ? Number(r.passing_score) : null,
       can_edit: false,
+      is_assigned: Boolean(r.is_assigned),
     }));
   }
 
