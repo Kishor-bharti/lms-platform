@@ -160,7 +160,7 @@ export default function AdminAllocations() {
     const newLevel = currentLevel === 'write' ? 'read' : 'write';
     setPermissionSaving(teacherId);
     try {
-      await http.patch(`/api/admin/subjects/${selectedSubject}/teachers/${teacherId}/permission`, { permissionLevel: newLevel });
+      await http.patch(`/api/admin/subjects/${selectedSubject}/teachers/${teacherId}/permission`, { permission_level: newLevel });
       setAllocations(prev => prev.map(a => a.teacher_id === teacherId ? { ...a, permission_level: newLevel } : a));
     } catch (err) {
       console.error('[togglePermission]', err);
