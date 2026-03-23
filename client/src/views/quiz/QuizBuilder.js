@@ -126,14 +126,11 @@ export default function QuizBuilder() {
 
   const handleImageUpload = async (qi, file) => {
     if (!file) return;
-    
-    // Validate file size (2MB = 2097152 bytes)
     const MAX_SIZE = 2 * 1024 * 1024;
     if (file.size > MAX_SIZE) {
       setError(`Image too large for Q${qi + 1}: ${(file.size / 1024 / 1024).toFixed(2)}MB. Maximum size is 2MB`);
       return;
     }
-    
     setUploading(qi);
     try {
       const formData = new FormData();
@@ -141,7 +138,8 @@ export default function QuizBuilder() {
       const res = await http.post('/api/upload/quiz-image', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      updateQuestion(qi, 'image_url', res.data.url);
+      const updater = teacherEditMode ? updateNewQuestion : updateQuestion;
+      updater(qi, 'image_url', res.data.url);
     } catch (err) {
       setError(`Image upload failed for Q${qi + 1}`);
     } finally {
@@ -151,13 +149,11 @@ export default function QuizBuilder() {
 
   const handleExplanationImageUpload = async (qi, file) => {
     if (!file) return;
-    
     const MAX_SIZE = 2 * 1024 * 1024;
     if (file.size > MAX_SIZE) {
       setError(`Explanation image too large for Q${qi + 1}: ${(file.size / 1024 / 1024).toFixed(2)}MB. Maximum size is 2MB`);
       return;
     }
-    
     setUploadingExpl(qi);
     try {
       const formData = new FormData();
@@ -165,7 +161,8 @@ export default function QuizBuilder() {
       const res = await http.post('/api/upload/quiz-image', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      updateQuestion(qi, 'explanation_image_url', res.data.url);
+      const updater = teacherEditMode ? updateNewQuestion : updateQuestion;
+      updater(qi, 'explanation_image_url', res.data.url);
     } catch (err) {
       setError(`Explanation image upload failed for Q${qi + 1}`);
     } finally {
@@ -188,7 +185,8 @@ export default function QuizBuilder() {
       const res = await http.post('/api/upload/quiz-image', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      updateOption(qi, oi, 'imageUrl', res.data.url);
+      const updater = teacherEditMode ? updateNewOption : updateOption;
+      updater(qi, oi, 'imageUrl', res.data.url);
     } catch {
       setError(`Option image upload failed (Q${qi + 1} Opt ${oi + 1})`);
     } finally {
@@ -503,23 +501,41 @@ export default function QuizBuilder() {
           </Row>
         )}
 
-        {/* ── TEACHER MODE: new questions to append ── */}
+        {/* ── TEACHER MODE: new questions to append (full feature set) ── */}
         {teacherEditMode && (
           <>
             <Row className="mb-2">
               <Col>
-                <div style={{ padding: '10px 16px', background: '#e8f5e9', borderRadius: 10, border: '1px solid #c8e6c9', fontSize: 13, color: '#2e7d32', fontWeight: 600 }}>
-                  ✏️ Add your new questions below. They will be appended to the quiz as a draft for admin review.
-                </div>
+                <Card className="shadow-sm" style={{ borderRadius: 10, border: '1px solid #c8e6c9' }}>
+                  <CardBody style={{ padding: '10px 16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                      <div style={{ fontSize: 13, color: '#2e7d32', fontWeight: 600 }}>
+                        ✏️ Add your new questions below. They will be appended to the quiz as a draft for admin review.
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 10px', background: enableOptionImages ? '#eafaf1' : '#f8f9fa', borderRadius: 8, border: `1px solid ${enableOptionImages ? '#2dce89' : '#e9ecef'}` }}>
+                        <input type="checkbox" id="enableOptImgsTeacher" checked={enableOptionImages}
+                          onChange={(e) => setEnableOptionImages(e.target.checked)}
+                          style={{ width: 15, height: 15, cursor: 'pointer' }} />
+                        <label htmlFor="enableOptImgsTeacher" style={{ margin: 0, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: enableOptionImages ? '#1a7a49' : '#525f7f' }}>
+                          Enable image options for answers
+                        </label>
+                      </div>
+                    </div>
+                  </CardBody>
+                </Card>
               </Col>
             </Row>
+
             {newQuestions.map((q, qi) => (
               <Row key={qi} className="mb-3">
                 <Col>
                   <Card className="shadow" style={{ borderRadius: 12, borderLeft: '4px solid #2dce89' }}>
                     <CardHeader style={{ background: '#f8f9fa', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
                       <div className="d-flex justify-content-between align-items-center">
-                        <span style={{ fontWeight: 700, color: '#32325d' }}>New Question {qi + 1}</span>
+                        <span style={{ fontWeight: 700, color: '#32325d' }}>
+                          New Question {existingQuestions.length + qi + 1}
+                          <span style={{ marginLeft: 8, fontSize: 11, color: '#8898aa', fontWeight: 400 }}>(appending)</span>
+                        </span>
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                           <Input type="select" bsSize="sm" value={q.difficulty} style={{ width: 110 }}
                             onChange={(e) => updateNewQuestion(qi, 'difficulty', e.target.value)}>
@@ -538,39 +554,156 @@ export default function QuizBuilder() {
                       </div>
                     </CardHeader>
                     <CardBody>
+                      {/* Question text with live LaTeX preview */}
                       <FormGroup>
-                        <Label style={{ fontSize: 12, color: '#8898aa' }}>Question Text <span style={{ fontWeight: 400 }}>(use $...$ for inline math)</span></Label>
-                        <Input type="textarea" rows={3} placeholder="Enter question text..."
-                          value={q.question_text}
-                          onChange={(e) => updateNewQuestion(qi, 'question_text', e.target.value)} />
-                      </FormGroup>
-                      {topics.length > 0 && (
-                        <FormGroup>
-                          <Label style={{ fontSize: 12, color: '#8898aa' }}>Topic <span className="text-danger">*</span></Label>
-                          <Input type="select" bsSize="sm" value={q.topic_id}
-                            onChange={(e) => updateNewQuestion(qi, 'topic_id', e.target.value)}>
-                            <option value="">— Select topic —</option>
-                            {topics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                          </Input>
-                        </FormGroup>
-                      )}
-                      <Label style={{ fontSize: 12, color: '#8898aa' }}>Answer Options (select the correct one)</Label>
-                      {q.options.map((opt, oi) => (
-                        <div key={oi} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, padding: '6px 10px', background: opt.is_correct ? '#f0fff4' : '#f8f9fa', borderRadius: 8, border: `1px solid ${opt.is_correct ? '#c3e6cb' : '#e9ecef'}` }}>
-                          <input type="radio" name={`new-correct-${qi}`} checked={opt.is_correct}
-                            onChange={() => updateNewOption(qi, oi, 'is_correct', true)}
-                            style={{ cursor: 'pointer', width: 16, height: 16, flexShrink: 0 }} />
-                          <span style={{ fontWeight: 700, color: '#5e72e4', minWidth: 20 }}>{opt.label}.</span>
-                          <Input bsSize="sm" value={opt.text} placeholder={`Option ${opt.label}...`}
-                            onChange={(e) => updateNewOption(qi, oi, 'text', e.target.value)}
-                            style={{ border: 'none', background: 'transparent', padding: 0, boxShadow: 'none' }} />
+                        <Label style={{ fontSize: 12, color: '#8898aa' }}>
+                          Question Text <span style={{ fontWeight: 400 }}>(use $...$ for inline math, $$...$$ for block math)</span>
+                        </Label>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                          <Input type="textarea" rows={4} placeholder="Enter question text..."
+                            value={q.question_text}
+                            onChange={(e) => updateNewQuestion(qi, 'question_text', e.target.value)}
+                            style={{ fontWeight: 500 }} />
+                          <div style={{ border: '1px solid #e9ecef', borderRadius: 6, padding: 12, minHeight: 100, background: '#fafbfc', overflow: 'auto' }}>
+                            <LatexRenderer text={q.question_text || 'Preview will appear here...'} style={{ color: q.question_text ? '#32325d' : '#adb5bd' }} />
+                          </div>
                         </div>
-                      ))}
+                      </FormGroup>
+
+                      {/* Question image upload */}
+                      <div style={{ marginBottom: 12 }}>
+                        <input type="file" accept="image/*" style={{ display: 'none' }}
+                          ref={el => fileInputRefs.current[qi] = el}
+                          onChange={(e) => { handleImageUpload(qi, e.target.files?.[0]); e.target.value = ''; }} />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <Button size="sm" color="info" outline style={{ borderRadius: 6 }}
+                            disabled={uploading === qi}
+                            onClick={() => fileInputRefs.current[qi]?.click()}>
+                            {uploading === qi ? <><Spinner size="sm" /> Uploading...</> : '📷 Add Image'}
+                          </Button>
+                          <small style={{ color: '#8898aa' }}>Max 2MB</small>
+                          {q.image_url && (
+                            <Button size="sm" color="danger" outline style={{ borderRadius: 6 }}
+                              onClick={() => updateNewQuestion(qi, 'image_url', '')}>Remove Image</Button>
+                          )}
+                        </div>
+                        {q.image_url && (
+                          <img src={q.image_url} alt="Question" style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 8, marginTop: 8, border: '1px solid #e9ecef', objectFit: 'contain', display: 'block' }} />
+                        )}
+                      </div>
+
+                      {/* Topic selector */}
+                      <FormGroup style={{ marginBottom: 12 }}>
+                        <Label style={{ fontSize: 12, color: '#8898aa' }}>
+                          Topic <span className="text-danger">*</span>
+                        </Label>
+                        {topics.length === 0 ? (
+                          <div style={{ fontSize: 12, color: '#fb6340', padding: '4px 0' }}>
+                            ⚠️ No topics available — {isCourseQuiz ? 'add topics to the subjects in this course' : 'add topics to this subject'} first
+                          </div>
+                        ) : (
+                          <Input type="select" bsSize="sm" value={q.topic_id}
+                            onChange={(e) => updateNewQuestion(qi, 'topic_id', e.target.value)}
+                            style={{ maxWidth: 320 }}>
+                            <option value="">— Select topic —</option>
+                            {topics.map(t => (
+                              <option key={t.id} value={t.id}>
+                                {isCourseQuiz && t.subject_name ? `${t.subject_name} — ${t.name}` : t.name}
+                              </option>
+                            ))}
+                          </Input>
+                        )}
+                      </FormGroup>
+
+                      {/* Answer options — 2-column grid with optional image upload */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+                        {q.options.map((opt, oi) => {
+                          const optKey = `${qi}-${oi}`;
+                          return (
+                            <div key={oi} style={{
+                              display: 'flex', flexDirection: 'column', gap: 6,
+                              background: opt.is_correct ? '#eafaf1' : '#f8f9fa',
+                              border: `2px solid ${opt.is_correct ? '#2dce89' : '#e9ecef'}`,
+                              borderRadius: 8, padding: '8px 12px',
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <input type="radio" name={`new-correct-${qi}`} checked={opt.is_correct}
+                                  onChange={() => updateNewOption(qi, oi, 'is_correct', true)}
+                                  style={{ cursor: 'pointer', width: 16, height: 16, flexShrink: 0 }}
+                                  title="Mark as correct answer" />
+                                <span style={{ fontWeight: 700, color: '#5e72e4', minWidth: 20 }}>{opt.label}.</span>
+                                <Input bsSize="sm" value={opt.text}
+                                  placeholder={enableOptionImages ? `Option ${opt.label} (optional with image)` : `Option ${opt.label}...`}
+                                  onChange={(e) => updateNewOption(qi, oi, 'text', e.target.value)}
+                                  style={{ border: 'none', background: 'transparent', padding: 0, boxShadow: 'none' }} />
+                              </div>
+                              {enableOptionImages && (
+                                <div>
+                                  <input type="file" accept="image/*" style={{ display: 'none' }}
+                                    ref={el => { optImageRefs.current[optKey] = el; }}
+                                    onChange={(e) => { handleOptionImageUpload(qi, oi, e.target.files?.[0]); e.target.value = ''; }} />
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <Button size="sm" color="info" outline style={{ borderRadius: 6, fontSize: 10, padding: '2px 8px' }}
+                                      disabled={uploadingOpt === optKey}
+                                      onClick={() => optImageRefs.current[optKey]?.click()}>
+                                      {uploadingOpt === optKey ? <Spinner size="sm" /> : '📷'}
+                                    </Button>
+                                    {opt.imageUrl && (
+                                      <>
+                                        <img src={opt.imageUrl} alt={`Option ${opt.label}`} style={{ height: 30, borderRadius: 4, objectFit: 'contain', border: '1px solid #e9ecef' }} />
+                                        <Button size="sm" color="danger" outline style={{ borderRadius: 6, fontSize: 10, padding: '2px 6px' }}
+                                          onClick={() => updateNewOption(qi, oi, 'imageUrl', '')}>✕</Button>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Explanation with image */}
+                      <FormGroup className="mb-0">
+                        <Label style={{ fontSize: 12, color: '#8898aa' }}>Explanation (shown after attempt)</Label>
+                        <textarea
+                          className="form-control form-control-sm"
+                          placeholder="Explanation (shown after attempt — supports $LaTeX$)..."
+                          value={q.explanation}
+                          onChange={(e) => {
+                            updateNewQuestion(qi, 'explanation', e.target.value);
+                            e.target.style.height = 'auto';
+                            e.target.style.height = e.target.scrollHeight + 'px';
+                          }}
+                          rows={1}
+                          style={{ resize: 'none', overflow: 'hidden', minHeight: 34 }} />
+                        <div style={{ marginTop: 8 }}>
+                          <input type="file" accept="image/*" style={{ display: 'none' }}
+                            ref={el => explImageRefs.current[qi] = el}
+                            onChange={(e) => { handleExplanationImageUpload(qi, e.target.files?.[0]); e.target.value = ''; }} />
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <Button size="sm" color="secondary" outline style={{ borderRadius: 6, fontSize: 11 }}
+                              disabled={uploadingExpl === qi}
+                              onClick={() => explImageRefs.current[qi]?.click()}>
+                              {uploadingExpl === qi ? <><Spinner size="sm" /> Uploading...</> : '📷 Add Explanation Image'}
+                            </Button>
+                            <small style={{ color: '#8898aa' }}>Max 2MB</small>
+                            {q.explanation_image_url && (
+                              <Button size="sm" color="danger" outline style={{ borderRadius: 6, fontSize: 11 }}
+                                onClick={() => updateNewQuestion(qi, 'explanation_image_url', '')}>Remove</Button>
+                            )}
+                          </div>
+                          {q.explanation_image_url && (
+                            <img src={q.explanation_image_url} alt="Explanation" style={{ maxWidth: '100%', maxHeight: 150, borderRadius: 8, marginTop: 8, border: '1px solid #e9ecef', objectFit: 'contain', display: 'block' }} />
+                          )}
+                        </div>
+                      </FormGroup>
                     </CardBody>
                   </Card>
                 </Col>
               </Row>
             ))}
+
             <Row className="mb-4">
               <Col className="text-center">
                 <Button color="success" outline style={{ borderRadius: 20, padding: '8px 24px' }}
