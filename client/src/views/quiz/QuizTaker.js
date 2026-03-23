@@ -4,7 +4,7 @@ import {
 } from 'reactstrap';
 import Header from 'components/Headers/Header.js';
 import LatexRenderer from 'components/LatexRenderer.js';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { PageCardSkeleton } from 'components/Skeleton.js';
 import http from 'utils/http';
 import { API_BASE } from 'utils/api';
@@ -12,6 +12,8 @@ import { API_BASE } from 'utils/api';
 export default function QuizTaker() {
   const { quizId } = useParams();
   const navigate   = useNavigate();
+  const location   = useLocation();
+  const previewMode = Boolean(location.state?.previewMode);
 
   const [phase,     setPhase]     = useState('loading'); // loading | intro | taking | submitting | result
   const [quiz,      setQuiz]      = useState(null);
@@ -81,12 +83,18 @@ export default function QuizTaker() {
 
   const fetchQuiz = async () => {
     try {
+      // In preview mode, skip fetching attempts (staff preview — no attempt needed)
       const [quizRes, attemptsRes] = await Promise.all([
         http.get(`/api/quizzes/${quizId}`),
-        http.get(`/api/quizzes/${quizId}/attempts`),
+        previewMode ? Promise.resolve({ data: [] }) : http.get(`/api/quizzes/${quizId}/attempts`),
       ]);
       setQuiz(quizRes.data);
       setAttempts(attemptsRes.data || []);
+
+      if (previewMode) {
+        setPhase('preview');
+        return;
+      }
 
       // Restore in-progress test attempt from localStorage after page refresh
       if (quizRes.data?.quiz_type === 'test') {
@@ -285,6 +293,134 @@ export default function QuizTaker() {
             <p className="text-danger">{error}</p>
             <Button color="primary" onClick={() => navigate(-1)}>Go Back</Button>
           </CardBody></Card></Col></Row>
+        </Container>
+      </>
+    );
+  }
+
+  // ---- Staff Preview Mode ----
+  if (phase === 'preview') {
+    const questions = quiz?.questions || [];
+    return (
+      <>
+        <Header hideSubtitle />
+        <Container className="mt--7" fluid style={{ backgroundColor: 'rgb(196,214,226)', minHeight: '100vh', paddingTop: 30, paddingBottom: 40 }}>
+          {/* Preview banner */}
+          <Row className="mb-3">
+            <Col>
+              <div style={{ background: '#fff3cd', border: '1px solid #ffc107', borderRadius: 10, padding: '10px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                <div>
+                  <span style={{ fontWeight: 700, color: '#856404', fontSize: 14 }}>👁 Staff Preview</span>
+                  <span style={{ color: '#856404', fontSize: 13, marginLeft: 10 }}>
+                    Viewing <strong>{quiz?.title}</strong> as a student would see it. Correct answers are highlighted.
+                    {!quiz?.is_published && <span style={{ marginLeft: 8, background: '#f8d7da', color: '#721c24', borderRadius: 6, padding: '1px 8px', fontSize: 11, fontWeight: 700 }}>UNPUBLISHED</span>}
+                  </span>
+                </div>
+                <Button color="warning" size="sm" style={{ borderRadius: 8, fontWeight: 700 }} onClick={() => navigate(-1)}>
+                  ✕ Exit Preview
+                </Button>
+              </div>
+            </Col>
+          </Row>
+
+          {/* Quiz info card */}
+          <Row className="mb-4">
+            <Col>
+              <Card className="shadow" style={{ borderRadius: 12 }}>
+                <CardHeader style={{ background: 'linear-gradient(135deg, #5e72e4 0%, #825ee4 100%)', borderTopLeftRadius: 12, borderTopRightRadius: 12, padding: '16px 20px' }}>
+                  <h3 style={{ color: '#fff', margin: 0 }}>{quiz?.title}</h3>
+                  {quiz?.description && <p style={{ color: 'rgba(255,255,255,0.8)', margin: '4px 0 0', fontSize: 13 }}>{quiz.description}</p>}
+                </CardHeader>
+                <CardBody style={{ display: 'flex', gap: 24, flexWrap: 'wrap', padding: '14px 20px' }}>
+                  {[
+                    { icon: '❓', label: 'Questions', value: questions.length },
+                    { icon: '⏱', label: 'Duration',  value: quiz?.quiz_type === 'practice' ? 'No Timer' : `${quiz?.duration_minutes} min` },
+                    { icon: '📝', label: 'Type',      value: quiz?.quiz_type === 'practice' ? 'Practice' : 'Test' },
+                    { icon: '🔄', label: 'Attempts',  value: quiz?.max_attempts },
+                  ].map(item => (
+                    <div key={item.label} style={{ textAlign: 'center', minWidth: 80 }}>
+                      <div style={{ fontSize: 20 }}>{item.icon}</div>
+                      <div style={{ fontSize: 12, color: '#8898aa' }}>{item.label}</div>
+                      <div style={{ fontWeight: 700, color: '#32325d' }}>{item.value}</div>
+                    </div>
+                  ))}
+                </CardBody>
+              </Card>
+            </Col>
+          </Row>
+
+          {/* Questions */}
+          {questions.map((q, qi) => (
+            <Row key={q.id} className="mb-3">
+              <Col>
+                <Card className="shadow" style={{ borderRadius: 12 }}>
+                  <CardHeader style={{ background: '#f8f9fa', borderTopLeftRadius: 12, borderTopRightRadius: 12, padding: '10px 18px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                      <span style={{ fontWeight: 700, color: '#32325d' }}>Q{qi + 1}</span>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        {q.topic_name && (
+                          <Badge color="light" style={{ color: '#5e72e4', border: '1px solid #d1d8f8', fontSize: 10 }}>📌 {q.topic_name}</Badge>
+                        )}
+                        <Badge color={q.difficulty === 'easy' ? 'success' : q.difficulty === 'hard' ? 'danger' : 'warning'} style={{ fontSize: 10 }}>
+                          {q.difficulty}
+                        </Badge>
+                        <Badge color="light" style={{ fontSize: 10, color: '#525f7f' }}>{q.marks} pt{q.marks !== 1 ? 's' : ''}</Badge>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardBody style={{ padding: '16px 20px' }}>
+                    <div style={{ fontSize: 15, fontWeight: 500, color: '#32325d', marginBottom: 12 }}>
+                      <LatexRenderer text={q.question_text} />
+                    </div>
+                    {q.image_url && (
+                      <img src={q.image_url} alt="Question" style={{ maxWidth: '100%', maxHeight: 220, borderRadius: 8, marginBottom: 12, objectFit: 'contain', display: 'block', border: '1px solid #e9ecef' }} />
+                    )}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: q.explanation ? 14 : 0 }}>
+                      {(q.options || []).map((opt) => (
+                        <div key={opt.id} style={{
+                          display: 'flex', alignItems: 'center', gap: 10,
+                          padding: '10px 14px', borderRadius: 8,
+                          background: opt.is_correct ? '#eafaf1' : '#f8f9fa',
+                          border: `2px solid ${opt.is_correct ? '#2dce89' : '#e9ecef'}`,
+                        }}>
+                          <span style={{ fontWeight: 700, color: opt.is_correct ? '#2dce89' : '#5e72e4', minWidth: 22, fontSize: 13 }}>
+                            {opt.option_label}.
+                          </span>
+                          {opt.option_image_url ? (
+                            <img src={opt.option_image_url} alt={opt.option_label} style={{ maxHeight: 50, maxWidth: '100%', objectFit: 'contain' }} />
+                          ) : (
+                            <span style={{ fontSize: 13, color: '#32325d', fontWeight: opt.is_correct ? 600 : 400 }}>
+                              <LatexRenderer text={opt.option_text || ''} />
+                            </span>
+                          )}
+                          {opt.is_correct && <span style={{ marginLeft: 'auto', fontSize: 16 }}>✓</span>}
+                        </div>
+                      ))}
+                    </div>
+                    {q.explanation && (
+                      <div style={{ marginTop: 8, padding: '10px 14px', background: '#eef0fd', borderRadius: 8, borderLeft: '3px solid #5e72e4' }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#5e72e4', marginBottom: 4, textTransform: 'uppercase' }}>Explanation</div>
+                        <div style={{ fontSize: 13, color: '#32325d' }}>
+                          <LatexRenderer text={q.explanation} />
+                        </div>
+                        {q.explanation_image_url && (
+                          <img src={q.explanation_image_url} alt="Explanation" style={{ maxWidth: '100%', maxHeight: 150, borderRadius: 6, marginTop: 8, objectFit: 'contain', display: 'block' }} />
+                        )}
+                      </div>
+                    )}
+                  </CardBody>
+                </Card>
+              </Col>
+            </Row>
+          ))}
+
+          <Row>
+            <Col className="text-center">
+              <Button color="warning" style={{ borderRadius: 10, fontWeight: 700, padding: '10px 32px' }} onClick={() => navigate(-1)}>
+                ✕ Exit Preview
+              </Button>
+            </Col>
+          </Row>
         </Container>
       </>
     );

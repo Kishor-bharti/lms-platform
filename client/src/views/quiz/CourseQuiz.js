@@ -262,6 +262,11 @@ export default function CourseQuiz() {
                               <td style={tdStyle}>{q.creator_name || '—'}</td>
                               <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>
                                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                                  {/* View as Student — always visible for staff */}
+                                  <Button color="light" outline size="sm" style={{ borderRadius: 6, padding: '2px 8px', fontSize: 11 }}
+                                    onClick={() => navigate(`/admin/quiz/${q.id}`, { state: { previewMode: true } })}>
+                                    👁 Preview
+                                  </Button>
                                   {/* Edit — admin always; teacher only if has per-quiz write */}
                                   {q.can_edit && (
                                     <Button color="info" outline size="sm" style={{ borderRadius: 6, padding: '2px 8px', fontSize: 11 }}

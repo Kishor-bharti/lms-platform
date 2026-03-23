@@ -1020,6 +1020,11 @@ export default function SubjectTeacher() {
                                       ✏️ {q.write_teacher_count} writer{q.write_teacher_count !== 1 ? 's' : ''}
                                     </span>
                                   )}
+                                  {/* View as Student — always visible for staff */}
+                                  <Button size="sm" color="light" outline style={{ borderRadius: 20, fontSize: 11 }}
+                                    onClick={() => navigate(`/admin/quiz/${q.id}`, { state: { previewMode: true } })}>
+                                    👁 Preview
+                                  </Button>
                                   {/* Edit: admin always, teacher if can_edit (subject-level or per-quiz write) */}
                                   {q.can_edit && (
                                     <Button size="sm" color="info" outline style={{ borderRadius: 20, fontSize: 11 }}
