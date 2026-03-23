@@ -341,10 +341,11 @@ export default function SubjectTeacher() {
     } catch (err) { alert(err?.response?.data?.error || 'Failed to delete assignment'); }
   };
 
-  // Only admin can edit/delete content; write-permission teachers can create/edit
+  // Quiz creation is admin-only. Assignments/materials can be created by any allocated teacher.
   const teacherPermission = subject?.permission_level; // 'read' | 'write' | undefined
-  const canCreate       = isAdmin || teacherPermission === 'write';
-  const canEditMaterial = () => isAdmin;
+  const canCreateQuiz    = isAdmin;
+  const canCreateContent = isAdmin || userRole === 'teacher'; // all teachers can create assignments/materials
+  const canEditMaterial  = () => isAdmin;
 
   // Helper: count how many students have a content item assigned
   const assignedCount = (type, itemId) =>
@@ -630,12 +631,14 @@ export default function SubjectTeacher() {
                   </div>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <Button color="success" size="sm" style={{ borderRadius: 8 }} onClick={() => setScheduleOpen(true)}>+ Session</Button>
-                    {canCreate && (
+                    {canCreateQuiz && (
+                      <Button color="primary" size="sm" style={{ borderRadius: 8 }}
+                        onClick={() => navigate('/admin/quiz-builder', { state: { subjectId, subjectName: subject?.title } })}>
+                        + Practice
+                      </Button>
+                    )}
+                    {canCreateContent && (
                       <>
-                        <Button color="primary" size="sm" style={{ borderRadius: 8 }}
-                          onClick={() => navigate('/admin/quiz-builder', { state: { subjectId, subjectName: subject?.title } })}>
-                          + Practice
-                        </Button>
                         <Button color="warning" size="sm" style={{ borderRadius: 8 }} onClick={() => setAssignOpen(true)}>+ Assignment</Button>
                         <Button color="secondary" size="sm" style={{ borderRadius: 8 }} onClick={() => setMatModalOpen(true)}>+ Material</Button>
                       </>
@@ -934,7 +937,7 @@ export default function SubjectTeacher() {
                 <CardHeader style={{ background: '#eaf3ff', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
                   <div className="d-flex justify-content-between align-items-center">
                     <CardTitle className="mb-0">Practice Sets &amp; Quizzes</CardTitle>
-                    {canCreate && (
+                    {canCreateQuiz && (
                       <Button color="primary" size="sm" style={{ borderRadius: 8 }}
                         onClick={() => navigate('/admin/quiz-builder', { state: { subjectId, subjectName: subject?.title } })}>
                         + Create Practice Set
@@ -945,8 +948,8 @@ export default function SubjectTeacher() {
                 <CardBody>
                   {quizzes.length === 0 ? (
                     <div className="text-center py-4">
-                      <p className="text-muted">No practice sets yet{canCreate ? '' : ' — contact admin to create content'}</p>
-                      {canCreate && (
+                      <p className="text-muted">No practice sets yet{canCreateQuiz ? '' : ' — contact admin to create content'}</p>
+                      {canCreateQuiz && (
                         <Button color="primary" size="sm"
                           onClick={() => navigate('/admin/quiz-builder', { state: { subjectId, subjectName: subject?.title } })}>
                           Create First Practice Set
@@ -1072,7 +1075,7 @@ export default function SubjectTeacher() {
                 <CardHeader style={{ background: '#eaf3ff', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
                   <div className="d-flex justify-content-between align-items-center">
                     <CardTitle className="mb-0">Assignments</CardTitle>
-                    {canCreate && (
+                    {canCreateContent && (
                       <Button color="warning" size="sm" style={{ borderRadius: 8 }} onClick={() => setAssignOpen(true)}>
                         + Create Assignment
                       </Button>
@@ -1082,8 +1085,8 @@ export default function SubjectTeacher() {
                 <CardBody>
                   {assignments.length === 0 ? (
                     <div className="text-center py-4">
-                      <p className="text-muted">No assignments yet{canCreate ? '' : ' — contact admin to create content'}</p>
-                      {canCreate && <Button color="warning" size="sm" onClick={() => setAssignOpen(true)}>Create First</Button>}
+                      <p className="text-muted">No assignments yet.</p>
+                      {canCreateContent && <Button color="warning" size="sm" onClick={() => setAssignOpen(true)}>Create First</Button>}
                     </div>
                   ) : (
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -1261,7 +1264,7 @@ export default function SubjectTeacher() {
                 <CardHeader style={{ background: '#eaf3ff', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
                   <div className="d-flex justify-content-between align-items-center">
                     <CardTitle className="mb-0">Study Materials</CardTitle>
-                    {canCreate && (
+                    {canCreateContent && (
                       <Button color="secondary" size="sm" style={{ borderRadius: 8 }} onClick={() => setMatModalOpen(true)}>
                         + Add Material
                       </Button>
@@ -1271,8 +1274,8 @@ export default function SubjectTeacher() {
                 <CardBody>
                   {materials.length === 0 ? (
                     <div className="text-center py-4">
-                      <p className="text-muted">No materials yet{canCreate ? '. Add PDFs, videos, or links.' : ' — contact admin to add content'}</p>
-                      {canCreate && <Button color="secondary" size="sm" onClick={() => setMatModalOpen(true)}>Add First Material</Button>}
+                      <p className="text-muted">No materials yet. Add PDFs, videos, or links.</p>
+                      {canCreateContent && <Button color="secondary" size="sm" onClick={() => setMatModalOpen(true)}>Add First Material</Button>}
                     </div>
                   ) : (
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>

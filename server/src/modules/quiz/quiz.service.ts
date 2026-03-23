@@ -850,7 +850,7 @@ export async function getMyAttempts(quizId: string, studentId: string): Promise<
 
 // ---- Get quizzes by course (for course-level test sets) ----
 
-export async function getQuizzesByCourse(courseId: string, studentId: string, role: string) {
+export async function getQuizzesByCourse(courseId: string, userId: string, role: string) {
   const rows = await query<any>(`
     SELECT
       q.id, q.course_id, q.title, q.quiz_type, q.description,
@@ -858,10 +858,19 @@ export async function getQuizzesByCourse(courseId: string, studentId: string, ro
       q.created_at, q.created_by,
       u.first_name || ' ' || u.last_name AS creator_name,
       t.name AS topic_name,
-      COUNT(qs.id) AS question_count,
-      qa.id      AS attempt_id,
-      qa.status  AS attempt_status,
-      qa.score_pct AS attempt_score
+      COUNT(DISTINCT qs.id) AS question_count,
+      qa.id        AS attempt_id,
+      qa.status    AS attempt_status,
+      qa.score_pct AS attempt_score,
+      ${role === 'admin'
+        ? `true AS can_edit,
+           (SELECT COUNT(*) FROM quiz_write_permissions qwp WHERE qwp.quiz_id = q.id)::int AS write_teacher_count`
+        : `EXISTS (
+             SELECT 1 FROM quiz_write_permissions qwp
+             WHERE qwp.quiz_id = q.id AND qwp.teacher_id = $2
+           ) AS can_edit,
+           0 AS write_teacher_count`
+      }
     FROM quizzes q
     LEFT JOIN questions qs ON qs.quiz_id = q.id AND qs.is_active = true
     LEFT JOIN quiz_attempts qa ON qa.quiz_id = q.id AND qa.student_id = $2 AND qa.status = 'submitted'
@@ -871,11 +880,13 @@ export async function getQuizzesByCourse(courseId: string, studentId: string, ro
       ${role === 'student' ? 'AND q.is_published = true' : ''}
     GROUP BY q.id, qa.id, qa.status, qa.score_pct, t.name, u.first_name, u.last_name
     ORDER BY q.created_at DESC
-  `, [courseId, studentId]);
+  `, [courseId, userId]);
 
   return rows.map((r: any) => ({
     ...r,
     question_count: Number(r.question_count),
+    can_edit: Boolean(r.can_edit),
+    write_teacher_count: Number(r.write_teacher_count),
     my_attempt: r.attempt_id ? {
       id: r.attempt_id, status: r.attempt_status, score_pct: r.attempt_score
     } : null,

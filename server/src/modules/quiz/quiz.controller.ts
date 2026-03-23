@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import logger from '../../config/logger';
 import { query } from '../../config/db';
 import * as quizService from './quiz.service';
-import { hasContentWritePermission, hasQuizWritePermission } from '../../utils/permissions';
+import { hasQuizWritePermission } from '../../utils/permissions';
 
 export async function getQuizzesBySubject(req: Request, res: Response) {
   try {
@@ -42,10 +42,9 @@ export async function createQuiz(req: Request, res: Response) {
     const role = req.user!.role;
     const { subjectId, courseId, topicId, title, quiz_type, description, duration_minutes, max_attempts, questions } = req.body;
 
-    // Admin always allowed; teachers need write permission on the subject
-    const canCreate = await hasContentWritePermission(userId, role, subjectId ?? courseId ?? '');
-    if (!canCreate) {
-      return res.status(403).json({ error: 'Insufficient permissions to create quizzes in this subject' });
+    // Only admins can create quizzes — teachers use the append endpoint for permitted quizzes
+    if (role !== 'admin') {
+      return res.status(403).json({ error: 'Only admins can create quizzes' });
     }
 
     const quiz = await quizService.createQuiz({

@@ -16,8 +16,9 @@ export async function getTeacherPermissionLevel(
 }
 
 /**
- * Returns true if the user can create new content items in the subject.
- * Admin always has write. Teachers need subject-level permission_level = 'write'.
+ * Returns true if the user can create assignments or materials in the subject.
+ * Admin always has write. Teachers only need to be allocated to the subject (any permission level).
+ * Quiz creation is admin-only and does NOT use this function.
  */
 export async function hasContentWritePermission(
   userId: string,
@@ -27,7 +28,7 @@ export async function hasContentWritePermission(
   if (role === 'admin') return true;
   if (role !== 'teacher') return false;
   const level = await getTeacherPermissionLevel(userId, subjectId);
-  return level === 'write';
+  return level !== null; // any allocated teacher (read or write) can create assignments/materials
 }
 
 /**
