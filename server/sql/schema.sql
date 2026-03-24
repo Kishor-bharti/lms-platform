@@ -1,7 +1,7 @@
 -- ============================================================
 -- 10xAccel — Canonical Schema
 -- Source of truth for a fresh database setup.
--- Last synced: 2026-03-04 (matches local + production state)
+-- Last synced: 2026-03-25 (matches local + production state)
 -- ============================================================
 
 -- CREATE DATABASE IF NOT EXISTS "100xlearning";
@@ -100,11 +100,21 @@ CREATE TRIGGER trg_updated_at_topics
   FOR EACH ROW EXECUTE FUNCTION fn_set_updated_at();
 
 CREATE TABLE subject_teachers (
-  subject_id  UUID        NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
-  teacher_id  UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  subject_id       UUID        NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+  teacher_id       UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  assigned_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  assigned_by      UUID        NOT NULL REFERENCES users(id),
+  permission_level VARCHAR(10) NOT NULL DEFAULT 'read' CHECK (permission_level IN ('read', 'write')),
+  PRIMARY KEY (subject_id, teacher_id)
+);
+
+CREATE TABLE subject_teacher_students (
+  subject_id  UUID        NOT NULL REFERENCES subjects(id)  ON DELETE CASCADE,
+  teacher_id  UUID        NOT NULL REFERENCES users(id)     ON DELETE CASCADE,
+  student_id  UUID        NOT NULL REFERENCES users(id)     ON DELETE CASCADE,
   assigned_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   assigned_by UUID        NOT NULL REFERENCES users(id),
-  PRIMARY KEY (subject_id, teacher_id)
+  PRIMARY KEY (subject_id, teacher_id, student_id)
 );
 
 CREATE TABLE subject_enrollments (
@@ -172,12 +182,22 @@ CREATE TABLE questions (
 );
 
 CREATE TABLE options (
-  id           UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
-  question_id  UUID    NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
-  option_label CHAR(1) NOT NULL CHECK (option_label IN ('A','B','C','D')),
-  option_text  TEXT    NOT NULL,
-  is_correct   BOOLEAN NOT NULL DEFAULT FALSE,
+  id               UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
+  question_id      UUID    NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+  option_label     CHAR(1) NOT NULL CHECK (option_label IN ('A','B','C','D')),
+  option_text      TEXT,
+  option_image_url TEXT,
+  is_correct       BOOLEAN NOT NULL DEFAULT FALSE,
   UNIQUE (question_id, option_label)
+);
+
+CREATE TABLE quiz_write_permissions (
+  id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  quiz_id    UUID        NOT NULL REFERENCES quizzes(id)  ON DELETE CASCADE,
+  teacher_id UUID        NOT NULL REFERENCES users(id)    ON DELETE CASCADE,
+  granted_by UUID        NOT NULL REFERENCES users(id),
+  granted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (quiz_id, teacher_id)
 );
 
 
@@ -228,6 +248,7 @@ CREATE TABLE assignments (
   max_marks      NUMERIC(6,2) NOT NULL DEFAULT 100,
   is_published   BOOLEAN      NOT NULL DEFAULT FALSE,
   attachment_url TEXT,
+  assigned_to    UUID         REFERENCES users(id) ON DELETE SET NULL,
   created_at     TIMESTAMPTZ  NOT NULL DEFAULT now(),
   updated_at     TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
@@ -321,9 +342,27 @@ CREATE TABLE subject_materials (
   file_size_kb  INTEGER,
   order_index   SMALLINT     NOT NULL DEFAULT 0,
   is_active     BOOLEAN      NOT NULL DEFAULT TRUE,
+  is_published  BOOLEAN      NOT NULL DEFAULT FALSE,
   created_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
   updated_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
   CHECK (material_type IN ('pdf','video','link','doc','image'))
+);
+
+CREATE TABLE session_students (
+  session_id UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  student_id UUID NOT NULL REFERENCES users(id)    ON DELETE CASCADE,
+  PRIMARY KEY (session_id, student_id)
+);
+
+CREATE TABLE student_content_assignments (
+  id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  subject_id   UUID        NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+  content_type VARCHAR(20) NOT NULL CHECK (content_type IN ('quiz', 'assignment', 'material')),
+  content_id   UUID        NOT NULL,
+  student_id   UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  assigned_by  UUID        NOT NULL REFERENCES users(id),
+  assigned_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (content_type, content_id, student_id)
 );
 
 
@@ -345,6 +384,8 @@ CREATE INDEX idx_subject_teachers_subject  ON subject_teachers(subject_id);
 CREATE INDEX idx_enrollments_student       ON subject_enrollments(student_id);
 CREATE INDEX idx_enrollments_subject       ON subject_enrollments(subject_id);
 CREATE INDEX idx_enrollments_status        ON subject_enrollments(enrollment_status);
+CREATE INDEX idx_sts_subject_teacher       ON subject_teacher_students(subject_id, teacher_id);
+CREATE INDEX idx_sts_student               ON subject_teacher_students(student_id);
 
 -- Content
 CREATE INDEX idx_quizzes_subject     ON quizzes(subject_id);
@@ -355,6 +396,8 @@ CREATE INDEX idx_questions_quiz      ON questions(quiz_id);
 CREATE INDEX idx_questions_set       ON questions(set_id);
 CREATE INDEX idx_questions_topic     ON questions(topic_id);
 CREATE INDEX idx_options_question    ON options(question_id);
+CREATE INDEX idx_qwp_quiz_id         ON quiz_write_permissions(quiz_id);
+CREATE INDEX idx_qwp_teacher_id      ON quiz_write_permissions(teacher_id);
 
 -- Activity
 CREATE INDEX idx_attempts_student       ON quiz_attempts(student_id);
@@ -375,6 +418,12 @@ CREATE INDEX idx_sessions_teacher  ON sessions(teacher_id, session_date, status)
 CREATE INDEX idx_sessions_status   ON sessions(status);
 CREATE INDEX idx_sessions_zoom_id  ON sessions(zoom_meeting_id);
 CREATE INDEX idx_materials_subject ON subject_materials(subject_id, order_index);
+
+-- Content assignments
+CREATE INDEX idx_sca_student  ON student_content_assignments(student_id);
+CREATE INDEX idx_sca_content  ON student_content_assignments(content_type, content_id);
+CREATE INDEX idx_sca_subject  ON student_content_assignments(subject_id);
+CREATE INDEX idx_sca_assigner ON student_content_assignments(assigned_by);
 
 
 -- ============================================================
