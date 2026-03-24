@@ -73,7 +73,7 @@ describe('materials.service', () => {
 
   describe('deleteMaterial', () => {
     it('soft-deletes the material (sets is_active=false)', async () => {
-      mockQuery.mockResolvedValueOnce([]);
+      mockQuery.mockResolvedValueOnce([{ id: 'm-uuid' }]);
       await deleteMaterial('m-uuid', 'teacher-uuid');
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining('is_active = false'),

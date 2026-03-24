@@ -65,25 +65,25 @@ describe('classes.service', () => {
     };
 
     it('calls teacher sessions for role=teacher', async () => {
-      mockQuery.mockResolvedValueOnce([sessionRow]);
+      mockQuery.mockResolvedValueOnce([]).mockResolvedValueOnce([sessionRow]); // UPDATE missed, SELECT sessions
       const result = await getMySessionsV2('teacher-uuid', 'teacher');
       expect(result[0]!.status).toBe('SCHEDULED');
     });
 
     it('resolves LIVE status from DB live status', async () => {
-      mockQuery.mockResolvedValueOnce([{ ...sessionRow, status: 'live' }]);
+      mockQuery.mockResolvedValueOnce([]).mockResolvedValueOnce([{ ...sessionRow, status: 'live' }]);
       const result = await getMySessionsV2('teacher-uuid', 'teacher');
       expect(result[0]!.status).toBe('LIVE');
     });
 
-    it('resolves COMPLETED for past dates with scheduled status', async () => {
-      mockQuery.mockResolvedValueOnce([{ ...sessionRow, session_date: '2000-01-01', status: 'scheduled' }]);
+    it('resolves MISSED for past dates with scheduled status', async () => {
+      mockQuery.mockResolvedValueOnce([]).mockResolvedValueOnce([{ ...sessionRow, session_date: '2000-01-01', status: 'scheduled' }]);
       const result = await getMySessionsV2('teacher-uuid', 'teacher');
-      expect(result[0]!.status).toBe('COMPLETED');
+      expect(result[0]!.status).toBe('MISSED');
     });
 
     it('resolves COMPLETED for DB completed status', async () => {
-      mockQuery.mockResolvedValueOnce([{ ...sessionRow, status: 'completed' }]);
+      mockQuery.mockResolvedValueOnce([]).mockResolvedValueOnce([{ ...sessionRow, status: 'completed' }]);
       const result = await getMySessionsV2('teacher-uuid', 'teacher');
       expect(result[0]!.status).toBe('COMPLETED');
     });

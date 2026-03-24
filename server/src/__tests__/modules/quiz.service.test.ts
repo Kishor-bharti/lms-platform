@@ -14,7 +14,7 @@ const mockQueryWithClient = queryWithClient as jest.MockedFunction<typeof queryW
 
 describe('quiz.service', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
     mockWithTransaction.mockImplementation(async (fn: any) => fn({} as any));
   });
 
@@ -30,16 +30,16 @@ describe('quiz.service', () => {
 
     it('returns all quizzes (including unpublished) for teacher role', async () => {
       mockQuery.mockResolvedValueOnce([quizRow]);
-      const result = await getQuizzesBySubject('sub-uuid', 'teacher');
+      const result = await getQuizzesBySubject('sub-uuid', 'teacher', 'teacher-uuid');
       expect(result).toHaveLength(1);
       expect(result[0]!.question_count).toBe(5);
     });
 
-    it('returns only published quizzes for student role', async () => {
+    it('returns only assigned quizzes for student role', async () => {
       mockQuery.mockResolvedValueOnce([quizRow]);
-      const result = await getQuizzesBySubject('sub-uuid', 'student');
+      const result = await getQuizzesBySubject('sub-uuid', 'student', 'student-uuid');
       expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining('is_published = true'),
+        expect.stringContaining('student_content_assignments'),
         expect.any(Array)
       );
       expect(result).toHaveLength(1);
@@ -47,7 +47,7 @@ describe('quiz.service', () => {
 
     it('converts passing_score to a number', async () => {
       mockQuery.mockResolvedValueOnce([{ ...quizRow, passing_score: '75.50' }]);
-      const result = await getQuizzesBySubject('sub-uuid', 'teacher');
+      const result = await getQuizzesBySubject('sub-uuid', 'teacher', 'teacher-uuid');
       expect(result[0]!.passing_score).toBe(75.5);
     });
   });
@@ -183,11 +183,11 @@ describe('quiz.service', () => {
       expect(result.attempt_number).toBe(1);
     });
 
-    it('throws NOT_ENROLLED when enrollment check returns empty', async () => {
-      mockQuery.mockResolvedValueOnce([]); // not enrolled
+    it('throws NOT_ASSIGNED when assignment check returns empty', async () => {
+      mockQuery.mockResolvedValueOnce([]); // not assigned
 
       await expect(startAttempt('q-uuid', 'student-uuid'))
-        .rejects.toThrow('NOT_ENROLLED');
+        .rejects.toThrow('NOT_ASSIGNED');
     });
 
     it('throws QUIZ_NOT_PUBLISHED when quiz is not published', async () => {
