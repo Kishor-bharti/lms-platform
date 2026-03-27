@@ -42,9 +42,41 @@ function shiftDay(dateStr, delta) {
   return `${y}-${mo}-${dd}`;
 }
 
+function shiftMonth(dateStr, delta) {
+  const [y, m, day] = dateStr.split('-').map(Number);
+  const newDate = new Date(y, m - 1 + delta, 1);
+  const newDay = Math.min(day, new Date(newDate.getFullYear(), newDate.getMonth() + 1, 0).getDate());
+  return `${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, '0')}-${String(newDay).padStart(2, '0')}`;
+}
+
+function getWeekStart(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const dow = d.getDay();
+  const diffToMon = dow === 0 ? -6 : 1 - dow;
+  d.setDate(d.getDate() + diffToMon);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function formatDayLabel(dateStr) {
   const d = new Date(dateStr + 'T00:00:00');
   return `${DAY_NAMES[d.getDay()]}, ${MO_NAMES[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+}
+
+function formatPeriodLabel(dateStr, mode) {
+  if (mode === 'month') {
+    const d = new Date(dateStr + 'T00:00:00');
+    return `${MO_NAMES[d.getMonth()]} ${d.getFullYear()}`;
+  }
+  if (mode === 'week') {
+    const d = new Date(dateStr + 'T00:00:00');
+    const dow = d.getDay();
+    const diffToMon = dow === 0 ? -6 : 1 - dow;
+    const mon = new Date(d); mon.setDate(d.getDate() + diffToMon);
+    const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+    const fmtShort = (dt) => `${MO_NAMES[dt.getMonth()].slice(0, 3)} ${dt.getDate()}`;
+    return `${fmtShort(mon)} – ${fmtShort(sun)}, ${sun.getFullYear()}`;
+  }
+  return formatDayLabel(dateStr);
 }
 
 const getStatusBadge = (status) => {
@@ -62,6 +94,7 @@ const getStatusBadge = (status) => {
 const Classes = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedDate = searchParams.get('date') || TODAY;
+  const viewMode = searchParams.get('mode') || 'day';
 
   const [sessions,        setSessions]        = useState([]);
   const [loading,         setLoading]         = useState(true);
@@ -95,10 +128,28 @@ const Classes = () => {
   const activeFilterCount = Object.values(filters).filter(Boolean).length;
   const clearFilters = () => setFilters(EMPTY_FILTERS);
 
-  const fetchSessions = useCallback(async (date) => {
+  const sessionGroups = useMemo(() => {
+    const map = {};
+    filteredSessions.forEach(s => {
+      const d = s.session_date || s.scheduled_at.slice(0, 10);
+      if (!map[d]) map[d] = [];
+      map[d].push(s);
+    });
+    return Object.keys(map).sort().map(date => ({ date, sessions: map[date] }));
+  }, [filteredSessions]);
+
+  const fetchSessions = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await http.get(withTimeZoneQuery(`/api/classes/my-sessions-v2?date=${date}`));
+      let url;
+      if (viewMode === 'week') {
+        url = `/api/classes/my-sessions-v2?week=${selectedDate}`;
+      } else if (viewMode === 'month') {
+        url = `/api/classes/my-sessions-v2?month=${selectedDate.slice(0, 7)}`;
+      } else {
+        url = `/api/classes/my-sessions-v2?date=${selectedDate}`;
+      }
+      const res = await http.get(withTimeZoneQuery(url));
       setSessions(Array.isArray(res?.data) ? res.data : []);
     } catch (err) {
       console.error('[Classes] fetch error:', err);
@@ -106,39 +157,60 @@ const Classes = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [viewMode, selectedDate]);
 
-  // Re-fetch whenever the selected date changes
+  // Re-fetch whenever the selected date or view mode changes
   useEffect(() => {
-    fetchSessions(selectedDate);
+    fetchSessions();
     setExpandedSession(null);
-  }, [selectedDate, fetchSessions]);
+  }, [fetchSessions]);
 
-  // Poll every 60s for today only (LIVE status updates)
+  // Poll every 60s when today falls within the current view period
   useEffect(() => {
-    if (selectedDate !== TODAY) return;
-    const interval = setInterval(() => fetchSessions(TODAY), 60000);
+    const todayInView =
+      viewMode === 'day'   ? selectedDate === TODAY :
+      viewMode === 'week'  ? getWeekStart(TODAY) === getWeekStart(selectedDate) :
+      /* month */            TODAY.slice(0, 7) === selectedDate.slice(0, 7);
+    if (!todayInView) return;
+    const interval = setInterval(fetchSessions, 60000);
     return () => clearInterval(interval);
-  }, [selectedDate, fetchSessions]);
+  }, [viewMode, selectedDate, fetchSessions]);
 
   const handleDateChange = (e) => {
-    if (e.target.value) setSearchParams({ date: e.target.value });
+    if (e.target.value) setSearchParams({ date: e.target.value, mode: viewMode });
   };
 
-  const goToday = () => setSearchParams({ date: TODAY });
-  const prevDay = () => setSearchParams({ date: shiftDay(selectedDate, -1) });
-  const nextDay = () => setSearchParams({ date: shiftDay(selectedDate,  1) });
+  const isAtCurrentPeriod =
+    viewMode === 'day'   ? selectedDate === TODAY :
+    viewMode === 'week'  ? getWeekStart(TODAY) === getWeekStart(selectedDate) :
+    /* month */            TODAY.slice(0, 7) === selectedDate.slice(0, 7);
 
-  // Left / right arrow keys navigate between days
+  const goToCurrentPeriod = () => setSearchParams({ date: TODAY, mode: viewMode });
+
+  const prevPeriod = () => {
+    if (viewMode === 'week')       setSearchParams({ date: shiftDay(selectedDate, -7), mode: 'week' });
+    else if (viewMode === 'month') setSearchParams({ date: shiftMonth(selectedDate, -1), mode: 'month' });
+    else                           setSearchParams({ date: shiftDay(selectedDate, -1), mode: 'day' });
+  };
+
+  const nextPeriod = () => {
+    if (viewMode === 'week')       setSearchParams({ date: shiftDay(selectedDate, 7), mode: 'week' });
+    else if (viewMode === 'month') setSearchParams({ date: shiftMonth(selectedDate, 1), mode: 'month' });
+    else                           setSearchParams({ date: shiftDay(selectedDate, 1), mode: 'day' });
+  };
+
+  const switchMode = (m) => setSearchParams({ date: selectedDate, mode: m });
+
+  // Left / right arrow keys navigate between periods
   useEffect(() => {
     const onKey = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-      if (e.key === 'ArrowLeft')  prevDay();
-      if (e.key === 'ArrowRight') nextDay();
+      if (e.key === 'ArrowLeft')  prevPeriod();
+      if (e.key === 'ArrowRight') nextPeriod();
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }); // no deps — always reads latest selectedDate via closure
+  }); // no deps — always reads latest state via closure
 
   if (loading) {
     return (
@@ -165,32 +237,40 @@ const Classes = () => {
                   <div>
                     <CardTitle className="mb-0">My Classes</CardTitle>
                     <div className="small text-muted mt-1" style={{ fontWeight: 600, fontSize: 13 }}>
-                      {formatDayLabel(selectedDate)}
+                      {formatPeriodLabel(selectedDate, viewMode)}
                     </div>
                   </div>
-                  <div className="d-flex align-items-center" style={{ gap: 6 }}>
-                    <button onClick={prevDay} title="Previous day (←)"
-                      style={{ width: 30, height: 30, borderRadius: '50%', border: '1px solid #dee2e6', background: '#fff', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#525f7f' }}>
-                      ‹
-                    </button>
-                    <input
-                      type="date"
-                      value={selectedDate}
-                      onChange={handleDateChange}
-                      style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 14, color: '#525f7f', cursor: 'pointer' }}
-                    />
-                    <button onClick={nextDay} title="Next day (→)"
-                      style={{ width: 30, height: 30, borderRadius: '50%', border: '1px solid #dee2e6', background: '#fff', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#525f7f' }}>
-                      ›
-                    </button>
-                    <Button
-                      size="sm"
-                      color="primary"
-                      outline={selectedDate !== TODAY}
-                      onClick={goToday}
-                      style={{ opacity: selectedDate === TODAY ? 0.55 : 1 }}
-                      disabled={selectedDate === TODAY}
-                    >Today</Button>
+                  <div className="d-flex align-items-center flex-wrap" style={{ gap: 8 }}>
+                    {/* View mode toggle */}
+                    <div className="d-flex" style={{ borderRadius: 8, border: '1px solid #dee2e6', overflow: 'hidden' }}>
+                      {[['day', 'Day'], ['week', 'Week'], ['month', 'Month']].map(([m, label]) => (
+                        <button key={m} onClick={() => switchMode(m)}
+                          style={{ padding: '5px 12px', border: 'none', borderRight: m !== 'month' ? '1px solid #dee2e6' : 'none', background: viewMode === m ? '#5e72e4' : '#fff', color: viewMode === m ? '#fff' : '#525f7f', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    {/* Period navigation */}
+                    <div className="d-flex align-items-center" style={{ gap: 6 }}>
+                      <button onClick={prevPeriod} title="Previous (←)"
+                        style={{ width: 30, height: 30, borderRadius: '50%', border: '1px solid #dee2e6', background: '#fff', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#525f7f' }}>
+                        ‹
+                      </button>
+                      <input
+                        type="date"
+                        value={selectedDate}
+                        onChange={handleDateChange}
+                        style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 14, color: '#525f7f', cursor: 'pointer' }}
+                      />
+                      <button onClick={nextPeriod} title="Next (→)"
+                        style={{ width: 30, height: 30, borderRadius: '50%', border: '1px solid #dee2e6', background: '#fff', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#525f7f' }}>
+                        ›
+                      </button>
+                      <Button size="sm" color="primary" outline={!isAtCurrentPeriod} onClick={goToCurrentPeriod}
+                        style={{ opacity: isAtCurrentPeriod ? 0.55 : 1 }} disabled={isAtCurrentPeriod}>
+                        {viewMode === 'week' ? 'This Week' : viewMode === 'month' ? 'This Month' : 'Today'}
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </CardHeader>
@@ -241,6 +321,8 @@ const Classes = () => {
                       <p className="text-muted">
                         {activeFilterCount > 0
                           ? 'No classes match the selected filters.'
+                          : viewMode === 'week'  ? 'No classes this week.'
+                          : viewMode === 'month' ? `No classes in ${formatPeriodLabel(selectedDate, 'month')}.`
                           : `No classes scheduled for ${selectedDate}`}
                       </p>
                       {activeFilterCount > 0 && (
@@ -248,7 +330,15 @@ const Classes = () => {
                       )}
                     </div>
                   ) : (
-                    filteredSessions.map((session) => {
+                    sessionGroups.map(({ date, sessions: groupSessions }) => (
+                      <div key={date}>
+                        {viewMode !== 'day' && (
+                          <div className="d-flex align-items-center" style={{ margin: '14px 0 8px', borderBottom: '2px solid #dbe4ed', paddingBottom: 6 }}>
+                            <span style={{ fontWeight: 700, color: '#3d4f6e', fontSize: 13 }}>{formatDayLabel(date)}</span>
+                            {date === TODAY && <Badge color="warning" className="ml-2" style={{ fontSize: 10 }}>Today</Badge>}
+                          </div>
+                        )}
+                      {groupSessions.map((session) => {
                       const scheduledDate = new Date(session.scheduled_at);
                       const dayName = DAY_NAMES[scheduledDate.getDay()];
                       const dateStr = scheduledDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -359,7 +449,9 @@ const Classes = () => {
                           )}
                         </div>
                       );
-                    })
+                    })}
+                      </div>
+                    ))
                   )}
                 </div>
 

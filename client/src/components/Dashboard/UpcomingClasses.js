@@ -4,7 +4,7 @@ import http from "utils/http";
 import { getTodayLocalDateKey, toLocalDateKey, withTimeZoneQuery } from "utils/date";
 import { TableSkeleton } from 'components/Skeleton.js';
 
-const BATCH_SIZE = 4;
+const BATCH_SIZE = 8;
 
 export default function UpcomingClasses() {
   const [allSessions, setAllSessions] = useState([]);

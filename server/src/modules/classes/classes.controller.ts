@@ -28,9 +28,11 @@ export async function getMySessionsV2(req: Request, res: Response) {
     if (!userId || !userRole) return res.status(401).json({ error: 'Unauthorized' });
     const rawDate  = req.query.date  as string | undefined;
     const rawMonth = req.query.month as string | undefined;
+    const rawWeek  = req.query.week  as string | undefined;
     const rawTimeZone = req.query.timeZone as string | undefined;
     const date  = rawDate  && /^\d{4}-\d{2}-\d{2}$/.test(rawDate)  ? rawDate  : undefined;
     const month = rawMonth && /^\d{4}-\d{2}$/.test(rawMonth)        ? rawMonth : undefined;
+    const week  = rawWeek  && /^\d{4}-\d{2}-\d{2}$/.test(rawWeek)  ? rawWeek  : undefined;
     const timeZone = (() => {
       if (!rawTimeZone || rawTimeZone.length > 100) return 'UTC';
       try {
@@ -40,7 +42,7 @@ export async function getMySessionsV2(req: Request, res: Response) {
         return 'UTC';
       }
     })();
-    const sessions = await classesService.getMySessionsV2(userId, userRole, date, month, timeZone);
+    const sessions = await classesService.getMySessionsV2(userId, userRole, date, month, timeZone, week);
     return res.json(sessions);
   } catch (err) {
     logger.error('[classes] getMySessionsV2 error:', err);

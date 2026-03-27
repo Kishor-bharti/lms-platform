@@ -183,11 +183,21 @@ export async function getMyClasses(
 // T5: filter by teacher_id (not subject_teachers join) so teachers only
 // see their own sessions, not sessions created by admin or other teachers.
 
+function getWeekBounds(week: string): [string, string] {
+  const d = new Date(week + 'T00:00:00Z');
+  const dow = d.getUTCDay();
+  const diffToMon = dow === 0 ? -6 : 1 - dow;
+  const mon = new Date(d.getTime() + diffToMon * 86400000);
+  const sun = new Date(mon.getTime() + 7 * 86400000);
+  return [mon.toISOString().slice(0, 10), sun.toISOString().slice(0, 10)];
+}
+
 export async function getSessionsByTeacher(
   teacherId: string,
   date?: string,
   month?: string,
-  timeZone: string = 'UTC'
+  timeZone: string = 'UTC',
+  week?: string
 ): Promise<SessionWithDetails[]> {
   // Auto-mark sessions past the 10-min grace window as 'missed'
   await query(
@@ -205,6 +215,10 @@ export async function getSessionsByTeacher(
   if (date) {
     dateClause = ' AND s.session_date = $2';
     params.push(date);
+  } else if (week) {
+    const [monStr, sunStr] = getWeekBounds(week);
+    dateClause = ' AND s.session_date >= $2 AND s.session_date < $3';
+    params.push(monStr, sunStr);
   } else if (month) {
     const [yStr, mStr] = month.split('-');
     const y = Number(yStr); const m = Number(mStr);
@@ -212,7 +226,7 @@ export async function getSessionsByTeacher(
     dateClause = ' AND s.session_date >= $2 AND s.session_date < $3';
     params.push(`${month}-01`, nextStart);
   }
-  const limitClause = month ? '' : 'LIMIT 100';
+  const limitClause = (month || week) ? '' : 'LIMIT 100';
   const rows = await query<any>(
     `SELECT
        s.id,
@@ -290,13 +304,18 @@ export async function getSessionsByStudent(
   studentId: string,
   date?: string,
   month?: string,
-  timeZone: string = 'UTC'
+  timeZone: string = 'UTC',
+  week?: string
 ): Promise<SessionWithDetails[]> {
   let dateClause = '';
   const params: any[] = [studentId];
   if (date) {
     dateClause = ' AND s.session_date = $2';
     params.push(date);
+  } else if (week) {
+    const [monStr, sunStr] = getWeekBounds(week);
+    dateClause = ' AND s.session_date >= $2 AND s.session_date < $3';
+    params.push(monStr, sunStr);
   } else if (month) {
     const [yStr, mStr] = month.split('-');
     const y = Number(yStr); const m = Number(mStr);
@@ -304,7 +323,7 @@ export async function getSessionsByStudent(
     dateClause = ' AND s.session_date >= $2 AND s.session_date < $3';
     params.push(`${month}-01`, nextStart);
   }
-  const limitClause = month ? '' : 'LIMIT 100';
+  const limitClause = (month || week) ? '' : 'LIMIT 100';
   const rows = await query<any>(
     `SELECT
        s.id,
@@ -376,12 +395,16 @@ export async function getSessionsByStudent(
 
 // ─── ADMIN: all sessions ───────────────────────────────────────
 
-export async function getAllSessions(date?: string, month?: string, timeZone: string = 'UTC'): Promise<SessionWithDetails[]> {
+export async function getAllSessions(date?: string, month?: string, timeZone: string = 'UTC', week?: string): Promise<SessionWithDetails[]> {
   let dateClause = '';
   const params: any[] = [];
   if (date) {
     dateClause = 'WHERE s.session_date = $1';
     params.push(date);
+  } else if (week) {
+    const [monStr, sunStr] = getWeekBounds(week);
+    dateClause = 'WHERE s.session_date >= $1 AND s.session_date < $2';
+    params.push(monStr, sunStr);
   } else if (month) {
     const [yStr, mStr] = month.split('-');
     const y = Number(yStr); const m = Number(mStr);
@@ -389,7 +412,7 @@ export async function getAllSessions(date?: string, month?: string, timeZone: st
     dateClause = 'WHERE s.session_date >= $1 AND s.session_date < $2';
     params.push(`${month}-01`, nextStart);
   }
-  const limitClause = month ? '' : 'LIMIT 100';
+  const limitClause = (month || week) ? '' : 'LIMIT 100';
   const rows = await query<any>(
     `SELECT
        s.id,
@@ -468,11 +491,12 @@ export async function getMySessionsV2(
   role: string,
   date?: string,
   month?: string,
-  timeZone: string = 'UTC'
+  timeZone: string = 'UTC',
+  week?: string
 ): Promise<SessionWithDetails[]> {
-  if (role === 'teacher') return getSessionsByTeacher(userId, date, month, timeZone);
-  if (role === 'student') return getSessionsByStudent(userId, date, month, timeZone);
-  if (role === 'admin')   return getAllSessions(date, month, timeZone);
+  if (role === 'teacher') return getSessionsByTeacher(userId, date, month, timeZone, week);
+  if (role === 'student') return getSessionsByStudent(userId, date, month, timeZone, week);
+  if (role === 'admin')   return getAllSessions(date, month, timeZone, week);
   return [];
 }
 
