@@ -36,11 +36,14 @@ export default function CourseQuiz() {
 
   const fetchQuizzes = useCallback(() => {
     setLoading(true);
-    Promise.all([
+    const requests = [
       http.get(`/api/quizzes/course/${courseId}`),
       http.get('/api/courses/my-courses'),
-      http.get(`/api/content-assignments/course/${courseId}`).catch(() => ({ data: [] })),
-    ]).then(([quizRes, courseRes, caRes]) => {
+      isStaff
+        ? http.get(`/api/content-assignments/course/${courseId}`).catch(() => ({ data: [] }))
+        : Promise.resolve({ data: [] }),
+    ];
+    Promise.all(requests).then(([quizRes, courseRes, caRes]) => {
       setQuizzes(quizRes.data || []);
       const course = (courseRes.data || []).find(c => c.id === courseId);
       if (course) setCourseName(course.name);
