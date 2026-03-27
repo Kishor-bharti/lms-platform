@@ -2,7 +2,8 @@ import { query } from '../../config/db';
 
 export interface ContentAssignment {
   id: string;
-  subject_id: string;
+  subject_id: string | null;
+  course_id: string | null;
   content_type: 'quiz' | 'assignment' | 'material';
   content_id: string;
   student_id: string;
@@ -16,9 +17,11 @@ export interface ContentAssignment {
 /**
  * Assign one or more students to a content item.
  * Silently skips duplicates (ON CONFLICT DO NOTHING).
+ * Pass subjectId for subject-level content, courseId for course-level content.
  */
 export async function assignContent(data: {
-  subjectId: string;
+  subjectId?: string;
+  courseId?: string;
   contentType: 'quiz' | 'assignment' | 'material';
   contentId: string;
   studentIds: string[];
@@ -27,12 +30,66 @@ export async function assignContent(data: {
   for (const studentId of data.studentIds) {
     await query(
       `INSERT INTO student_content_assignments
-         (subject_id, content_type, content_id, student_id, assigned_by)
-       VALUES ($1, $2, $3, $4, $5)
+         (subject_id, course_id, content_type, content_id, student_id, assigned_by)
+       VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT (content_type, content_id, student_id) DO NOTHING`,
-      [data.subjectId, data.contentType, data.contentId, studentId, data.assignedBy]
+      [data.subjectId ?? null, data.courseId ?? null, data.contentType, data.contentId, studentId, data.assignedBy]
     );
   }
+}
+
+/**
+ * Get all students enrolled in any subject of a course.
+ * Teachers get only their own allocated students; admins get all enrolled.
+ */
+export async function getCourseStudents(
+  courseId: string,
+  teacherId?: string
+): Promise<Array<{ id: string; first_name: string; last_name: string; email: string }>> {
+  if (teacherId) {
+    return query<any>(
+      `SELECT DISTINCT u.id, u.first_name, u.last_name, u.email
+       FROM subject_teacher_students sts
+       JOIN subjects sub ON sub.id = sts.subject_id AND sub.course_id = $1
+       JOIN users u ON u.id = sts.student_id
+       WHERE sts.teacher_id = $2
+       ORDER BY u.first_name, u.last_name`,
+      [courseId, teacherId]
+    );
+  }
+  return query<any>(
+    `SELECT DISTINCT u.id, u.first_name, u.last_name, u.email
+     FROM subject_enrollments se
+     JOIN subjects sub ON sub.id = se.subject_id AND sub.course_id = $1
+     JOIN users u ON u.id = se.student_id
+     WHERE se.enrollment_status = 'active'
+     ORDER BY u.first_name, u.last_name`,
+    [courseId]
+  );
+}
+
+/**
+ * Get all assignments scoped to a course (for the CourseQuiz admin view).
+ */
+export async function getAssignmentsForCourse(
+  courseId: string
+): Promise<ContentAssignment[]> {
+  const rows = await query<any>(
+    `SELECT sca.id, sca.subject_id, sca.course_id, sca.content_type, sca.content_id,
+            sca.student_id,
+            u.first_name || ' ' || u.last_name AS student_name,
+            u.email AS student_email,
+            sca.assigned_by,
+            ab.first_name || ' ' || ab.last_name AS assigner_name,
+            sca.assigned_at
+     FROM student_content_assignments sca
+     JOIN users u  ON u.id  = sca.student_id
+     JOIN users ab ON ab.id = sca.assigned_by
+     WHERE sca.course_id = $1
+     ORDER BY sca.assigned_at DESC`,
+    [courseId]
+  );
+  return rows;
 }
 
 /**

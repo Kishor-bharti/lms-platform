@@ -940,7 +940,7 @@ export default function SubjectTeacher() {
               <Card className="shadow" style={{ borderRadius: 12 }}>
                 <CardHeader style={{ background: '#eaf3ff', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
                   <div className="d-flex justify-content-between align-items-center">
-                    <CardTitle className="mb-0">Practice Sets &amp; Quizzes</CardTitle>
+                    <CardTitle className="mb-0">Practice Sets</CardTitle>
                     {canCreateQuiz && (
                       <Button color="primary" size="sm" style={{ borderRadius: 8 }}
                         onClick={() => navigate('/admin/quiz-builder', { state: { subjectId, subjectName: subject?.title } })}>
@@ -1044,7 +1044,7 @@ export default function SubjectTeacher() {
                                       {q.is_published ? 'Unpublish' : 'Publish'}
                                     </Button>
                                   )}
-                                  {q.is_published && (
+                                  {(isAdmin || userRole === 'teacher') && (
                                     <Button size="sm" color="primary" outline style={{ borderRadius: 20, fontSize: 11 }}
                                       onClick={() => openAssignContentModal('quiz', q)}>
                                       Assign
@@ -1948,9 +1948,14 @@ export default function SubjectTeacher() {
             )}
             <div style={{ marginBottom: 10, fontWeight: 600, color: '#525f7f', fontSize: 13 }}>
               Select students to assign this content:
+              <span style={{ fontWeight: 400, color: '#8898aa', fontSize: 11, marginLeft: 6 }}>
+                {isAdmin ? '(all enrolled students)' : '(your assigned students)'}
+              </span>
             </div>
             {subjectStudents.length === 0 ? (
-              <p className="text-muted small text-center py-3">No students enrolled in this subject.</p>
+              <p className="text-muted small text-center py-3">
+                {isAdmin ? 'No students enrolled in this subject.' : 'No students are assigned to you for this subject.'}
+              </p>
             ) : (
               <div style={{ maxHeight: 240, overflowY: 'auto', border: '1px solid #e9ecef', borderRadius: 8, padding: 8, background: '#fff' }}>
                 <div style={{ marginBottom: 8 }}>

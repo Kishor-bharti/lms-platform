@@ -356,7 +356,8 @@ CREATE TABLE session_students (
 
 CREATE TABLE student_content_assignments (
   id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-  subject_id   UUID        NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+  subject_id   UUID        REFERENCES subjects(id) ON DELETE CASCADE,
+  course_id    UUID        REFERENCES courses(id)  ON DELETE CASCADE,
   content_type VARCHAR(20) NOT NULL CHECK (content_type IN ('quiz', 'assignment', 'material')),
   content_id   UUID        NOT NULL,
   student_id   UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -423,6 +424,7 @@ CREATE INDEX idx_materials_subject ON subject_materials(subject_id, order_index)
 CREATE INDEX idx_sca_student  ON student_content_assignments(student_id);
 CREATE INDEX idx_sca_content  ON student_content_assignments(content_type, content_id);
 CREATE INDEX idx_sca_subject  ON student_content_assignments(subject_id);
+CREATE INDEX idx_sca_course   ON student_content_assignments(course_id);
 CREATE INDEX idx_sca_assigner ON student_content_assignments(assigned_by);
 
 

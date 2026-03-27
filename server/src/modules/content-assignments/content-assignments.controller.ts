@@ -8,13 +8,13 @@ export async function assignContent(req: Request, res: Response) {
     if (role !== 'teacher' && role !== 'admin') {
       return res.status(403).json({ error: 'Only teachers and admins can assign content' });
     }
-    const { subjectId, contentType, contentId, studentIds } = req.body;
+    const { subjectId, courseId, contentType, contentId, studentIds } = req.body;
     if (
-      !subjectId || !contentType || !contentId ||
+      (!subjectId && !courseId) || !contentType || !contentId ||
       !Array.isArray(studentIds) || studentIds.length === 0
     ) {
       return res.status(400).json({
-        error: 'subjectId, contentType, contentId, and studentIds[] are required',
+        error: 'subjectId or courseId, contentType, contentId, and studentIds[] are required',
       });
     }
     const valid = ['quiz', 'assignment', 'material'];
@@ -23,6 +23,7 @@ export async function assignContent(req: Request, res: Response) {
     }
     await caService.assignContent({
       subjectId,
+      courseId,
       contentType,
       contentId,
       studentIds,
@@ -32,6 +33,37 @@ export async function assignContent(req: Request, res: Response) {
   } catch (err) {
     logger.error('[content-assignments] assign:', err);
     return res.status(500).json({ error: 'Failed to assign content' });
+  }
+}
+
+export async function getCourseStudents(req: Request, res: Response) {
+  try {
+    const { courseId } = req.params;
+    const role = req.user!.role;
+    if (role !== 'teacher' && role !== 'admin') {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    const teacherId = role === 'teacher' ? req.user!.id : undefined;
+    const students = await caService.getCourseStudents(courseId!, teacherId);
+    return res.json(students);
+  } catch (err) {
+    logger.error('[content-assignments] getCourseStudents:', err);
+    return res.status(500).json({ error: 'Failed to fetch course students' });
+  }
+}
+
+export async function getAssignmentsForCourse(req: Request, res: Response) {
+  try {
+    const { courseId } = req.params;
+    const role = req.user!.role;
+    if (role !== 'teacher' && role !== 'admin') {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    const assignments = await caService.getAssignmentsForCourse(courseId!);
+    return res.json(assignments);
+  } catch (err) {
+    logger.error('[content-assignments] getForCourse:', err);
+    return res.status(500).json({ error: 'Failed to fetch course assignments' });
   }
 }
 

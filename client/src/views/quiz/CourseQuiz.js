@@ -15,6 +15,14 @@ export default function CourseQuiz() {
   const [loading, setLoading] = useState(true);
   const [deleteModal, setDeleteModal] = useState({ open: false, quiz: null });
 
+  // Assign modal state
+  const [assignModal,    setAssignModal]    = useState({ open: false, quiz: null });
+  const [assignStudents, setAssignStudents] = useState([]);
+  const [assignIds,      setAssignIds]      = useState([]);
+  const [assignSaving,   setAssignSaving]   = useState(false);
+  const [assignError,    setAssignError]    = useState('');
+  const [courseAssignments, setCourseAssignments] = useState([]);
+
   // Per-quiz write permissions modal (admin only)
   const [permissionsModal, setPermissionsModal] = useState({ open: false, quiz: null });
   const [permTeachers, setPermTeachers] = useState([]); // merged: all teachers with has_write flag
@@ -31,13 +39,61 @@ export default function CourseQuiz() {
     Promise.all([
       http.get(`/api/quizzes/course/${courseId}`),
       http.get('/api/courses/my-courses'),
-    ]).then(([quizRes, courseRes]) => {
+      http.get(`/api/content-assignments/course/${courseId}`).catch(() => ({ data: [] })),
+    ]).then(([quizRes, courseRes, caRes]) => {
       setQuizzes(quizRes.data || []);
       const course = (courseRes.data || []).find(c => c.id === courseId);
       if (course) setCourseName(course.name);
+      setCourseAssignments(caRes.data || []);
     }).catch(console.error)
       .finally(() => setLoading(false));
   }, [courseId]);
+
+  const openAssignModal = async (quiz) => {
+    setAssignModal({ open: true, quiz });
+    setAssignIds([]);
+    setAssignError('');
+    try {
+      const res = await http.get(`/api/content-assignments/course/${courseId}/students`);
+      setAssignStudents(res.data || []);
+    } catch {
+      setAssignStudents([]);
+    }
+  };
+
+  const handleAssign = async () => {
+    if (!assignModal.quiz || assignIds.length === 0) return;
+    setAssignSaving(true);
+    setAssignError('');
+    try {
+      await http.post('/api/content-assignments', {
+        courseId,
+        contentType: 'quiz',
+        contentId: assignModal.quiz.id,
+        studentIds: assignIds,
+      });
+      setAssignModal({ open: false, quiz: null });
+      const caRes = await http.get(`/api/content-assignments/course/${courseId}`);
+      setCourseAssignments(caRes.data || []);
+    } catch (err) {
+      setAssignError(err?.response?.data?.error || 'Failed to assign');
+    } finally {
+      setAssignSaving(false);
+    }
+  };
+
+  const handleRevokeAssignment = async (assignmentId) => {
+    try {
+      await http.delete(`/api/content-assignments/${assignmentId}`);
+      const caRes = await http.get(`/api/content-assignments/course/${courseId}`);
+      setCourseAssignments(caRes.data || []);
+    } catch (err) {
+      alert(err?.response?.data?.error || 'Failed to revoke');
+    }
+  };
+
+  const assignedCount = (quizId) =>
+    courseAssignments.filter(a => a.content_type === 'quiz' && a.content_id === quizId).length;
 
   useEffect(() => { fetchQuizzes(); }, [fetchQuizzes]);
 
@@ -121,7 +177,7 @@ export default function CourseQuiz() {
         <Row className="mb-3">
           <Col>
             <div style={{ color: '#fff' }}>
-              <h2 style={{ margin: 0 }}>📝 {courseName} — Test Sets</h2>
+              <h2 style={{ margin: 0, color: '#fff' }}>📝 {courseName} — Test Sets</h2>
               <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.875rem', marginTop: 4, marginBottom: 0 }}>
                 Full-length course tests. Complete each in one sitting.
               </p>
@@ -231,6 +287,7 @@ export default function CourseQuiz() {
                             <th style={thStyle}>Duration</th>
                             <th style={thStyle}>Status</th>
                             <th style={thStyle}>Created By</th>
+                            <th style={thStyle}>Assigned To</th>
                             <th style={thStyle}>Actions</th>
                           </tr>
                         </thead>
@@ -260,6 +317,11 @@ export default function CourseQuiz() {
                                 </Badge>
                               </td>
                               <td style={tdStyle}>{q.creator_name || '—'}</td>
+                              <td style={tdStyle}>
+                                {assignedCount(q.id) > 0
+                                  ? <span style={{ fontWeight: 700, color: '#2dce89', fontSize: 12 }}>{assignedCount(q.id)} student{assignedCount(q.id) !== 1 ? 's' : ''}</span>
+                                  : <span className="text-muted small">—</span>}
+                              </td>
                               <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>
                                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                                   {/* View as Student — always visible for staff */}
@@ -267,6 +329,13 @@ export default function CourseQuiz() {
                                     onClick={() => navigate(`/admin/quiz/${q.id}`, { state: { previewMode: true } })}>
                                     👁 Preview
                                   </Button>
+                                  {/* Assign — teacher and admin */}
+                                  {isStaff && (
+                                    <Button color="primary" outline size="sm" style={{ borderRadius: 6, padding: '2px 8px', fontSize: 11 }}
+                                      onClick={() => openAssignModal(q)}>
+                                      Assign
+                                    </Button>
+                                  )}
                                   {/* Edit — admin always; teacher only if has per-quiz write */}
                                   {q.can_edit && (
                                     <Button color="info" outline size="sm" style={{ borderRadius: 6, padding: '2px 8px', fontSize: 11 }}
@@ -311,6 +380,79 @@ export default function CourseQuiz() {
             </Col>
           </Row>
         )}
+
+        {/* Assign to Students Modal */}
+        <Modal isOpen={assignModal.open} toggle={() => setAssignModal({ open: false, quiz: null })} centered>
+          <ModalHeader toggle={() => setAssignModal({ open: false, quiz: null })}
+            style={{ background: 'linear-gradient(135deg,#3b4a67,#5e72e4)', color: '#fff', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
+            Assign to Students
+          </ModalHeader>
+          <ModalBody style={{ background: '#f8fbff' }}>
+            {assignModal.quiz && (
+              <div style={{ marginBottom: 14, padding: '10px 14px', background: '#eef0fd', borderRadius: 10, border: '1px solid #d1d8f8' }}>
+                <div style={{ fontSize: 11, color: '#8898aa', fontWeight: 700, textTransform: 'uppercase', marginBottom: 3 }}>Quiz</div>
+                <div style={{ fontWeight: 700, color: '#32325d' }}>{assignModal.quiz.title}</div>
+              </div>
+            )}
+            <div style={{ marginBottom: 10, fontWeight: 600, color: '#525f7f', fontSize: 13 }}>
+              Select students:
+              <span style={{ fontWeight: 400, color: '#8898aa', fontSize: 11, marginLeft: 6 }}>
+                {isAdmin ? '(all enrolled students in this course)' : '(your assigned students)'}
+              </span>
+            </div>
+            {assignStudents.length === 0 ? (
+              <p className="text-muted small text-center py-3">
+                {isAdmin ? 'No students enrolled in this course.' : 'No students are assigned to you for this course.'}
+              </p>
+            ) : (
+              <div style={{ maxHeight: 240, overflowY: 'auto', border: '1px solid #e9ecef', borderRadius: 8, padding: 8, background: '#fff' }}>
+                <div style={{ marginBottom: 8 }}>
+                  <button type="button" onClick={() => setAssignIds(assignStudents.map(s => s.id))}
+                    style={{ fontSize: 11, color: '#5e72e4', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 700, marginRight: 12 }}>
+                    Select All
+                  </button>
+                  <button type="button" onClick={() => setAssignIds([])}
+                    style={{ fontSize: 11, color: '#8898aa', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 700 }}>
+                    Clear
+                  </button>
+                </div>
+                {assignStudents.map(s => {
+                  const existing = courseAssignments.find(
+                    a => a.content_type === 'quiz' && a.content_id === assignModal.quiz?.id && a.student_id === s.id
+                  );
+                  return (
+                    <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid #f0f4f8' }}>
+                      <input type="checkbox" id={`cqa-${s.id}`}
+                        checked={assignIds.includes(s.id) || !!existing}
+                        disabled={!!existing}
+                        onChange={() => {
+                          if (existing) return;
+                          setAssignIds(prev => prev.includes(s.id) ? prev.filter(x => x !== s.id) : [...prev, s.id]);
+                        }} />
+                      <label htmlFor={`cqa-${s.id}`} style={{ margin: 0, cursor: existing ? 'default' : 'pointer', fontSize: 13, flex: 1 }}>
+                        {s.first_name} {s.last_name}
+                        <span style={{ color: '#8898aa', marginLeft: 6 }}>({s.email})</span>
+                      </label>
+                      {existing && (
+                        <button type="button" onClick={() => handleRevokeAssignment(existing.id)}
+                          style={{ fontSize: 10, color: '#f5365c', fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                          Revoke
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {assignError && <p className="text-danger small mt-2 mb-0">{assignError}</p>}
+          </ModalBody>
+          <ModalFooter style={{ background: '#f8fbff' }}>
+            <Button color="primary" disabled={assignSaving || assignIds.length === 0} onClick={handleAssign}>
+              {assignSaving ? 'Assigning...' : `Assign to ${assignIds.length} student${assignIds.length !== 1 ? 's' : ''}`}
+            </Button>
+            <Button color="link" onClick={() => setAssignModal({ open: false, quiz: null })}>Cancel</Button>
+          </ModalFooter>
+        </Modal>
 
         {/* Delete Confirmation Modal */}
         <Modal isOpen={deleteModal.open} toggle={() => setDeleteModal({ open: false, quiz: null })} centered size="sm">
