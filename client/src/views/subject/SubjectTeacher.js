@@ -656,18 +656,18 @@ export default function SubjectTeacher() {
     .sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
 
   const TABS = [
-    { key: 'topics',      label: `Topics (${topics.length})` },
-    { key: 'sessions',    label: `Sessions (${sessions.length})` },
-    { key: 'quizzes',     label: `Practice (${quizzes.length})` },
-    { key: 'assignments', label: `Assignments (${assignments.length})` },
-    { key: 'materials',   label: `Materials (${materials.length})` },
+    { key: 'topics',      label: 'Topics',      count: topics.length },
+    { key: 'sessions',    label: 'Sessions',     count: sessions.length },
+    { key: 'quizzes',     label: 'Practice',     count: quizzes.length },
+    { key: 'assignments', label: 'Assignments',  count: assignments.length },
+    { key: 'materials',   label: 'Materials',    count: materials.length },
   ];
 
   if (loading) return (
     <>
       <Header />
-      <Container className="mt--7" fluid style={{ backgroundColor: 'rgb(196,214,226)', minHeight: '100vh', paddingTop: 30 }}>
-        <Row><Col><Card><CardBody className="py-4"><TopicCardSkeleton count={6} /></CardBody></Card></Col></Row>
+      <Container className="mt--7" fluid style={{ backgroundColor: 'rgb(196,214,226)', minHeight: '100vh', paddingTop: 30, paddingBottom: 30 }}>
+        <Row><Col><Card className="shadow" style={{ borderRadius: 14, border: 'none' }}><CardBody className="py-5"><TopicCardSkeleton count={6} /></CardBody></Card></Col></Row>
       </Container>
     </>
   );
@@ -680,38 +680,48 @@ export default function SubjectTeacher() {
         {/* Subject header */}
         <Row className="mb-4">
           <Col>
-            <Card className="shadow" style={{ borderRadius: 12, borderLeft: '5px solid #fb6340' }}>
-              <CardBody>
-                <div className="d-flex align-items-center justify-content-between flex-wrap" style={{ gap: 10 }}>
-                  <div>
-                    <h2 style={{ margin: 0, color: '#32325d' }}>{subject?.title || 'Subject'}</h2>
-                    <div className="text-muted small mt-1">
-                      <span className="mr-3">Course: {subject?.course_name}</span>
-                      <Badge color="light">{subject?.code}</Badge>
+            <Card className="shadow-lg" style={{ borderRadius: 16, overflow: 'hidden', border: 'none' }}>
+              <div style={{ background: 'linear-gradient(135deg, #32325d 0%, #44467a 100%)', padding: '24px 28px 20px' }}>
+                <div className="d-flex align-items-start justify-content-between flex-wrap" style={{ gap: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                    <button onClick={() => navigate(-1)}
+                      style={{ width: 36, height: 36, borderRadius: 10, border: '1px solid rgba(255,255,255,.2)', background: 'rgba(255,255,255,.1)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0, marginTop: 2 }}>
+                      ‹
+                    </button>
+                    <div>
+                      <h2 style={{ margin: 0, color: '#fff', fontSize: 22, fontWeight: 700, letterSpacing: '-0.3px' }}>{subject?.title || 'Subject'}</h2>
+                      <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 13, color: 'rgba(255,255,255,.7)' }}>
+                          {subject?.course_name}
+                        </span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#5e72e4', background: 'rgba(255,255,255,.9)', padding: '2px 10px', borderRadius: 6 }}>
+                          {subject?.code}
+                        </span>
+                        {!isAdmin && (
+                          <span style={{ fontSize: 11, color: 'rgba(255,255,255,.6)', fontWeight: 600 }}>
+                            {teacherPermission === 'write' ? 'Write access' : 'Read-only'}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    <Button color="success" size="sm" style={{ borderRadius: 8 }} onClick={() => setScheduleOpen(true)}>+ Session</Button>
+                    <Button size="sm" style={{ borderRadius: 8, fontWeight: 600, background: '#2dce89', border: 'none', color: '#fff' }} onClick={() => setScheduleOpen(true)}>+ Session</Button>
                     {canCreateQuiz && (
-                      <Button color="primary" size="sm" style={{ borderRadius: 8 }}
+                      <Button size="sm" style={{ borderRadius: 8, fontWeight: 600, background: '#5e72e4', border: 'none', color: '#fff' }}
                         onClick={() => navigate('/admin/quiz-builder', { state: { subjectId, subjectName: subject?.title } })}>
                         + Practice
                       </Button>
                     )}
                     {canCreateContent && (
                       <>
-                        <Button color="warning" size="sm" style={{ borderRadius: 8 }} onClick={() => setAssignOpen(true)}>+ Assignment</Button>
-                        <Button color="secondary" size="sm" style={{ borderRadius: 8 }} onClick={() => setMatModalOpen(true)}>+ Material</Button>
+                        <Button size="sm" style={{ borderRadius: 8, fontWeight: 600, background: '#fb6340', border: 'none', color: '#fff' }} onClick={() => { setEditingAssignment(null); setAssignForm({ title: '', description: '', duration_days: '', max_marks: 100, attachment_url: '', topicId: '', assignedTo: '' }); setAssignFileName(''); setAssignOpen(true); }}>+ Assignment</Button>
+                        <Button size="sm" style={{ borderRadius: 8, fontWeight: 600, background: 'rgba(255,255,255,.15)', border: '1px solid rgba(255,255,255,.25)', color: '#fff' }} onClick={() => setMatModalOpen(true)}>+ Material</Button>
                       </>
-                    )}
-                    {!isAdmin && (
-                      <span style={{ fontSize: 11, color: '#8898aa', alignSelf: 'center', fontWeight: 600 }}>
-                        {teacherPermission === 'write' ? '✏️ Write access' : '👁 Read-only access'}
-                      </span>
                     )}
                   </div>
                 </div>
-              </CardBody>
+              </div>
             </Card>
           </Col>
         </Row>
@@ -719,20 +729,31 @@ export default function SubjectTeacher() {
         {actionError && <Row className="mb-2"><Col><div className="alert alert-danger py-2">{actionError}</div></Col></Row>}
 
         {/* Tab nav */}
-        <Row className="mb-3">
+        <Row className="mb-4">
           <Col>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {TABS.map((t) => (
-                <button key={t.key} onClick={() => setTab(t.key)} style={{
-                  padding: '8px 18px', borderRadius: 20, border: 'none', cursor: 'pointer',
-                  fontWeight: 700, fontSize: 13,
-                  background: tab === t.key ? '#5e72e4' : '#fff',
-                  color: tab === t.key ? '#fff' : '#525f7f',
-                  boxShadow: tab === t.key ? '0 4px 10px rgba(94,114,228,.3)' : '0 1px 3px rgba(0,0,0,.1)',
-                }}>
-                  {t.label}
-                </button>
-              ))}
+            <div style={{ display: 'flex', gap: 4, background: '#fff', borderRadius: 14, padding: 4, boxShadow: '0 2px 8px rgba(0,0,0,.06)' }}>
+              {TABS.map((t) => {
+                const isActive = tab === t.key;
+                return (
+                  <button key={t.key} onClick={() => setTab(t.key)} style={{
+                    flex: 1, padding: '10px 12px', borderRadius: 11, border: 'none', cursor: 'pointer',
+                    fontWeight: 600, fontSize: 13, transition: 'all .15s ease',
+                    background: isActive ? '#5e72e4' : 'transparent',
+                    color: isActive ? '#fff' : '#525f7f',
+                    boxShadow: isActive ? '0 4px 12px rgba(94,114,228,.35)' : 'none',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  }}>
+                    {t.label}
+                    <span style={{
+                      fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 8,
+                      background: isActive ? 'rgba(255,255,255,.2)' : '#f0f2f5',
+                      color: isActive ? '#fff' : '#8898aa',
+                    }}>
+                      {t.count}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </Col>
         </Row>
@@ -741,12 +762,12 @@ export default function SubjectTeacher() {
         {tab === 'topics' && (
           <Row>
             <Col lg="8">
-              <Card className="shadow" style={{ borderRadius: 12 }}>
-                <CardHeader style={{ background: 'linear-gradient(135deg,#f0f4ff,#e8edff)', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
+              <Card className="shadow" style={{ borderRadius: 14, border: 'none' }}>
+                <CardHeader style={{ background: 'linear-gradient(135deg,#f0f4ff,#e8edff)', borderTopLeftRadius: 14, borderTopRightRadius: 14, padding: '18px 22px' }}>
                   <div className="d-flex justify-content-between align-items-center">
                     <div>
-                      <CardTitle className="mb-0" style={{ color: '#32325d' }}>📚 Topics</CardTitle>
-                      <small className="text-muted">Topics appear as the entry screen for students when they click this subject.</small>
+                      <CardTitle className="mb-0" style={{ color: '#32325d', fontSize: 16, fontWeight: 700 }}>Topics</CardTitle>
+                      <small style={{ color: '#8898aa', fontSize: 12 }}>Organize content for students navigating this subject</small>
                     </div>
                     {isAdmin && (
                       <Button color="primary" size="sm" style={{ borderRadius: 8, fontWeight: 700 }} onClick={openCreateTopic}>
@@ -810,13 +831,12 @@ export default function SubjectTeacher() {
               </Card>
 
               {/* Info box */}
-              <div style={{ marginTop: 16, padding: '12px 16px', background: '#eef0fd', borderRadius: 10, border: '1px solid #d1d8f8' }}>
-                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                  <span style={{ fontSize: 20 }}>💡</span>
-                  <div style={{ fontSize: 13, color: '#525f7f' }}>
-                    <strong>How topics work:</strong> When a student clicks this subject in the sidebar, they first see the topic grid.
-                    Clicking a topic takes them to sessions, practice quizzes, assignments, and materials.
-                    Topics can also be tagged to individual quiz questions in the Quiz Builder.
+              <div style={{ marginTop: 16, padding: '14px 18px', background: 'linear-gradient(135deg,#eef0fd,#e8ebff)', borderRadius: 12, border: 'none', boxShadow: '0 1px 4px rgba(94,114,228,.08)' }}>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                  <span style={{ fontSize: 18, marginTop: 1 }}>💡</span>
+                  <div style={{ fontSize: 12, color: '#525f7f', lineHeight: 1.6 }}>
+                    <strong style={{ color: '#32325d' }}>How topics work:</strong> Students see the topic grid when they open this subject.
+                    Each topic links to sessions, practice, assignments, and materials. Topics can also be tagged to quiz questions.
                   </div>
                 </div>
               </div>
@@ -828,11 +848,11 @@ export default function SubjectTeacher() {
         {tab === 'sessions' && (
           <Row>
             <Col className="mb-4">
-              <Card className="shadow" style={{ borderRadius: 12 }}>
-                <CardHeader style={{ background: '#eaf3ff', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
+              <Card className="shadow" style={{ borderRadius: 14, border: 'none' }}>
+                <CardHeader style={{ background: 'linear-gradient(135deg,#eaf3ff,#dfe8ff)', borderTopLeftRadius: 14, borderTopRightRadius: 14, padding: '18px 22px' }}>
                   {/* Row 1: title + date nav */}
                   <div className="d-flex justify-content-between align-items-center flex-wrap" style={{ gap: 10, marginBottom: 10 }}>
-                    <CardTitle className="mb-0">Sessions ({sessions.length})</CardTitle>
+                    <CardTitle className="mb-0" style={{ fontSize: 16, fontWeight: 700, color: '#32325d' }}>Sessions</CardTitle>
                     <div className="d-flex align-items-center" style={{ gap: 6 }}>
                       <button onClick={() => navSessionDate(-1)}
                         style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #dee2e6', background: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -855,8 +875,7 @@ export default function SubjectTeacher() {
                   </div>
                   {/* Row 2: filters */}
                   <div className="d-flex align-items-center flex-wrap" style={{ gap: 8 }}>
-                    <select value={sessStatusFilter} onChange={e => setSessStatusFilter(e.target.value)}
-                      style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12, background: '#fff', color: '#525f7f', cursor: 'pointer' }}>
+                    <select className="filter-select" value={sessStatusFilter} onChange={e => setSessStatusFilter(e.target.value)}>
                       <option value="all">All Status</option>
                       <option value="LIVE">Live</option>
                       <option value="TODAY">Today</option>
@@ -865,22 +884,20 @@ export default function SubjectTeacher() {
                       <option value="COMPLETED">Completed</option>
                       <option value="MISSED">Missed</option>
                     </select>
-                    <select value={sessTopicFilter} onChange={e => setSessTopicFilter(e.target.value)}
-                      style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12, background: '#fff', color: '#525f7f', cursor: 'pointer' }}>
+                    <select className="filter-select" value={sessTopicFilter} onChange={e => setSessTopicFilter(e.target.value)}>
                       <option value="all">All Topics</option>
                       {topics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                     </select>
                     {isAdmin && sessionTeachers.length > 0 && (
-                      <select value={sessTeacherFilter} onChange={e => setSessTeacherFilter(e.target.value)}
-                        style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12, background: '#fff', color: '#525f7f', cursor: 'pointer' }}>
+                      <select className="filter-select" value={sessTeacherFilter} onChange={e => setSessTeacherFilter(e.target.value)}>
                         <option value="all">All Teachers</option>
                         {sessionTeachers.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
                       </select>
                     )}
                     {(sessStatusFilter !== 'all' || sessTopicFilter !== 'all' || sessTeacherFilter !== 'all') && (
                       <button onClick={() => { setSessStatusFilter('all'); setSessTopicFilter('all'); setSessTeacherFilter('all'); }}
-                        style={{ padding: '4px 10px', borderRadius: 8, border: '1px solid #f5365c', background: 'transparent', color: '#f5365c', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-                        Clear ×
+                        style={{ padding: '5px 12px', borderRadius: 8, border: 'none', background: '#f5365c', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                        Clear
                       </button>
                     )}
                   </div>
@@ -994,10 +1011,10 @@ export default function SubjectTeacher() {
         {tab === 'quizzes' && (
           <Row>
             <Col>
-              <Card className="shadow" style={{ borderRadius: 12 }}>
-                <CardHeader style={{ background: '#eaf3ff', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
+              <Card className="shadow" style={{ borderRadius: 14, border: 'none' }}>
+                <CardHeader style={{ background: 'linear-gradient(135deg,#f0ecff,#e8e0ff)', borderTopLeftRadius: 14, borderTopRightRadius: 14, padding: '18px 22px' }}>
                   <div className="d-flex justify-content-between align-items-center">
-                    <CardTitle className="mb-0">Practice Sets</CardTitle>
+                    <CardTitle className="mb-0" style={{ fontSize: 16, fontWeight: 700, color: '#32325d' }}>Practice Sets</CardTitle>
                     {canCreateQuiz && (
                       <Button color="primary" size="sm" style={{ borderRadius: 8 }}
                         onClick={() => navigate('/admin/quiz-builder', { state: { subjectId, subjectName: subject?.title } })}>
@@ -1018,7 +1035,7 @@ export default function SubjectTeacher() {
                       )}
                     </div>
                   ) : (
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <table className="subject-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead>
                         <tr style={{ background: '#f8f9fa' }}>
                           {['Title', 'Topic', 'Type', 'Questions', 'Duration', 'Status', 'Assigned By', 'Assigned To', 'Actions'].map((h) => (
@@ -1165,11 +1182,11 @@ export default function SubjectTeacher() {
           return (
           <Row>
             <Col>
-              <Card className="shadow" style={{ borderRadius: 12 }}>
-                <CardHeader style={{ background: '#eaf3ff', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
+              <Card className="shadow" style={{ borderRadius: 14, border: 'none' }}>
+                <CardHeader style={{ background: 'linear-gradient(135deg,#fff5ec,#ffe8d6)', borderTopLeftRadius: 14, borderTopRightRadius: 14, padding: '18px 22px' }}>
                   <div className="d-flex justify-content-between align-items-center mb-2">
                     <div className="d-flex align-items-center" style={{ gap: 10 }}>
-                      <CardTitle className="mb-0">Assignments</CardTitle>
+                      <CardTitle className="mb-0" style={{ fontSize: 16, fontWeight: 700, color: '#32325d' }}>Assignments</CardTitle>
                       <span style={{ padding: '2px 10px', borderRadius: 20, fontSize: 12, fontWeight: 700, background: '#5e72e4', color: '#fff' }}>
                         {filteredAssigns.length}{filteredAssigns.length !== assignments.length ? ` / ${assignments.length}` : ''}
                       </span>
@@ -1181,19 +1198,17 @@ export default function SubjectTeacher() {
                     )}
                   </div>
                   {assignments.length > 0 && (
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 4, padding: '10px 0 2px' }}>
                       <input
                         type="text" placeholder="Search title..."
+                        className="filter-input"
                         value={assignFilterTitle} onChange={e => setAssignFilterTitle(e.target.value)}
-                        style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12, background: '#fff', color: '#525f7f', width: 150 }}
                       />
-                      <select value={assignFilterTopic} onChange={e => setAssignFilterTopic(e.target.value)}
-                        style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12, background: '#fff', color: '#525f7f', cursor: 'pointer' }}>
+                      <select className="filter-select" value={assignFilterTopic} onChange={e => setAssignFilterTopic(e.target.value)}>
                         <option value="all">All Topics</option>
                         {topics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                       </select>
-                      <select value={assignFilterDuration} onChange={e => setAssignFilterDuration(e.target.value)}
-                        style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12, background: '#fff', color: '#525f7f', cursor: 'pointer' }}>
+                      <select className="filter-select" value={assignFilterDuration} onChange={e => setAssignFilterDuration(e.target.value)}>
                         <option value="all">All Durations</option>
                         <option value="3">3 Days</option>
                         <option value="5">5 Days</option>
@@ -1206,21 +1221,18 @@ export default function SubjectTeacher() {
                         <option value="60">2 Months</option>
                         <option value="none">No Duration</option>
                       </select>
-                      <select value={assignFilterStatus} onChange={e => setAssignFilterStatus(e.target.value)}
-                        style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12, background: '#fff', color: '#525f7f', cursor: 'pointer' }}>
+                      <select className="filter-select" value={assignFilterStatus} onChange={e => setAssignFilterStatus(e.target.value)}>
                         <option value="all">All Status</option>
                         <option value="published">Published</option>
                         <option value="draft">Draft</option>
                       </select>
-                      <select value={assignFilterCreator} onChange={e => setAssignFilterCreator(e.target.value)}
-                        style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12, background: '#fff', color: '#525f7f', cursor: 'pointer' }}>
+                      <select className="filter-select" value={assignFilterCreator} onChange={e => setAssignFilterCreator(e.target.value)}>
                         <option value="all">All Creators</option>
                         {[...new Map(assignments.filter(a => a.creator_name).map(a => [a.created_by, a.creator_name])).entries()].map(([id, name]) => (
                           <option key={id} value={id}>{name}</option>
                         ))}
                       </select>
-                      <select value={assignFilterStudent} onChange={e => setAssignFilterStudent(e.target.value)}
-                        style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12, background: '#fff', color: '#525f7f', cursor: 'pointer' }}>
+                      <select className="filter-select" value={assignFilterStudent} onChange={e => setAssignFilterStudent(e.target.value)}>
                         <option value="all">All Students</option>
                         {subjectStudents.map(s => (
                           <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>
@@ -1230,7 +1242,7 @@ export default function SubjectTeacher() {
                         {[['all', 'All'], ['assigned', 'Assigned'], ['not_assigned', 'Not Assigned']].map(([val, label]) => (
                           <button key={val} onClick={() => setAssignFilterAssigned(val)}
                             style={{
-                              padding: '5px 10px', border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                              padding: '6px 12px', border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer', transition: 'all .12s',
                               background: assignFilterAssigned === val ? '#5e72e4' : '#fff',
                               color: assignFilterAssigned === val ? '#fff' : '#525f7f',
                             }}>
@@ -1240,7 +1252,7 @@ export default function SubjectTeacher() {
                       </div>
                       {(assignFilterTitle || assignFilterTopic !== 'all' || assignFilterDuration !== 'all' || assignFilterStatus !== 'all' || assignFilterCreator !== 'all' || assignFilterStudent !== 'all' || assignFilterAssigned !== 'all') && (
                         <button onClick={() => { setAssignFilterTitle(''); setAssignFilterTopic('all'); setAssignFilterDuration('all'); setAssignFilterStatus('all'); setAssignFilterCreator('all'); setAssignFilterStudent('all'); setAssignFilterAssigned('all'); }}
-                          style={{ padding: '4px 10px', borderRadius: 8, border: '1px solid #f5365c', background: 'transparent', color: '#f5365c', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                          style={{ padding: '5px 12px', borderRadius: 8, border: 'none', background: '#f5365c', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer', transition: 'opacity .12s' }}>
                           Clear
                         </button>
                       )}
@@ -1256,7 +1268,7 @@ export default function SubjectTeacher() {
                   ) : filteredAssigns.length === 0 ? (
                     <p className="text-muted text-center py-3">No assignments match the filters.</p>
                   ) : (
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <table className="subject-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead>
                         <tr style={{ background: '#f8f9fa' }}>
                           {['S.No', 'Title', 'Topic', 'Duration', 'Points', 'Status', 'Created By', 'Submissions', 'Assigned By', 'Assigned To', 'Actions'].map(h => (
@@ -1382,10 +1394,10 @@ export default function SubjectTeacher() {
         {tab === 'materials' && (
           <Row>
             <Col>
-              <Card className="shadow" style={{ borderRadius: 12 }}>
-                <CardHeader style={{ background: '#eaf3ff', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
+              <Card className="shadow" style={{ borderRadius: 14, border: 'none' }}>
+                <CardHeader style={{ background: 'linear-gradient(135deg,#e8fff0,#d6f5e0)', borderTopLeftRadius: 14, borderTopRightRadius: 14, padding: '18px 22px' }}>
                   <div className="d-flex justify-content-between align-items-center">
-                    <CardTitle className="mb-0">Study Materials</CardTitle>
+                    <CardTitle className="mb-0" style={{ fontSize: 16, fontWeight: 700, color: '#32325d' }}>Study Materials</CardTitle>
                     {canCreateContent && (
                       <Button color="secondary" size="sm" style={{ borderRadius: 8 }} onClick={() => setMatModalOpen(true)}>
                         + Add Material
@@ -1400,7 +1412,7 @@ export default function SubjectTeacher() {
                       {canCreateContent && <Button color="secondary" size="sm" onClick={() => setMatModalOpen(true)}>Add First Material</Button>}
                     </div>
                   ) : (
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <table className="subject-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead>
                         <tr style={{ background: '#f8f9fa' }}>
                           {['Title', 'Type', 'Topic', 'Status', 'Assigned By', 'Assigned To', 'Actions'].map(h => (
@@ -2280,7 +2292,7 @@ export default function SubjectTeacher() {
             ) : quizPermissionsLoading ? (
               <p className="text-muted text-center py-3">Loading...</p>
             ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <table className="subject-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ background: '#f8f9fa' }}>
                     {['Teacher', 'Subject Access', 'Quiz Write Access', 'Granted At', 'Action'].map(h => (
@@ -2376,7 +2388,7 @@ export default function SubjectTeacher() {
                   if (r.assigned_at > byTeacher[r.assigned_by].latestAt) byTeacher[r.assigned_by].latestAt = r.assigned_at;
                 });
                 return (
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <table className="subject-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr style={{ background: '#f8f9fa' }}>
                         {['Teacher', 'Students Assigned', 'Last Assignment Date'].map(h => (
@@ -2399,7 +2411,7 @@ export default function SubjectTeacher() {
                 // List each student
                 const isAssignmentType = detailModal.contentType === 'assignment';
                 return (
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <table className="subject-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr style={{ background: '#f8f9fa' }}>
                         {['Student', 'Email', 'Assigned By', 'Assigned At', ...(isAssignmentType ? ['Due Date'] : [])].map(h => (
@@ -2436,6 +2448,13 @@ export default function SubjectTeacher() {
       <style>{`
         @keyframes liveBlink { 0%,100%{opacity:1} 50%{opacity:.4} }
         .live-blink { animation: liveBlink 1s infinite; }
+        .subject-table tbody tr { transition: background .12s ease; }
+        .subject-table tbody tr:hover { background: #f7f9fc !important; }
+        .subject-table th { border-bottom: 2px solid #e9ecef; }
+        .filter-select { padding: 6px 12px; border-radius: 8px; border: 1px solid #dee2e6; font-size: 12px; background: #fff; color: #525f7f; cursor: pointer; transition: border-color .15s; }
+        .filter-select:focus { border-color: #5e72e4; outline: none; }
+        .filter-input { padding: 6px 12px; border-radius: 8px; border: 1px solid #dee2e6; font-size: 12px; background: #fff; color: #525f7f; width: 160px; transition: border-color .15s; }
+        .filter-input:focus { border-color: #5e72e4; outline: none; }
       `}</style>
     </>
   );
