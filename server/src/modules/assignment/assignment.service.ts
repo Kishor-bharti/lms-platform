@@ -39,23 +39,65 @@ export interface SubmissionSummary {
 
 export async function getAssignmentsBySubject(
   subjectId: string,
-  teacherId?: string
+  requesterId?: string
 ): Promise<AssignmentSummary[]> {
-  const rows = await query<any>(`
-    SELECT
-      a.id, a.subject_id, a.topic_id, t.name AS topic_name,
-      a.title, a.description, a.created_by,
-      u.first_name || ' ' || u.last_name AS creator_name,
-      a.due_date, a.duration_days, a.max_marks, a.is_published, a.attachment_url, a.created_at,
-      COUNT(sub.id) FILTER (WHERE sub.status != 'pending') AS submission_count
-    FROM assignments a
-    LEFT JOIN assignment_submissions sub ON sub.assignment_id = a.id
-    LEFT JOIN topics t ON t.id = a.topic_id
-    LEFT JOIN users u ON u.id = a.created_by
-    WHERE a.subject_id = $1
-    GROUP BY a.id, t.name, u.first_name, u.last_name
-    ORDER BY a.created_at DESC
-  `, [subjectId]);
+  // Check if requester is admin
+  let isAdmin = false;
+  if (requesterId) {
+    const adminCheck = await query<any>(
+      `SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id
+       WHERE ur.user_id = $1 AND r.name = 'admin'`,
+      [requesterId]
+    );
+    isAdmin = adminCheck.length > 0;
+  }
+
+  let sql: string;
+  let params: any[];
+
+  if (requesterId && !isAdmin) {
+    // Teacher: only count submissions from students they assigned
+    sql = `
+      SELECT
+        a.id, a.subject_id, a.topic_id, t.name AS topic_name,
+        a.title, a.description, a.created_by,
+        u.first_name || ' ' || u.last_name AS creator_name,
+        a.due_date, a.duration_days, a.max_marks, a.is_published, a.attachment_url, a.created_at,
+        COUNT(sub.id) FILTER (WHERE sub.status != 'pending' AND EXISTS (
+          SELECT 1 FROM student_content_assignments sca
+          WHERE sca.content_type = 'assignment'
+            AND sca.content_id = a.id
+            AND sca.student_id = sub.student_id
+            AND sca.assigned_by = $2
+        )) AS submission_count
+      FROM assignments a
+      LEFT JOIN assignment_submissions sub ON sub.assignment_id = a.id
+      LEFT JOIN topics t ON t.id = a.topic_id
+      LEFT JOIN users u ON u.id = a.created_by
+      WHERE a.subject_id = $1
+      GROUP BY a.id, t.name, u.first_name, u.last_name
+      ORDER BY a.created_at DESC`;
+    params = [subjectId, requesterId];
+  } else {
+    // Admin: count all submissions
+    sql = `
+      SELECT
+        a.id, a.subject_id, a.topic_id, t.name AS topic_name,
+        a.title, a.description, a.created_by,
+        u.first_name || ' ' || u.last_name AS creator_name,
+        a.due_date, a.duration_days, a.max_marks, a.is_published, a.attachment_url, a.created_at,
+        COUNT(sub.id) FILTER (WHERE sub.status != 'pending') AS submission_count
+      FROM assignments a
+      LEFT JOIN assignment_submissions sub ON sub.assignment_id = a.id
+      LEFT JOIN topics t ON t.id = a.topic_id
+      LEFT JOIN users u ON u.id = a.created_by
+      WHERE a.subject_id = $1
+      GROUP BY a.id, t.name, u.first_name, u.last_name
+      ORDER BY a.created_at DESC`;
+    params = [subjectId];
+  }
+
+  const rows = await query<any>(sql, params);
 
   return rows.map((r: any) => ({
     ...r,

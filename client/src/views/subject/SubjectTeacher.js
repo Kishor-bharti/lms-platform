@@ -1218,7 +1218,7 @@ export default function SubjectTeacher() {
                                     onClick={() => setPreviewAssign(a)}>
                                     Preview
                                   </Button>
-                                  {(isAdmin || a.created_by === userId) && (
+                                  {(isAdmin || (a.created_by === userId && (!a.is_published || teacherPermission === 'write'))) && (
                                     <Button size="sm" color="default" outline style={{ borderRadius: 20, fontSize: 11 }}
                                       onClick={() => openEditAssignment(a)}>
                                       Edit
