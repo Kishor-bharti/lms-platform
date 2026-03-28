@@ -78,7 +78,9 @@ export async function getSubmissions(req: Request, res: Response) {
     if (!assignmentId) {
       return res.status(400).json({ error: 'assignmentId is required' });
     }
-    const submissions = await assignmentService.getSubmissions(assignmentId);
+    // Teachers only see submissions from their assigned students; admins see all
+    const teacherId = role === 'teacher' ? req.user!.id : undefined;
+    const submissions = await assignmentService.getSubmissions(assignmentId, teacherId);
     return res.json(submissions);
   } catch (err) {
     logger.error('[assignment] getSubmissions:', err);

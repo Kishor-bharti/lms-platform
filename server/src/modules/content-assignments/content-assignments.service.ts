@@ -148,8 +148,30 @@ export async function getAssignmentsForContent(
  * Get all assignments for a subject (admin / teacher overview).
  */
 export async function getAssignmentsForSubject(
-  subjectId: string
+  subjectId: string,
+  teacherId?: string
 ): Promise<ContentAssignment[]> {
+  if (teacherId) {
+    // Teacher: only see content they assigned
+    const rows = await query<any>(
+      `SELECT sca.id, sca.subject_id, sca.content_type, sca.content_id,
+              sca.student_id,
+              u.first_name || ' ' || u.last_name AS student_name,
+              u.email AS student_email,
+              sca.assigned_by,
+              ab.first_name || ' ' || ab.last_name AS assigner_name,
+              sca.assigned_at,
+              sca.due_date
+       FROM student_content_assignments sca
+       JOIN users u  ON u.id  = sca.student_id
+       JOIN users ab ON ab.id = sca.assigned_by
+       WHERE sca.subject_id = $1 AND sca.assigned_by = $2
+       ORDER BY sca.assigned_at DESC`,
+      [subjectId, teacherId]
+    );
+    return rows;
+  }
+  // Admin: see all
   const rows = await query<any>(
     `SELECT sca.id, sca.subject_id, sca.content_type, sca.content_id,
             sca.student_id,

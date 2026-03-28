@@ -1954,8 +1954,16 @@ export default function SubjectTeacher() {
                 )}
                 <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 14 }}>
                   <div>
-                    <div style={{ fontSize: 11, color: '#8898aa', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>Due Date</div>
-                    <div style={{ color: '#32325d', fontWeight: 600 }}>{previewAssign.due_date ? new Date(previewAssign.due_date).toLocaleDateString('en-US') : '—'}</div>
+                    <div style={{ fontSize: 11, color: '#8898aa', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>Duration</div>
+                    <div style={{ color: '#32325d', fontWeight: 600 }}>{
+                      previewAssign.duration_days
+                        ? previewAssign.duration_days === 7 ? '1 Week'
+                          : previewAssign.duration_days === 14 ? '2 Weeks'
+                          : previewAssign.duration_days === 21 ? '3 Weeks'
+                          : previewAssign.duration_days === 30 ? '1 Month'
+                          : `${previewAssign.duration_days} Days`
+                        : '—'
+                    }</div>
                   </div>
                   <div>
                     <div style={{ fontSize: 11, color: '#8898aa', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>Max Marks</div>

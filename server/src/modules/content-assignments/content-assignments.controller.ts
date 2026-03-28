@@ -89,7 +89,9 @@ export async function getAssignmentsForSubject(req: Request, res: Response) {
     if (role !== 'teacher' && role !== 'admin') {
       return res.status(403).json({ error: 'Forbidden' });
     }
-    const assignments = await caService.getAssignmentsForSubject(subjectId!);
+    // Teachers only see their own assignments; admins see all
+    const teacherId = role === 'teacher' ? req.user!.id : undefined;
+    const assignments = await caService.getAssignmentsForSubject(subjectId!, teacherId);
     return res.json(assignments);
   } catch (err) {
     logger.error('[content-assignments] getForSubject:', err);

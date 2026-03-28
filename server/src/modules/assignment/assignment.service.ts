@@ -248,19 +248,48 @@ export async function deleteAssignment(assignmentId: string, requesterId: string
 
 // ---- Teacher: get all submissions for an assignment ----
 
-export async function getSubmissions(assignmentId: string): Promise<SubmissionSummary[]> {
-  const rows = await query<any>(`
-    SELECT
-      sub.id, sub.assignment_id, sub.student_id,
-      u.first_name || ' ' || u.last_name AS student_name,
-      u.email AS student_email,
-      sub.submission_url, sub.notes, sub.submitted_at,
-      sub.is_late, sub.marks_awarded, sub.feedback, sub.feedback_file_url, sub.status
-    FROM assignment_submissions sub
-    JOIN users u ON u.id = sub.student_id
-    WHERE sub.assignment_id = $1
-    ORDER BY sub.submitted_at ASC NULLS LAST
-  `, [assignmentId]);
+export async function getSubmissions(assignmentId: string, teacherId?: string): Promise<SubmissionSummary[]> {
+  let sql: string;
+  let params: any[];
+
+  if (teacherId) {
+    // Teacher: only see submissions from students they assigned this content to
+    sql = `
+      SELECT
+        sub.id, sub.assignment_id, sub.student_id,
+        u.first_name || ' ' || u.last_name AS student_name,
+        u.email AS student_email,
+        sub.submission_url, sub.notes, sub.submitted_at,
+        sub.is_late, sub.marks_awarded, sub.feedback, sub.feedback_file_url, sub.status
+      FROM assignment_submissions sub
+      JOIN users u ON u.id = sub.student_id
+      WHERE sub.assignment_id = $1
+        AND EXISTS (
+          SELECT 1 FROM student_content_assignments sca
+          WHERE sca.content_type = 'assignment'
+            AND sca.content_id = $1
+            AND sca.student_id = sub.student_id
+            AND sca.assigned_by = $2
+        )
+      ORDER BY sub.submitted_at ASC NULLS LAST`;
+    params = [assignmentId, teacherId];
+  } else {
+    // Admin: see all submissions
+    sql = `
+      SELECT
+        sub.id, sub.assignment_id, sub.student_id,
+        u.first_name || ' ' || u.last_name AS student_name,
+        u.email AS student_email,
+        sub.submission_url, sub.notes, sub.submitted_at,
+        sub.is_late, sub.marks_awarded, sub.feedback, sub.feedback_file_url, sub.status
+      FROM assignment_submissions sub
+      JOIN users u ON u.id = sub.student_id
+      WHERE sub.assignment_id = $1
+      ORDER BY sub.submitted_at ASC NULLS LAST`;
+    params = [assignmentId];
+  }
+
+  const rows = await query<any>(sql, params);
 
   return rows.map((r: any) => ({
     ...r,
