@@ -13,6 +13,7 @@ import materialsRouter  from './modules/materials/materials.routes';
 import profileRouter    from './modules/profile/profile.routes';
 import uploadRouter            from './modules/upload/upload.routes';
 import contentAssignmentsRouter from './modules/content-assignments/content-assignments.routes';
+import studentUploadsRouter     from './modules/student-uploads/student-uploads.routes';
 import { env }          from './config/env';
 import { errorHandler } from './middlewares/error.middleware';
 import { httpLogger }   from './middlewares/httpLogger.middleware';
@@ -84,6 +85,7 @@ app.use('/api/materials',   materialsRouter);
 app.use('/api/profile',     profileRouter);
 app.use('/api/upload',              uploadRouter);
 app.use('/api/content-assignments', contentAssignmentsRouter);
+app.use('/api/student-uploads',    studentUploadsRouter);
 
 app.get('/test-latency', async (_req, res) => {
   const start = Date.now();

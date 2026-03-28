@@ -63,6 +63,16 @@ export default function SubjectStudent() {
   const [submitFileName,   setSubmitFileName]    = useState('');
   const submitFileRef = useRef(null);
 
+  // Student Uploads
+  const [studentUploads,    setStudentUploads]    = useState([]);
+  const [subjectTeachers,   setSubjectTeachers]   = useState([]);
+  const [uploadOpen,        setUploadOpen]        = useState(false);
+  const [uploadForm,        setUploadForm]        = useState({ title: '', description: '', teacherId: '', file_url: '', file_name: '' });
+  const [uploadSaving,      setUploadSaving]      = useState(false);
+  const [uploadError,       setUploadError]       = useState('');
+  const [uploadFileUploading, setUploadFileUploading] = useState(false);
+  const uploadFileRef = useRef(null);
+
   useEffect(() => {
     fetchData();
     const iv = setInterval(fetchData, 15000);
@@ -71,13 +81,15 @@ export default function SubjectStudent() {
 
   const fetchData = async () => {
     try {
-      const [sessRes, classRes, quizRes, assignRes, matRes, topicsRes] = await Promise.all([
+      const [sessRes, classRes, quizRes, assignRes, matRes, topicsRes, uploadsRes, teachersRes] = await Promise.all([
         http.get(withTimeZoneQuery('/api/classes/my-sessions-v2')),
         http.get('/api/classes/my-classes-v2'),
         http.get(`/api/quizzes/subject/${subjectId}`),
         http.get(`/api/assignments/subject/${subjectId}`),
         http.get(`/api/materials/subject/${subjectId}`),
         http.get(`/api/subjects/${subjectId}/topics`),
+        http.get(`/api/student-uploads/subject/${subjectId}`).catch(() => ({ data: [] })),
+        http.get(`/api/classes/subjects/${subjectId}/teachers`).catch(() => ({ data: [] })),
       ]);
       setSessions((sessRes.data || []).filter((s) => s.subject_id === subjectId));
       const found = (classRes.data || []).find((c) => c.id === subjectId);
@@ -86,6 +98,8 @@ export default function SubjectStudent() {
       setAssignments(assignRes.data || []);
       setMaterials(matRes.data || []);
       setTopics(topicsRes.data || []);
+      setStudentUploads(uploadsRes.data || []);
+      setSubjectTeachers(teachersRes.data || []);
       // Fetch attempt status for all quizzes in one call
       try {
         const statusRes = await http.get(`/api/quizzes/subject/${subjectId}/status`);
@@ -149,6 +163,61 @@ export default function SubjectStudent() {
     }
   };
 
+  // ---- Upload handlers ----
+  const handleUploadFile = async (file) => {
+    if (!file) return;
+    setUploadFileUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await http.post('/api/upload/assignment', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setUploadForm(f => ({ ...f, file_url: res.data.url, file_name: res.data.name || file.name }));
+    } catch (err) {
+      setUploadError(err?.response?.data?.error || 'File upload failed');
+    } finally {
+      setUploadFileUploading(false);
+    }
+  };
+
+  const handleCreateUpload = async (e) => {
+    e.preventDefault();
+    if (!uploadForm.title || !uploadForm.file_url) {
+      setUploadError('Title and file are required');
+      return;
+    }
+    setUploadSaving(true);
+    setUploadError('');
+    try {
+      await http.post('/api/student-uploads', {
+        subjectId,
+        teacherId: uploadForm.teacherId || undefined,
+        title: uploadForm.title,
+        description: uploadForm.description || undefined,
+        file_url: uploadForm.file_url,
+        file_name: uploadForm.file_name || undefined,
+      });
+      setUploadOpen(false);
+      setUploadForm({ title: '', description: '', teacherId: '', file_url: '', file_name: '' });
+      fetchData();
+    } catch (err) {
+      setUploadError(err?.response?.data?.error || 'Failed to upload');
+    } finally {
+      setUploadSaving(false);
+    }
+  };
+
+  const handleDeleteUpload = async (uploadId) => {
+    if (!window.confirm('Delete this upload?')) return;
+    try {
+      await http.delete(`/api/student-uploads/${uploadId}`);
+      fetchData();
+    } catch (err) {
+      console.error('Failed to delete upload', err);
+    }
+  };
+
   const allSessions = sessions.filter((s) => !topicView || s.topic_id === topicView.id);
 
   const formatTimetz = (timetz) => {
@@ -184,6 +253,7 @@ export default function SubjectStudent() {
     { key: 'quizzes',     label: `Practice (${practiceQuizzes.length})` },
     { key: 'assignments', label: `Assignments (${filteredAssignments.length})` },
     { key: 'materials',   label: `Materials (${filteredMaterials.length})` },
+    { key: 'uploads',     label: `Uploads (${studentUploads.length})` },
   ];
 
   if (loading) return (
@@ -648,6 +718,114 @@ export default function SubjectStudent() {
             </Col>
           </Row>
         )}
+
+        {/* ---- UPLOADS TAB ---- */}
+        {tab === 'uploads' && (
+          <Row>
+            <Col>
+              <Card className="shadow" style={{ borderRadius: 12 }}>
+                <CardHeader className="d-flex justify-content-between align-items-center" style={{ background: 'linear-gradient(135deg,#ffecd2,#fcb69f)', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
+                  <CardTitle className="mb-0" style={{ fontSize: 16, fontWeight: 700, color: '#32325d' }}>
+                    My Uploads {studentUploads.length > 0 && <Badge color="dark" pill style={{ fontSize: 11, marginLeft: 6 }}>{studentUploads.length}</Badge>}
+                  </CardTitle>
+                  <Button color="warning" size="sm" style={{ borderRadius: 8, fontWeight: 600 }}
+                    onClick={() => { setUploadForm({ title: '', description: '', teacherId: '', file_url: '', file_name: '' }); setUploadError(''); setUploadOpen(true); }}>
+                    + Upload File
+                  </Button>
+                </CardHeader>
+                <CardBody>
+                  {studentUploads.length === 0 ? (
+                    <div className="text-center py-4">
+                      <p className="text-muted">You haven't uploaded any files yet.</p>
+                      <Button color="warning" size="sm" onClick={() => { setUploadForm({ title: '', description: '', teacherId: '', file_url: '', file_name: '' }); setUploadError(''); setUploadOpen(true); }}>
+                        Upload Your First File
+                      </Button>
+                    </div>
+                  ) : (
+                    <div>
+                      {studentUploads.map((u) => (
+                        <div key={u.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid #f0f4f8' }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: 600, color: '#32325d', fontSize: 14 }}>{u.title}</div>
+                            {u.description && <div style={{ fontSize: 12, color: '#8898aa', marginTop: 2 }}>{u.description}</div>}
+                            <div style={{ fontSize: 11, color: '#8898aa', marginTop: 4 }}>
+                              {u.teacher_name && <span>To: <strong>{u.teacher_name}</strong> &middot; </span>}
+                              {new Date(u.created_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                            <a href={u.file_url} target="_blank" rel="noreferrer"
+                              style={{ fontSize: 12, fontWeight: 600, color: '#5e72e4', textDecoration: 'none' }}>
+                              {u.file_name || 'Download'}
+                            </a>
+                            <Button size="sm" color="danger" outline style={{ borderRadius: 20, fontSize: 11 }}
+                              onClick={() => handleDeleteUpload(u.id)}>
+                              Remove
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardBody>
+              </Card>
+            </Col>
+          </Row>
+        )}
+
+        {/* Upload File Modal */}
+        <Modal isOpen={uploadOpen} toggle={() => setUploadOpen(false)} centered>
+          <ModalHeader toggle={() => setUploadOpen(false)}>Upload File</ModalHeader>
+          <ModalBody>
+            <Form onSubmit={handleCreateUpload}>
+              <FormGroup>
+                <Label><strong>Title</strong></Label>
+                <Input value={uploadForm.title} onChange={(e) => setUploadForm({ ...uploadForm, title: e.target.value })}
+                  placeholder="e.g. Math Homework Week 5" required />
+              </FormGroup>
+              <FormGroup>
+                <Label>Description <span className="text-muted small">(optional)</span></Label>
+                <Input type="textarea" rows={2} value={uploadForm.description}
+                  onChange={(e) => setUploadForm({ ...uploadForm, description: e.target.value })}
+                  placeholder="Any notes about this file..." />
+              </FormGroup>
+              <FormGroup>
+                <Label>Send to Teacher <span className="text-muted small">(optional)</span></Label>
+                <Input type="select" value={uploadForm.teacherId}
+                  onChange={(e) => setUploadForm({ ...uploadForm, teacherId: e.target.value })}>
+                  <option value="">— None —</option>
+                  {subjectTeachers.map((t) => (
+                    <option key={t.id} value={t.id}>{t.first_name} {t.last_name}</option>
+                  ))}
+                </Input>
+              </FormGroup>
+              <FormGroup>
+                <Label><strong>File</strong></Label>
+                <input type="file" ref={uploadFileRef} style={{ display: 'none' }}
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.txt,.zip"
+                  onChange={(e) => e.target.files?.[0] && handleUploadFile(e.target.files[0])} />
+                <div className="d-flex align-items-center" style={{ gap: 10, marginBottom: 4 }}>
+                  <button type="button" onClick={() => uploadFileRef.current?.click()}
+                    disabled={uploadFileUploading}
+                    style={{ background: '#fb6340', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 16px', fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>
+                    {uploadFileUploading ? 'Uploading...' : 'Choose File'}
+                  </button>
+                  {uploadForm.file_name && (
+                    <span style={{ fontSize: 13, color: '#2dce89', fontWeight: 600 }}>&#10003; {uploadForm.file_name}</span>
+                  )}
+                </div>
+                <small className="text-muted">PDF, Word, Excel, image, ZIP (max 10 MB)</small>
+              </FormGroup>
+              {uploadError && <p className="text-danger small">{uploadError}</p>}
+            </Form>
+          </ModalBody>
+          <ModalFooter>
+            <Button color="warning" disabled={uploadSaving || uploadFileUploading} onClick={handleCreateUpload}>
+              {uploadSaving ? 'Saving...' : 'Upload'}
+            </Button>
+            <Button color="link" onClick={() => setUploadOpen(false)}>Cancel</Button>
+          </ModalFooter>
+        </Modal>
 
         {/* Submit Assignment Modal */}
         <Modal isOpen={submitOpen} toggle={() => setSubmitOpen(false)} centered>

@@ -114,6 +114,9 @@ export default function SubjectTeacher() {
   const [matSaving,    setMatSaving]    = useState(false);
   const [matError,     setMatError]     = useState('');
 
+  // Student Uploads
+  const [studentUploads, setStudentUploads] = useState([]);
+
   // Preview modals
   const [previewAssign, setPreviewAssign] = useState(null);
   const [previewMat,    setPreviewMat]    = useState(null);
@@ -169,7 +172,7 @@ export default function SubjectTeacher() {
 
   const fetchData = async () => {
     try {
-      const [sessRes, classRes, quizRes, assignRes, matRes, topicsRes, studentsRes, teachersRes, caRes] = await Promise.all([
+      const [sessRes, classRes, quizRes, assignRes, matRes, topicsRes, studentsRes, teachersRes, caRes, uploadsRes] = await Promise.all([
         http.get(withTimeZoneQuery('/api/classes/my-sessions-v2')),
         http.get('/api/classes/my-classes-v2'),
         http.get(`/api/quizzes/subject/${subjectId}`),
@@ -179,6 +182,7 @@ export default function SubjectTeacher() {
         http.get(`/api/classes/subjects/${subjectId}/students`),
         http.get(`/api/classes/subjects/${subjectId}/teachers`),
         http.get(`/api/content-assignments/subject/${subjectId}`).catch(() => ({ data: [] })),
+        http.get(`/api/student-uploads/subject/${subjectId}`).catch(() => ({ data: [] })),
       ]);
       setSessions((sessRes.data || []).filter((s) => s.subject_id === subjectId));
       const found = (classRes.data || []).find((c) => c.id === subjectId);
@@ -190,6 +194,7 @@ export default function SubjectTeacher() {
       setSubjectStudents(studentsRes.data || []);
       setSubjectTeachers(teachersRes.data || []);
       setContentAssignments(caRes.data || []);
+      setStudentUploads(uploadsRes.data || []);
       errorCount.current = 0;
     } catch (err) {
       console.error('[SubjectTeacher]', err);
@@ -661,6 +666,7 @@ export default function SubjectTeacher() {
     { key: 'quizzes',     label: 'Practice',     count: quizzes.length },
     { key: 'assignments', label: 'Assignments',  count: assignments.length },
     { key: 'materials',   label: 'Materials',    count: materials.length },
+    { key: 'uploads',     label: 'Uploads',      count: studentUploads.length },
   ];
 
   if (loading) return (
@@ -1498,6 +1504,67 @@ export default function SubjectTeacher() {
                             </tr>
                           );
                         })}
+                      </tbody>
+                    </table>
+                  )}
+                </CardBody>
+              </Card>
+            </Col>
+          </Row>
+        )}
+
+        {/* ---- UPLOADS TAB ---- */}
+        {tab === 'uploads' && (
+          <Row>
+            <Col>
+              <Card className="shadow" style={{ borderRadius: 14, border: 'none' }}>
+                <CardHeader style={{ background: 'linear-gradient(135deg,#ffecd2,#fcb69f)', borderTopLeftRadius: 14, borderTopRightRadius: 14, padding: '18px 22px' }}>
+                  <CardTitle className="mb-0" style={{ fontSize: 16, fontWeight: 700, color: '#32325d' }}>
+                    Student Uploads {studentUploads.length > 0 && <Badge color="dark" pill style={{ fontSize: 11, marginLeft: 8 }}>{studentUploads.length}</Badge>}
+                  </CardTitle>
+                </CardHeader>
+                <CardBody>
+                  {studentUploads.length === 0 ? (
+                    <div className="text-center py-4">
+                      <p className="text-muted">No student uploads yet.</p>
+                    </div>
+                  ) : (
+                    <table className="subject-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ background: '#f8f9fa' }}>
+                          {['S.No', 'Student', 'Title', 'File', ...(isAdmin ? ['Teacher'] : []), 'Uploaded At'].map(h => (
+                            <th key={h} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {studentUploads.map((u, idx) => (
+                          <tr key={u.id} style={{ borderBottom: '1px solid #f0f4f8' }}>
+                            <td style={{ padding: '12px 14px', fontWeight: 600, color: '#8898aa', fontSize: 13 }}>{idx + 1}</td>
+                            <td style={{ padding: '12px 14px' }}>
+                              <div style={{ fontWeight: 600, color: '#32325d', fontSize: 13 }}>{u.student_name || '—'}</div>
+                              {u.student_email && <div style={{ fontSize: 11, color: '#8898aa' }}>{u.student_email}</div>}
+                            </td>
+                            <td style={{ padding: '12px 14px' }}>
+                              <div style={{ fontWeight: 600, color: '#32325d', fontSize: 13 }}>{u.title}</div>
+                              {u.description && <div style={{ fontSize: 11, color: '#8898aa', marginTop: 2 }}>{u.description}</div>}
+                            </td>
+                            <td style={{ padding: '12px 14px' }}>
+                              <a href={u.file_url} target="_blank" rel="noreferrer"
+                                style={{ fontSize: 12, fontWeight: 600, color: '#5e72e4' }}>
+                                {u.file_name || 'Download'}
+                              </a>
+                            </td>
+                            {isAdmin && (
+                              <td style={{ padding: '12px 14px', fontSize: 13, color: '#525f7f' }}>
+                                {u.teacher_name || <span className="text-muted">—</span>}
+                              </td>
+                            )}
+                            <td style={{ padding: '12px 14px', fontSize: 12, color: '#8898aa' }}>
+                              {new Date(u.created_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}
+                            </td>
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   )}
