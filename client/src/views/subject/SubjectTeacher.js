@@ -82,6 +82,15 @@ export default function SubjectTeacher() {
   const [scheduleError,   setScheduleError]   = useState('');
   const [schedulePreview, setSchedulePreview] = useState([]);
 
+  // Assignment filters
+  const [assignFilterTitle,    setAssignFilterTitle]    = useState('');
+  const [assignFilterTopic,    setAssignFilterTopic]    = useState('all');
+  const [assignFilterDuration, setAssignFilterDuration] = useState('all');
+  const [assignFilterStatus,   setAssignFilterStatus]   = useState('all');
+  const [assignFilterCreator,  setAssignFilterCreator]  = useState('all');
+  const [assignFilterStudent,  setAssignFilterStudent]  = useState('all');
+  const [assignFilterAssigned, setAssignFilterAssigned] = useState('all'); // 'all' | 'assigned' | 'not_assigned'
+
   // Create/Edit assignment modal
   const [assignOpen,      setAssignOpen]      = useState(false);
   const [assignForm,      setAssignForm]      = useState({ title: '', description: '', duration_days: '', max_marks: 100, attachment_url: '', topicId: '', assignedTo: '' });
@@ -1125,19 +1134,118 @@ export default function SubjectTeacher() {
         )}
 
         {/* ---- ASSIGNMENTS TAB ---- */}
-        {tab === 'assignments' && (
+        {tab === 'assignments' && (() => {
+          const filteredAssigns = assignments.filter(a => {
+            if (assignFilterTitle && !a.title.toLowerCase().includes(assignFilterTitle.toLowerCase())) return false;
+            if (assignFilterTopic !== 'all' && a.topic_id !== assignFilterTopic) return false;
+            if (assignFilterDuration !== 'all') {
+              if (assignFilterDuration === 'none') { if (a.duration_days) return false; }
+              else { if (String(a.duration_days) !== assignFilterDuration) return false; }
+            }
+            if (assignFilterStatus !== 'all') {
+              if (assignFilterStatus === 'published' && !a.is_published) return false;
+              if (assignFilterStatus === 'draft' && a.is_published) return false;
+            }
+            if (assignFilterCreator !== 'all' && a.created_by !== assignFilterCreator) return false;
+            if (assignFilterStudent !== 'all') {
+              const isAssignedToStudent = contentAssignments.some(
+                ca => ca.content_type === 'assignment' && ca.content_id === a.id && ca.student_id === assignFilterStudent
+              );
+              if (!isAssignedToStudent) return false;
+            }
+            if (assignFilterAssigned !== 'all') {
+              const hasAssignees = contentAssignments.some(
+                ca => ca.content_type === 'assignment' && ca.content_id === a.id
+              );
+              if (assignFilterAssigned === 'assigned' && !hasAssignees) return false;
+              if (assignFilterAssigned === 'not_assigned' && hasAssignees) return false;
+            }
+            return true;
+          });
+          return (
           <Row>
             <Col>
               <Card className="shadow" style={{ borderRadius: 12 }}>
                 <CardHeader style={{ background: '#eaf3ff', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
-                  <div className="d-flex justify-content-between align-items-center">
-                    <CardTitle className="mb-0">Assignments</CardTitle>
+                  <div className="d-flex justify-content-between align-items-center mb-2">
+                    <div className="d-flex align-items-center" style={{ gap: 10 }}>
+                      <CardTitle className="mb-0">Assignments</CardTitle>
+                      <span style={{ padding: '2px 10px', borderRadius: 20, fontSize: 12, fontWeight: 700, background: '#5e72e4', color: '#fff' }}>
+                        {filteredAssigns.length}{filteredAssigns.length !== assignments.length ? ` / ${assignments.length}` : ''}
+                      </span>
+                    </div>
                     {canCreateContent && (
                       <Button color="warning" size="sm" style={{ borderRadius: 8 }} onClick={() => { setEditingAssignment(null); setAssignForm({ title: '', description: '', duration_days: '', max_marks: 100, attachment_url: '', topicId: '', assignedTo: '' }); setAssignFileName(''); setAssignOpen(true); }}>
                         + Create Assignment
                       </Button>
                     )}
                   </div>
+                  {assignments.length > 0 && (
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <input
+                        type="text" placeholder="Search title..."
+                        value={assignFilterTitle} onChange={e => setAssignFilterTitle(e.target.value)}
+                        style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12, background: '#fff', color: '#525f7f', width: 150 }}
+                      />
+                      <select value={assignFilterTopic} onChange={e => setAssignFilterTopic(e.target.value)}
+                        style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12, background: '#fff', color: '#525f7f', cursor: 'pointer' }}>
+                        <option value="all">All Topics</option>
+                        {topics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </select>
+                      <select value={assignFilterDuration} onChange={e => setAssignFilterDuration(e.target.value)}
+                        style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12, background: '#fff', color: '#525f7f', cursor: 'pointer' }}>
+                        <option value="all">All Durations</option>
+                        <option value="3">3 Days</option>
+                        <option value="5">5 Days</option>
+                        <option value="7">1 Week</option>
+                        <option value="10">10 Days</option>
+                        <option value="14">2 Weeks</option>
+                        <option value="21">3 Weeks</option>
+                        <option value="30">1 Month</option>
+                        <option value="45">45 Days</option>
+                        <option value="60">2 Months</option>
+                        <option value="none">No Duration</option>
+                      </select>
+                      <select value={assignFilterStatus} onChange={e => setAssignFilterStatus(e.target.value)}
+                        style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12, background: '#fff', color: '#525f7f', cursor: 'pointer' }}>
+                        <option value="all">All Status</option>
+                        <option value="published">Published</option>
+                        <option value="draft">Draft</option>
+                      </select>
+                      <select value={assignFilterCreator} onChange={e => setAssignFilterCreator(e.target.value)}
+                        style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12, background: '#fff', color: '#525f7f', cursor: 'pointer' }}>
+                        <option value="all">All Creators</option>
+                        {[...new Map(assignments.filter(a => a.creator_name).map(a => [a.created_by, a.creator_name])).entries()].map(([id, name]) => (
+                          <option key={id} value={id}>{name}</option>
+                        ))}
+                      </select>
+                      <select value={assignFilterStudent} onChange={e => setAssignFilterStudent(e.target.value)}
+                        style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12, background: '#fff', color: '#525f7f', cursor: 'pointer' }}>
+                        <option value="all">All Students</option>
+                        {subjectStudents.map(s => (
+                          <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>
+                        ))}
+                      </select>
+                      <div style={{ display: 'inline-flex', borderRadius: 8, overflow: 'hidden', border: '1px solid #dee2e6' }}>
+                        {[['all', 'All'], ['assigned', 'Assigned'], ['not_assigned', 'Not Assigned']].map(([val, label]) => (
+                          <button key={val} onClick={() => setAssignFilterAssigned(val)}
+                            style={{
+                              padding: '5px 10px', border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                              background: assignFilterAssigned === val ? '#5e72e4' : '#fff',
+                              color: assignFilterAssigned === val ? '#fff' : '#525f7f',
+                            }}>
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      {(assignFilterTitle || assignFilterTopic !== 'all' || assignFilterDuration !== 'all' || assignFilterStatus !== 'all' || assignFilterCreator !== 'all' || assignFilterStudent !== 'all' || assignFilterAssigned !== 'all') && (
+                        <button onClick={() => { setAssignFilterTitle(''); setAssignFilterTopic('all'); setAssignFilterDuration('all'); setAssignFilterStatus('all'); setAssignFilterCreator('all'); setAssignFilterStudent('all'); setAssignFilterAssigned('all'); }}
+                          style={{ padding: '4px 10px', borderRadius: 8, border: '1px solid #f5365c', background: 'transparent', color: '#f5365c', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </CardHeader>
                 <CardBody>
                   {assignments.length === 0 ? (
@@ -1145,17 +1253,19 @@ export default function SubjectTeacher() {
                       <p className="text-muted">No assignments yet.</p>
                       {canCreateContent && <Button color="warning" size="sm" onClick={() => { setEditingAssignment(null); setAssignForm({ title: '', description: '', duration_days: '', max_marks: 100, attachment_url: '', topicId: '', assignedTo: '' }); setAssignFileName(''); setAssignOpen(true); }}>Create First</Button>}
                     </div>
+                  ) : filteredAssigns.length === 0 ? (
+                    <p className="text-muted text-center py-3">No assignments match the filters.</p>
                   ) : (
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead>
                         <tr style={{ background: '#f8f9fa' }}>
-                          {['Title', 'Topic', 'Duration', 'Points', 'Status', 'Created By', 'Submissions', 'Assigned By', 'Assigned To', 'Actions'].map(h => (
+                          {['S.No', 'Title', 'Topic', 'Duration', 'Points', 'Status', 'Created By', 'Submissions', 'Assigned By', 'Assigned To', 'Actions'].map(h => (
                             <th key={h} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
-                        {assignments.map((a) => {
+                        {filteredAssigns.map((a, idx) => {
                           const aTo = assignedCount('assignment', a.id);
                           const aBy = assignedByCount('assignment', a.id);
                           const durationLabel = a.duration_days
@@ -1167,6 +1277,9 @@ export default function SubjectTeacher() {
                             : '—';
                           return (
                             <tr key={a.id} style={{ borderBottom: '1px solid #f0f4f8' }}>
+                              <td style={{ padding: '12px 14px', fontWeight: 600, color: '#8898aa', fontSize: 12 }}>
+                                {idx + 1}
+                              </td>
                               <td style={{ padding: '12px 14px', fontWeight: 600, color: '#32325d' }}>
                                 {a.title}
                                 {a.description && <div className="small text-muted mt-1">{a.description}</div>}
@@ -1262,7 +1375,8 @@ export default function SubjectTeacher() {
               {/* Submissions panel removed — moved to modal below */}
             </Col>
           </Row>
-        )}
+          );
+        })()}
 
         {/* ---- MATERIALS TAB ---- */}
         {tab === 'materials' && (
