@@ -9,3 +9,6 @@ ALTER TABLE assignments ADD COLUMN IF NOT EXISTS duration_days INTEGER;
 
 -- 3. Add due_date to student_content_assignments for auto-calculated per-student deadlines
 ALTER TABLE student_content_assignments ADD COLUMN IF NOT EXISTS due_date TIMESTAMPTZ;
+
+-- 4. Add feedback_file_url to assignment_submissions for teacher feedback files
+ALTER TABLE assignment_submissions ADD COLUMN IF NOT EXISTS feedback_file_url TEXT;

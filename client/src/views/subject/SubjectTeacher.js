@@ -111,9 +111,13 @@ export default function SubjectTeacher() {
 
   // Submissions panel
   const [viewSubs,      setViewSubs]      = useState(null); // assignmentId
+  const [viewSubsTitle, setViewSubsTitle] = useState('');
   const [submissions,   setSubmissions]   = useState([]);
   const [gradingId,     setGradingId]     = useState(null);
-  const [gradeForm,     setGradeForm]     = useState({ marks: '', feedback: '' });
+  const [gradeForm,     setGradeForm]     = useState({ marks: '', feedback: '', feedback_file_url: '' });
+  const [gradeUploading, setGradeUploading] = useState(false);
+  const [gradeFileName,  setGradeFileName]  = useState('');
+  const gradeFileRef = useRef(null);
 
   // Topics
   const [topics,        setTopics]        = useState([]);
@@ -531,8 +535,8 @@ export default function SubjectTeacher() {
     } catch (err) { console.error(err); }
   };
 
-  const loadSubmissions = async (assignId) => {
-    setViewSubs(assignId); setGradingId(null);
+  const loadSubmissions = async (assignId, title) => {
+    setViewSubs(assignId); setViewSubsTitle(title || ''); setGradingId(null);
     const res = await http.get(`/api/assignments/${assignId}/submissions`);
     setSubmissions(res.data || []);
   };
@@ -541,11 +545,29 @@ export default function SubjectTeacher() {
     try {
       await http.patch(`/api/assignments/submissions/${subId}/grade`, {
         marks_awarded: Number(gradeForm.marks), feedback: gradeForm.feedback,
+        feedback_file_url: gradeForm.feedback_file_url || undefined,
       });
-      setGradingId(null); setGradeForm({ marks: '', feedback: '' });
+      setGradingId(null); setGradeForm({ marks: '', feedback: '', feedback_file_url: '' });
+      setGradeFileName('');
       loadSubmissions(viewSubs);
     } catch (err) { console.error(err); }
   };
+
+  const handleGradeFileUpload = useCallback(async (file) => {
+    if (!file) return;
+    setGradeUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await http.post('/api/upload/assignment', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setGradeForm(f => ({ ...f, feedback_file_url: res.data.url }));
+      setGradeFileName(res.data.name || file.name);
+    } catch (err) {
+      console.error('Upload failed', err);
+    } finally { setGradeUploading(false); }
+  }, []);
 
   // ---- Topics CRUD ----
   const openCreateTopic = () => {
@@ -1169,7 +1191,7 @@ export default function SubjectTeacher() {
                                 {a.creator_name || '—'}
                               </td>
                               <td style={{ padding: '12px 14px', color: '#525f7f' }}>
-                                <button type="button" onClick={() => loadSubmissions(a.id)}
+                                <button type="button" onClick={() => loadSubmissions(a.id, a.title)}
                                   style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#fb6340', fontWeight: 700, fontSize: 13 }}>
                                   {a.submission_count || 0}
                                 </button>
@@ -1237,76 +1259,7 @@ export default function SubjectTeacher() {
                 </CardBody>
               </Card>
 
-              {/* Submissions panel */}
-              {viewSubs && (
-                <Card className="shadow mt-4" style={{ borderRadius: 12 }}>
-                  <CardHeader style={{ background: '#fff5e6', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
-                    <div className="d-flex justify-content-between align-items-center">
-                      <CardTitle className="mb-0">Submissions</CardTitle>
-                      <Button size="sm" color="link" onClick={() => setViewSubs(null)}>Close</Button>
-                    </div>
-                  </CardHeader>
-                  <CardBody>
-                    {submissions.length === 0 ? (
-                      <p className="text-muted text-center py-3">No submissions yet</p>
-                    ) : submissions.map((sub) => (
-                      <div key={sub.id} className="mb-3 p-3 bg-white border rounded">
-                        <div className="d-flex justify-content-between align-items-start flex-wrap" style={{ gap: 8 }}>
-                          <div>
-                            <strong>{sub.student_name}</strong>
-                            <div className="small text-muted">{sub.student_email}</div>
-                            {sub.submission_url && (
-                              <a href={sub.submission_url} target="_blank" rel="noreferrer" className="small" style={{ color: '#5e72e4' }}>View Submission</a>
-                            )}
-                            {sub.notes && <p className="small text-muted mt-1 mb-0">{sub.notes}</p>}
-                            {sub.marks_awarded != null && (
-                              <div className="small mt-1">
-                                <strong>Points: {sub.marks_awarded}</strong>
-                                {sub.feedback && <span className="text-muted ml-2">— {sub.feedback}</span>}
-                              </div>
-                            )}
-                          </div>
-                          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                            <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
-                              background: sub.status === 'graded' ? '#d4edda' : '#fff3cd',
-                              color: sub.status === 'graded' ? '#155724' : '#856404' }}>
-                              {sub.status}
-                            </span>
-                            {sub.status === 'submitted' && (
-                              <Button size="sm" color="success" outline style={{ borderRadius: 20, fontSize: 11 }}
-                                onClick={() => { setGradingId(sub.id); setGradeForm({ marks: '', feedback: '' }); }}>
-                                Grade
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                        {gradingId === sub.id && (
-                          <div style={{ marginTop: 12, padding: 12, background: '#f8f9fa', borderRadius: 8 }}>
-                            <Row>
-                              <Col md="4">
-                                <FormGroup className="mb-2">
-                                  <Label className="small">Points Awarded</Label>
-                                  <Input type="number" bsSize="sm" value={gradeForm.marks}
-                                    onChange={(e) => setGradeForm({ ...gradeForm, marks: e.target.value })} />
-                                </FormGroup>
-                              </Col>
-                              <Col md="8">
-                                <FormGroup className="mb-2">
-                                  <Label className="small">Feedback</Label>
-                                  <Input bsSize="sm" value={gradeForm.feedback}
-                                    onChange={(e) => setGradeForm({ ...gradeForm, feedback: e.target.value })} />
-                                </FormGroup>
-                              </Col>
-                            </Row>
-                            <Button size="sm" color="success" style={{ borderRadius: 8 }} onClick={() => handleGrade(sub.id)}>Submit Grade</Button>
-                            <Button size="sm" color="link" onClick={() => setGradingId(null)}>Cancel</Button>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </CardBody>
-                </Card>
-              )}
+              {/* Submissions panel removed — moved to modal below */}
             </Col>
           </Row>
         )}
@@ -1588,6 +1541,107 @@ export default function SubjectTeacher() {
               {scheduling ? 'Scheduling…' : scheduleForm.isRecurring && schedulePreview.length > 1 ? `Create ${schedulePreview.length} Sessions` : 'Schedule'}
             </Button>
             <Button color="link" onClick={() => setScheduleOpen(false)}>Cancel</Button>
+          </ModalFooter>
+        </Modal>
+
+        {/* Submissions Modal */}
+        <Modal isOpen={!!viewSubs} toggle={() => setViewSubs(null)} centered size="lg">
+          <ModalHeader toggle={() => setViewSubs(null)}
+            style={{ background: 'linear-gradient(135deg,#fb6340,#fbb140)', color: '#fff', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
+            Submissions {viewSubsTitle && <span style={{ fontWeight: 400, fontSize: 14 }}>— {viewSubsTitle}</span>}
+          </ModalHeader>
+          <ModalBody style={{ background: '#f8fbff', maxHeight: '70vh', overflowY: 'auto' }}>
+            {submissions.length === 0 ? (
+              <p className="text-muted text-center py-4">No submissions yet</p>
+            ) : submissions.map((sub) => (
+              <div key={sub.id} className="mb-3 p-3 bg-white border rounded" style={{ borderRadius: 10 }}>
+                <div className="d-flex justify-content-between align-items-start flex-wrap" style={{ gap: 8 }}>
+                  <div>
+                    <strong>{sub.student_name}</strong>
+                    <div className="small text-muted">{sub.student_email}</div>
+                    {sub.submitted_at && (
+                      <div className="small text-muted">Submitted: {new Date(sub.submitted_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</div>
+                    )}
+                    {sub.submission_url && (
+                      <a href={sub.submission_url} target="_blank" rel="noreferrer" className="small" style={{ color: '#5e72e4' }}>View Submission</a>
+                    )}
+                    {sub.notes && <p className="small text-muted mt-1 mb-0">{sub.notes}</p>}
+                    {sub.marks_awarded != null && (
+                      <div className="small mt-1">
+                        <strong>Points: {sub.marks_awarded}</strong>
+                        {sub.feedback && <span className="text-muted ml-2">— {sub.feedback}</span>}
+                      </div>
+                    )}
+                    {sub.feedback_file_url && (
+                      <a href={sub.feedback_file_url} target="_blank" rel="noreferrer" className="small d-block mt-1" style={{ color: '#2dce89' }}>
+                        View Feedback File
+                      </a>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    {sub.is_late && (
+                      <span style={{ padding: '3px 8px', borderRadius: 20, fontSize: 10, fontWeight: 700, background: '#fee2e2', color: '#dc2626' }}>Late</span>
+                    )}
+                    <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+                      background: sub.status === 'graded' ? '#d4edda' : '#fff3cd',
+                      color: sub.status === 'graded' ? '#155724' : '#856404' }}>
+                      {sub.status}
+                    </span>
+                    {sub.status === 'submitted' && (
+                      <Button size="sm" color="success" outline style={{ borderRadius: 20, fontSize: 11 }}
+                        onClick={() => { setGradingId(sub.id); setGradeForm({ marks: '', feedback: '', feedback_file_url: '' }); setGradeFileName(''); }}>
+                        Grade
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                {gradingId === sub.id && (
+                  <div style={{ marginTop: 12, padding: 12, background: '#f8f9fa', borderRadius: 8 }}>
+                    <Row>
+                      <Col md="4">
+                        <FormGroup className="mb-2">
+                          <Label className="small">Points Awarded</Label>
+                          <Input type="number" bsSize="sm" value={gradeForm.marks}
+                            onChange={(e) => setGradeForm({ ...gradeForm, marks: e.target.value })} />
+                        </FormGroup>
+                      </Col>
+                      <Col md="8">
+                        <FormGroup className="mb-2">
+                          <Label className="small">Feedback</Label>
+                          <Input bsSize="sm" value={gradeForm.feedback}
+                            onChange={(e) => setGradeForm({ ...gradeForm, feedback: e.target.value })} />
+                        </FormGroup>
+                      </Col>
+                    </Row>
+                    <FormGroup className="mb-2">
+                      <Label className="small">Feedback File <span className="text-muted">(optional — upload checked assignment)</span></Label>
+                      <div>
+                        <input type="file" ref={gradeFileRef} style={{ display: 'none' }}
+                          accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.txt"
+                          onChange={e => e.target.files?.[0] && handleGradeFileUpload(e.target.files[0])} />
+                        <div className="d-flex align-items-center" style={{ gap: 10 }}>
+                          <button type="button" onClick={() => gradeFileRef.current?.click()}
+                            disabled={gradeUploading}
+                            style={{ background: '#2dce89', color: '#fff', border: 'none', borderRadius: 8, padding: '4px 12px', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>
+                            {gradeUploading ? 'Uploading...' : 'Upload File'}
+                          </button>
+                          {gradeFileName && (
+                            <span style={{ fontSize: 12, color: '#2dce89', fontWeight: 600 }}>{gradeFileName}</span>
+                          )}
+                        </div>
+                      </div>
+                    </FormGroup>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <Button size="sm" color="success" style={{ borderRadius: 8 }} onClick={() => handleGrade(sub.id)}>Submit Grade</Button>
+                      <Button size="sm" color="link" onClick={() => setGradingId(null)}>Cancel</Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </ModalBody>
+          <ModalFooter style={{ background: '#f8fbff' }}>
+            <Button color="secondary" outline onClick={() => setViewSubs(null)}>Close</Button>
           </ModalFooter>
         </Modal>
 

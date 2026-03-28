@@ -264,6 +264,7 @@ CREATE TABLE assignment_submissions (
   is_late         BOOLEAN     NOT NULL DEFAULT FALSE,
   marks_awarded   NUMERIC(6,2),
   feedback        TEXT,
+  feedback_file_url TEXT,
   graded_by       UUID        REFERENCES users(id),
   graded_at       TIMESTAMPTZ,
   status          VARCHAR(20) NOT NULL DEFAULT 'pending',

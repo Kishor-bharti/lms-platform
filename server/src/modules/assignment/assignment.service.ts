@@ -31,6 +31,7 @@ export interface SubmissionSummary {
   is_late: boolean;
   marks_awarded: number | null;
   feedback: string | null;
+  feedback_file_url: string | null;
   status: string;
 }
 
@@ -83,7 +84,7 @@ export async function getStudentAssignments(
       cu.first_name || ' ' || cu.last_name AS creator_name,
       sub.id           AS sub_id,
       sub.submission_url, sub.notes, sub.submitted_at,
-      sub.is_late, sub.marks_awarded, sub.feedback, sub.status AS sub_status,
+      sub.is_late, sub.marks_awarded, sub.feedback, sub.feedback_file_url, sub.status AS sub_status,
       sca.assigned_at AS student_assigned_at,
       sca.due_date AS student_due_date,
       au.first_name || ' ' || au.last_name AS assigned_by_name
@@ -133,6 +134,7 @@ export async function getStudentAssignments(
       is_late: r.is_late,
       marks_awarded: r.marks_awarded ? Number(r.marks_awarded) : null,
       feedback: r.feedback,
+      feedback_file_url: r.feedback_file_url ?? null,
       status: r.sub_status,
     } : null,
   }));
@@ -253,7 +255,7 @@ export async function getSubmissions(assignmentId: string): Promise<SubmissionSu
       u.first_name || ' ' || u.last_name AS student_name,
       u.email AS student_email,
       sub.submission_url, sub.notes, sub.submitted_at,
-      sub.is_late, sub.marks_awarded, sub.feedback, sub.status
+      sub.is_late, sub.marks_awarded, sub.feedback, sub.feedback_file_url, sub.status
     FROM assignment_submissions sub
     JOIN users u ON u.id = sub.student_id
     WHERE sub.assignment_id = $1
@@ -315,18 +317,20 @@ export async function gradeSubmission(data: {
   graderId: string;
   marks_awarded: number;
   feedback?: string;
+  feedback_file_url?: string;
 }): Promise<SubmissionSummary> {
   const rows = await query<any>(`
     UPDATE assignment_submissions SET
-      marks_awarded = $1,
-      feedback      = $2,
-      graded_by     = $3,
-      graded_at     = now(),
-      status        = 'graded'
-    WHERE id = $4
+      marks_awarded     = $1,
+      feedback          = $2,
+      feedback_file_url = $3,
+      graded_by         = $4,
+      graded_at         = now(),
+      status            = 'graded'
+    WHERE id = $5
     RETURNING id, assignment_id, student_id, submission_url, notes,
-              submitted_at, is_late, marks_awarded, feedback, status
-  `, [data.marks_awarded, data.feedback ?? null, data.graderId, data.submissionId]);
+              submitted_at, is_late, marks_awarded, feedback, feedback_file_url, status
+  `, [data.marks_awarded, data.feedback ?? null, data.feedback_file_url ?? null, data.graderId, data.submissionId]);
 
   if (!rows[0]) throw new Error('Submission not found');
   return rows[0];

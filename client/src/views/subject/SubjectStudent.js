@@ -566,6 +566,11 @@ export default function SubjectStudent() {
                                       Points: {sub.marks_awarded} / {a.max_marks}
                                     </span>
                                     {sub.feedback && <p className="small text-muted mb-0 mt-1">Feedback: {sub.feedback}</p>}
+                                    {sub.feedback_file_url && (
+                                      <a href={sub.feedback_file_url} target="_blank" rel="noreferrer" className="small d-block mt-1" style={{ color: '#5e72e4', fontWeight: 600 }}>
+                                        View Checked File
+                                      </a>
+                                    )}
                                   </div>
                                 ) : (
                                   <span style={{ fontWeight: 700, color: '#5e72e4' }}>Submitted — awaiting grade</span>

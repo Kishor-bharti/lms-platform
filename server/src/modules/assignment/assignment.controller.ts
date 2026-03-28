@@ -116,12 +116,12 @@ export async function gradeSubmission(req: Request, res: Response) {
     if (role !== 'teacher' && role !== 'admin') {
       return res.status(403).json({ error: 'Only teachers can grade submissions' });
     }
-    const { marks_awarded, feedback } = req.body;
+    const { marks_awarded, feedback, feedback_file_url } = req.body;
     if (marks_awarded === undefined || marks_awarded === null) {
       return res.status(400).json({ error: 'marks_awarded is required' });
     }
     const result = await assignmentService.gradeSubmission({
-      submissionId, graderId, marks_awarded: Number(marks_awarded), feedback,
+      submissionId, graderId, marks_awarded: Number(marks_awarded), feedback, feedback_file_url,
     });
     return res.json(result);
   } catch (err: any) {
