@@ -82,14 +82,15 @@ export default function SubjectTeacher() {
   const [scheduleError,   setScheduleError]   = useState('');
   const [schedulePreview, setSchedulePreview] = useState([]);
 
-  // Create assignment modal
+  // Create/Edit assignment modal
   const [assignOpen,      setAssignOpen]      = useState(false);
-  const [assignForm,      setAssignForm]      = useState({ title: '', description: '', due_date: '', max_marks: 100, attachment_url: '', topicId: '', assignedTo: '' });
+  const [assignForm,      setAssignForm]      = useState({ title: '', description: '', duration_days: '', max_marks: 100, attachment_url: '', topicId: '', assignedTo: '' });
   const [assignSaving,    setAssignSaving]    = useState(false);
   const [assignError,     setAssignError]     = useState('');
   const [assignUploading, setAssignUploading] = useState(false);
   const [assignFileName,  setAssignFileName]  = useState('');
   const assignFileRef = useRef(null);
+  const [editingAssignment, setEditingAssignment] = useState(null);
 
   // Subject students + teachers (for 1-on-1 session / assignment targeting)
   const [subjectStudents,  setSubjectStudents]  = useState([]);
@@ -442,20 +443,45 @@ export default function SubjectTeacher() {
     if (!assignForm.topicId) { setAssignError('Topic is required'); return; }
     setAssignSaving(true);
     try {
-      await http.post('/api/assignments', {
+      const payload = {
         subjectId,
-        ...assignForm,
+        title: assignForm.title,
+        description: assignForm.description,
+        duration_days: assignForm.duration_days ? Number(assignForm.duration_days) : undefined,
         max_marks: Number(assignForm.max_marks),
+        attachment_url: assignForm.attachment_url || undefined,
         topicId: assignForm.topicId || undefined,
         assignedTo: assignForm.assignedTo || undefined,
-      });
+      };
+      if (editingAssignment) {
+        await http.put(`/api/assignments/${editingAssignment.id}`, payload);
+      } else {
+        await http.post('/api/assignments', payload);
+      }
       setAssignOpen(false);
-      setAssignForm({ title: '', description: '', due_date: '', max_marks: 100, attachment_url: '', topicId: '', assignedTo: '' });
+      setEditingAssignment(null);
+      setAssignForm({ title: '', description: '', duration_days: '', max_marks: 100, attachment_url: '', topicId: '', assignedTo: '' });
       setAssignFileName('');
       fetchData();
     } catch (err) {
-      setAssignError(err?.response?.data?.error || 'Failed to create assignment');
+      setAssignError(err?.response?.data?.error || 'Failed to save assignment');
     } finally { setAssignSaving(false); }
+  };
+
+  const openEditAssignment = (a) => {
+    setEditingAssignment(a);
+    setAssignForm({
+      title: a.title || '',
+      description: a.description || '',
+      duration_days: a.duration_days || '',
+      max_marks: a.max_marks || 100,
+      attachment_url: a.attachment_url || '',
+      topicId: a.topic_id || '',
+      assignedTo: a.assigned_to || '',
+    });
+    setAssignFileName(a.attachment_url ? a.attachment_url.split('/').pop() : '');
+    setAssignError('');
+    setAssignOpen(true);
   };
 
   const toggleAssignPublish = async (assignId, current) => {
@@ -1085,7 +1111,7 @@ export default function SubjectTeacher() {
                   <div className="d-flex justify-content-between align-items-center">
                     <CardTitle className="mb-0">Assignments</CardTitle>
                     {canCreateContent && (
-                      <Button color="warning" size="sm" style={{ borderRadius: 8 }} onClick={() => setAssignOpen(true)}>
+                      <Button color="warning" size="sm" style={{ borderRadius: 8 }} onClick={() => { setEditingAssignment(null); setAssignForm({ title: '', description: '', duration_days: '', max_marks: 100, attachment_url: '', topicId: '', assignedTo: '' }); setAssignFileName(''); setAssignOpen(true); }}>
                         + Create Assignment
                       </Button>
                     )}
@@ -1095,13 +1121,13 @@ export default function SubjectTeacher() {
                   {assignments.length === 0 ? (
                     <div className="text-center py-4">
                       <p className="text-muted">No assignments yet.</p>
-                      {canCreateContent && <Button color="warning" size="sm" onClick={() => setAssignOpen(true)}>Create First</Button>}
+                      {canCreateContent && <Button color="warning" size="sm" onClick={() => { setEditingAssignment(null); setAssignForm({ title: '', description: '', duration_days: '', max_marks: 100, attachment_url: '', topicId: '', assignedTo: '' }); setAssignFileName(''); setAssignOpen(true); }}>Create First</Button>}
                     </div>
                   ) : (
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead>
                         <tr style={{ background: '#f8f9fa' }}>
-                          {['Title', 'Topic', 'Due Date', 'Points', 'Status', 'Submissions', 'Assigned By', 'Assigned To', 'Actions'].map(h => (
+                          {['Title', 'Topic', 'Duration', 'Points', 'Status', 'Created By', 'Submissions', 'Assigned By', 'Assigned To', 'Actions'].map(h => (
                             <th key={h} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                           ))}
                         </tr>
@@ -1110,6 +1136,13 @@ export default function SubjectTeacher() {
                         {assignments.map((a) => {
                           const aTo = assignedCount('assignment', a.id);
                           const aBy = assignedByCount('assignment', a.id);
+                          const durationLabel = a.duration_days
+                            ? a.duration_days === 7 ? '1 Week'
+                              : a.duration_days === 14 ? '2 Weeks'
+                              : a.duration_days === 21 ? '3 Weeks'
+                              : a.duration_days === 30 ? '1 Month'
+                              : `${a.duration_days} Days`
+                            : '—';
                           return (
                             <tr key={a.id} style={{ borderBottom: '1px solid #f0f4f8' }}>
                               <td style={{ padding: '12px 14px', fontWeight: 600, color: '#32325d' }}>
@@ -1118,11 +1151,11 @@ export default function SubjectTeacher() {
                               </td>
                               <td style={{ padding: '12px 14px' }}>
                                 {a.topic_name
-                                  ? <span style={{ fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10 }}>📌 {a.topic_name}</span>
+                                  ? <span style={{ fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10 }}>{a.topic_name}</span>
                                   : <span className="text-muted small">—</span>}
                               </td>
                               <td style={{ padding: '12px 14px', color: '#525f7f', fontSize: 12, whiteSpace: 'nowrap' }}>
-                                {a.due_date ? new Date(a.due_date).toLocaleDateString('en-US') : '—'}
+                                {durationLabel}
                               </td>
                               <td style={{ padding: '12px 14px', color: '#525f7f' }}>{a.max_marks}</td>
                               <td style={{ padding: '12px 14px' }}>
@@ -1131,6 +1164,9 @@ export default function SubjectTeacher() {
                                   color: a.is_published ? '#155724' : '#856404' }}>
                                   {a.is_published ? 'Published' : 'Draft'}
                                 </span>
+                              </td>
+                              <td style={{ padding: '12px 14px', color: '#525f7f', fontSize: 12 }}>
+                                {a.creator_name || '—'}
                               </td>
                               <td style={{ padding: '12px 14px', color: '#525f7f' }}>
                                 <button type="button" onClick={() => loadSubmissions(a.id)}
@@ -1160,6 +1196,12 @@ export default function SubjectTeacher() {
                                     onClick={() => setPreviewAssign(a)}>
                                     Preview
                                   </Button>
+                                  {(isAdmin || a.created_by === userId) && (
+                                    <Button size="sm" color="default" outline style={{ borderRadius: 20, fontSize: 11 }}
+                                      onClick={() => openEditAssignment(a)}>
+                                      Edit
+                                    </Button>
+                                  )}
                                   {(a.is_published || isAdmin || a.created_by === userId) && (
                                     <Button size="sm" color="primary" outline style={{ borderRadius: 20, fontSize: 11 }}
                                       onClick={() => openAssignContentModal('assignment', a)}>
@@ -1549,15 +1591,32 @@ export default function SubjectTeacher() {
           </ModalFooter>
         </Modal>
 
-        {/* Create Assignment Modal */}
-        <Modal isOpen={assignOpen} toggle={() => setAssignOpen(false)} centered>
-          <ModalHeader toggle={() => setAssignOpen(false)}>Create Assignment</ModalHeader>
+        {/* Create/Edit Assignment Modal */}
+        <Modal isOpen={assignOpen} toggle={() => { setAssignOpen(false); setEditingAssignment(null); }} centered>
+          <ModalHeader toggle={() => { setAssignOpen(false); setEditingAssignment(null); }}>{editingAssignment ? 'Edit Assignment' : 'Create Assignment'}</ModalHeader>
           <ModalBody>
             <Form onSubmit={handleCreateAssignment}>
               <FormGroup><Label>Title *</Label><Input value={assignForm.title} onChange={(e) => setAssignForm({ ...assignForm, title: e.target.value })} placeholder="Assignment title" /></FormGroup>
               <FormGroup><Label>Description</Label><Input type="textarea" rows={2} value={assignForm.description} onChange={(e) => setAssignForm({ ...assignForm, description: e.target.value })} /></FormGroup>
               <Row>
-                <Col md="6"><FormGroup><Label>Due Date</Label><Input type="datetime-local" value={assignForm.due_date} onChange={(e) => setAssignForm({ ...assignForm, due_date: e.target.value })} /></FormGroup></Col>
+                <Col md="6">
+                  <FormGroup>
+                    <Label>Duration</Label>
+                    <Input type="select" value={assignForm.duration_days} onChange={(e) => setAssignForm({ ...assignForm, duration_days: e.target.value })}>
+                      <option value="">— No duration —</option>
+                      <option value="3">3 Days</option>
+                      <option value="5">5 Days</option>
+                      <option value="7">1 Week</option>
+                      <option value="10">10 Days</option>
+                      <option value="14">2 Weeks</option>
+                      <option value="21">3 Weeks</option>
+                      <option value="30">1 Month</option>
+                      <option value="45">45 Days</option>
+                      <option value="60">2 Months</option>
+                    </Input>
+                    <small className="text-muted">Due date is auto-calculated when assigned to students</small>
+                  </FormGroup>
+                </Col>
                 <Col md="6"><FormGroup><Label>Max Points</Label><Input type="number" value={assignForm.max_marks} onChange={(e) => setAssignForm({ ...assignForm, max_marks: e.target.value })} /></FormGroup></Col>
               </Row>
               <FormGroup>
@@ -1599,8 +1658,8 @@ export default function SubjectTeacher() {
             </Form>
           </ModalBody>
           <ModalFooter>
-            <Button color="warning" disabled={assignSaving} onClick={handleCreateAssignment}>{assignSaving ? 'Creating...' : 'Create Assignment'}</Button>
-            <Button color="link" onClick={() => setAssignOpen(false)}>Cancel</Button>
+            <Button color="warning" disabled={assignSaving} onClick={handleCreateAssignment}>{assignSaving ? 'Saving...' : editingAssignment ? 'Update Assignment' : 'Create Assignment'}</Button>
+            <Button color="link" onClick={() => { setAssignOpen(false); setEditingAssignment(null); }}>Cancel</Button>
           </ModalFooter>
         </Modal>
 
@@ -2162,11 +2221,12 @@ export default function SubjectTeacher() {
                 );
               } else {
                 // List each student
+                const isAssignmentType = detailModal.contentType === 'assignment';
                 return (
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr style={{ background: '#f8f9fa' }}>
-                        {['Student', 'Email', 'Assigned By', 'Assigned At'].map(h => (
+                        {['Student', 'Email', 'Assigned By', 'Assigned At', ...(isAssignmentType ? ['Due Date'] : [])].map(h => (
                           <th key={h} style={{ padding: '8px 12px', fontSize: 11, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase' }}>{h}</th>
                         ))}
                       </tr>
@@ -2178,6 +2238,11 @@ export default function SubjectTeacher() {
                           <td style={{ padding: '10px 12px', color: '#8898aa', fontSize: 12 }}>{r.student_email}</td>
                           <td style={{ padding: '10px 12px', color: '#525f7f' }}>{r.assigner_name}</td>
                           <td style={{ padding: '10px 12px', color: '#8898aa', fontSize: 12 }}>{new Date(r.assigned_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</td>
+                          {isAssignmentType && (
+                            <td style={{ padding: '10px 12px', color: r.due_date ? '#f5365c' : '#8898aa', fontSize: 12, fontWeight: r.due_date ? 600 : 400 }}>
+                              {r.due_date ? new Date(r.due_date).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : '—'}
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>

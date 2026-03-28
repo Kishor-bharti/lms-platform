@@ -245,6 +245,7 @@ CREATE TABLE assignments (
   title          VARCHAR(255) NOT NULL,
   description    TEXT,
   due_date       TIMESTAMPTZ,
+  duration_days  INTEGER,
   max_marks      NUMERIC(6,2) NOT NULL DEFAULT 100,
   is_published   BOOLEAN      NOT NULL DEFAULT FALSE,
   attachment_url TEXT,
@@ -363,6 +364,7 @@ CREATE TABLE student_content_assignments (
   student_id   UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   assigned_by  UUID        NOT NULL REFERENCES users(id),
   assigned_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  due_date     TIMESTAMPTZ,
   UNIQUE (content_type, content_id, student_id)
 );
 

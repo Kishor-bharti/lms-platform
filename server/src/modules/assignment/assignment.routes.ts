@@ -9,6 +9,7 @@ router.use(authMiddleware);
 router.post('/', assignmentController.createAssignment);
 router.get('/subject/:subjectId', assignmentController.getAssignmentsBySubject);
 router.patch('/:assignmentId/publish', assignmentController.publishAssignment);
+router.put('/:assignmentId', assignmentController.updateAssignment);
 router.delete('/:assignmentId', assignmentController.deleteAssignment);
 router.get('/:assignmentId/submissions', assignmentController.getSubmissions);
 router.patch('/submissions/:submissionId/grade', assignmentController.gradeSubmission);

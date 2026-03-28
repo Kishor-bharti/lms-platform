@@ -27,7 +27,7 @@ export async function createAssignment(req: Request, res: Response) {
   try {
     const userId = req.user!.id;
     const role = req.user!.role;
-    const { subjectId, title, description, due_date, max_marks, attachment_url, topicId, assignedTo } = req.body;
+    const { subjectId, title, description, duration_days, max_marks, attachment_url, topicId, assignedTo } = req.body;
     if (!subjectId || !title) {
       return res.status(400).json({ error: 'subjectId and title are required' });
     }
@@ -36,7 +36,7 @@ export async function createAssignment(req: Request, res: Response) {
       return res.status(403).json({ error: 'Insufficient permissions to create assignments in this subject' });
     }
     const assignment = await assignmentService.createAssignment({
-      subjectId, createdBy: userId, title, description, due_date, max_marks, attachment_url, topicId,
+      subjectId, createdBy: userId, title, description, duration_days, max_marks, attachment_url, topicId,
       assignedTo: assignedTo || undefined,
     });
     return res.status(201).json(assignment);
@@ -128,6 +128,26 @@ export async function gradeSubmission(req: Request, res: Response) {
     if (err.message === 'Submission not found') return res.status(404).json({ error: 'Submission not found' });
     logger.error('[assignment] grade:', err);
     return res.status(500).json({ error: 'Failed to grade submission' });
+  }
+}
+
+export async function updateAssignment(req: Request, res: Response) {
+  try {
+    const assignmentId = req.params.assignmentId as string;
+    const requesterId = req.user!.id;
+    const role = req.user!.role;
+    if (role !== 'admin' && role !== 'teacher') {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    const { title, description, duration_days, max_marks, attachment_url, topicId, assignedTo } = req.body;
+    const updated = await assignmentService.updateAssignment(assignmentId, requesterId, {
+      title, description, duration_days, max_marks, attachment_url, topicId, assignedTo,
+    });
+    return res.json(updated);
+  } catch (err: any) {
+    if (err.message === 'FORBIDDEN') return res.status(403).json({ error: 'You can only edit your own assignments' });
+    logger.error('[assignment] update:', err);
+    return res.status(500).json({ error: err.message || 'Failed to update assignment' });
   }
 }
 

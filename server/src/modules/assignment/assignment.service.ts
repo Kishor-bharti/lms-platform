@@ -8,10 +8,13 @@ export interface AssignmentSummary {
   title: string;
   description: string | null;
   due_date: string | null;
+  duration_days: number | null;
   max_marks: number;
   is_published: boolean;
   attachment_url: string | null;
   created_at: string;
+  created_by?: string;
+  creator_name?: string;
   submission_count?: number;
   my_submission?: SubmissionSummary | null;
 }
@@ -42,7 +45,7 @@ export async function getAssignmentsBySubject(
       a.id, a.subject_id, a.topic_id, t.name AS topic_name,
       a.title, a.description, a.created_by,
       u.first_name || ' ' || u.last_name AS creator_name,
-      a.due_date, a.max_marks, a.is_published, a.attachment_url, a.created_at,
+      a.due_date, a.duration_days, a.max_marks, a.is_published, a.attachment_url, a.created_at,
       COUNT(sub.id) FILTER (WHERE sub.status != 'pending') AS submission_count
     FROM assignments a
     LEFT JOIN assignment_submissions sub ON sub.assignment_id = a.id
@@ -53,10 +56,11 @@ export async function getAssignmentsBySubject(
     ORDER BY a.created_at DESC
   `, [subjectId]);
 
-  return rows.map((r) => ({
+  return rows.map((r: any) => ({
     ...r,
     max_marks: Number(r.max_marks),
     submission_count: Number(r.submission_count),
+    duration_days: r.duration_days ? Number(r.duration_days) : null,
   }));
 }
 
@@ -74,20 +78,26 @@ export async function getStudentAssignments(
     SELECT
       a.id, a.subject_id, a.topic_id, t.name AS topic_name,
       a.title, a.description,
-      a.due_date, a.max_marks, a.is_published, a.attachment_url, a.created_at,
+      a.due_date, a.duration_days, a.max_marks, a.is_published, a.attachment_url, a.created_at,
+      a.created_by,
+      cu.first_name || ' ' || cu.last_name AS creator_name,
       sub.id           AS sub_id,
       sub.submission_url, sub.notes, sub.submitted_at,
-      sub.is_late, sub.marks_awarded, sub.feedback, sub.status AS sub_status
+      sub.is_late, sub.marks_awarded, sub.feedback, sub.status AS sub_status,
+      sca.assigned_at AS student_assigned_at,
+      sca.due_date AS student_due_date,
+      au.first_name || ' ' || au.last_name AS assigned_by_name
     FROM assignments a
     LEFT JOIN assignment_submissions sub
       ON sub.assignment_id = a.id AND sub.student_id = $2
     LEFT JOIN topics t ON t.id = a.topic_id
+    LEFT JOIN users cu ON cu.id = a.created_by
+    LEFT JOIN student_content_assignments sca
+      ON sca.content_type = 'assignment' AND sca.content_id = a.id AND sca.student_id = $2
+    LEFT JOIN users au ON au.id = sca.assigned_by
     WHERE a.subject_id = $1
       AND (
-        EXISTS (
-          SELECT 1 FROM student_content_assignments
-          WHERE content_type = 'assignment' AND content_id = a.id AND student_id = $2
-        )
+        sca.id IS NOT NULL
         OR (
           a.is_published = true
           AND (a.assigned_to IS NULL OR a.assigned_to = $2)
@@ -96,18 +106,23 @@ export async function getStudentAssignments(
     ORDER BY a.due_date ASC NULLS LAST
   `, [subjectId, studentId]);
 
-  return rows.map((r) => ({
+  return rows.map((r: any) => ({
     id: r.id,
     subject_id: r.subject_id,
     topic_id: r.topic_id ?? null,
     topic_name: r.topic_name ?? null,
     title: r.title,
     description: r.description,
-    due_date: r.due_date,
+    due_date: r.student_due_date ?? r.due_date,
+    duration_days: r.duration_days ? Number(r.duration_days) : null,
     max_marks: Number(r.max_marks),
     is_published: r.is_published,
     attachment_url: r.attachment_url,
     created_at: r.created_at,
+    created_by: r.created_by,
+    creator_name: r.creator_name,
+    student_assigned_at: r.student_assigned_at,
+    assigned_by_name: r.assigned_by_name,
     my_submission: r.sub_id ? {
       id: r.sub_id,
       assignment_id: r.id,
@@ -130,26 +145,78 @@ export async function createAssignment(data: {
   createdBy: string;
   title: string;
   description?: string;
-  due_date?: string;
+  duration_days?: number;
   max_marks?: number;
   attachment_url?: string;
   topicId?: string;
-  assignedTo?: string; // T2/T8: specific student, or null = all enrolled
+  assignedTo?: string;
 }): Promise<AssignmentSummary> {
   const rows = await query<any>(`
     INSERT INTO assignments
-      (subject_id, created_by, title, description, due_date, max_marks, attachment_url, topic_id, assigned_to, is_published)
+      (subject_id, created_by, title, description, duration_days, max_marks, attachment_url, topic_id, assigned_to, is_published)
     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,false)
-    RETURNING id, subject_id, topic_id, title, description, due_date, max_marks,
+    RETURNING id, subject_id, topic_id, title, description, duration_days, max_marks,
               is_published, attachment_url, created_at, assigned_to
   `, [
     data.subjectId, data.createdBy, data.title,
-    data.description ?? null, data.due_date ?? null,
+    data.description ?? null, data.duration_days ?? null,
     data.max_marks ?? 100, data.attachment_url ?? null,
     data.topicId ?? null, data.assignedTo ?? null,
   ]);
 
-  return { ...rows[0], max_marks: Number(rows[0].max_marks), submission_count: 0 };
+  return { ...rows[0], max_marks: Number(rows[0].max_marks), submission_count: 0, due_date: null };
+}
+
+// ---- Teacher/Admin: update assignment ----
+
+export async function updateAssignment(
+  assignmentId: string,
+  requesterId: string,
+  data: {
+    title?: string;
+    description?: string;
+    duration_days?: number | null;
+    max_marks?: number;
+    attachment_url?: string;
+    topicId?: string;
+    assignedTo?: string | null;
+  }
+): Promise<AssignmentSummary> {
+  // Build dynamic SET clause
+  const sets: string[] = [];
+  const params: any[] = [];
+  let idx = 1;
+
+  if (data.title !== undefined) { sets.push(`title = $${idx++}`); params.push(data.title); }
+  if (data.description !== undefined) { sets.push(`description = $${idx++}`); params.push(data.description); }
+  if (data.duration_days !== undefined) { sets.push(`duration_days = $${idx++}`); params.push(data.duration_days); }
+  if (data.max_marks !== undefined) { sets.push(`max_marks = $${idx++}`); params.push(data.max_marks); }
+  if (data.attachment_url !== undefined) { sets.push(`attachment_url = $${idx++}`); params.push(data.attachment_url); }
+  if (data.topicId !== undefined) { sets.push(`topic_id = $${idx++}`); params.push(data.topicId || null); }
+  if (data.assignedTo !== undefined) { sets.push(`assigned_to = $${idx++}`); params.push(data.assignedTo || null); }
+
+  if (sets.length === 0) throw new Error('No fields to update');
+
+  sets.push(`updated_at = now()`);
+  params.push(assignmentId);
+  params.push(requesterId);
+
+  const rows = await query<any>(`
+    UPDATE assignments SET ${sets.join(', ')}
+    WHERE id = $${idx++}
+      AND (
+        created_by = $${idx}
+        OR EXISTS (
+          SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id
+          WHERE ur.user_id = $${idx} AND r.name = 'admin'
+        )
+      )
+    RETURNING id, subject_id, topic_id, title, description, duration_days, due_date, max_marks,
+              is_published, attachment_url, created_at, assigned_to, created_by
+  `, params);
+
+  if (!rows[0]) throw new Error('FORBIDDEN');
+  return { ...rows[0], max_marks: Number(rows[0].max_marks) };
 }
 
 // ---- Teacher: publish/unpublish ----
@@ -193,7 +260,7 @@ export async function getSubmissions(assignmentId: string): Promise<SubmissionSu
     ORDER BY sub.submitted_at ASC NULLS LAST
   `, [assignmentId]);
 
-  return rows.map((r) => ({
+  return rows.map((r: any) => ({
     ...r,
     marks_awarded: r.marks_awarded ? Number(r.marks_awarded) : null,
   }));
@@ -207,11 +274,20 @@ export async function submitAssignment(data: {
   submission_url?: string;
   notes?: string;
 }): Promise<SubmissionSummary> {
-  const assignmentRows = await query<any>(`SELECT due_date FROM assignments WHERE id=$1`, [data.assignmentId]);
-  if (!assignmentRows[0]) throw new Error('Assignment not found');
+  // Check due_date from student_content_assignments first, then fall back to assignments.due_date
+  const dueDateRows = await query<any>(`
+    SELECT
+      COALESCE(sca.due_date, a.due_date) AS effective_due_date
+    FROM assignments a
+    LEFT JOIN student_content_assignments sca
+      ON sca.content_type = 'assignment' AND sca.content_id = a.id AND sca.student_id = $2
+    WHERE a.id = $1
+  `, [data.assignmentId, data.studentId]);
 
-  const isLate = assignmentRows[0].due_date
-    ? new Date() > new Date(assignmentRows[0].due_date)
+  if (!dueDateRows[0]) throw new Error('Assignment not found');
+
+  const isLate = dueDateRows[0].effective_due_date
+    ? new Date() > new Date(dueDateRows[0].effective_due_date)
     : false;
 
   const rows = await query<any>(`

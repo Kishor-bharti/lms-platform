@@ -549,6 +549,13 @@ export default function SubjectStudent() {
                                 </a>
                               )}
                             </div>
+                            {(a.assigned_by_name || a.student_assigned_at) && (
+                              <div className="small text-muted mt-1" style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                                {a.assigned_by_name && <span>Assigned by: <strong>{a.assigned_by_name}</strong></span>}
+                                {a.student_assigned_at && <span>Assigned on: <strong>{new Date(a.student_assigned_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</strong></span>}
+                                {a.due_date && <span>Due: <strong style={{ color: new Date(a.due_date) < new Date() ? '#f5365c' : '#2dce89' }}>{new Date(a.due_date).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</strong></span>}
+                              </div>
+                            )}
 
                             {/* Submission status */}
                             {isSubmitted && (
