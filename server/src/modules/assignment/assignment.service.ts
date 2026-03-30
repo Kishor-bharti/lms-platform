@@ -359,6 +359,15 @@ export async function submitAssignment(data: {
 
   if (!dueDateRows[0]) throw new Error('Assignment not found');
 
+  // Block resubmission if already graded
+  const existingSub = await query<any>(
+    `SELECT status FROM assignment_submissions WHERE assignment_id = $1 AND student_id = $2`,
+    [data.assignmentId, data.studentId]
+  );
+  if (existingSub[0]?.status === 'graded') {
+    throw new Error('ALREADY_GRADED');
+  }
+
   const isLate = dueDateRows[0].effective_due_date
     ? new Date() > new Date(dueDateRows[0].effective_due_date)
     : false;

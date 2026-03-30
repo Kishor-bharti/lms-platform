@@ -69,6 +69,9 @@ export default function SubjectStudent() {
   const [uplFilterTitle,    setUplFilterTitle]    = useState('');
   const [uplFilterTeacher,  setUplFilterTeacher]  = useState('all');
   const [uplFilterFeedback, setUplFilterFeedback] = useState('all');
+  // Assignment filters
+  const [assignFilterTitle,  setAssignFilterTitle]  = useState('');
+  const [assignFilterStatus, setAssignFilterStatus] = useState('all'); // 'all' | 'graded' | 'submitted' | 'not_submitted'
   // Material filters
   const [matFilterTitle,  setMatFilterTitle]  = useState('');
   const [matFilterType,   setMatFilterType]   = useState('all');
@@ -595,17 +598,53 @@ export default function SubjectStudent() {
         )}
 
         {/* ---- ASSIGNMENTS TAB ---- */}
-        {tab === 'assignments' && (
+        {tab === 'assignments' && (() => {
+          const getStatus = (a) => { const s = a.my_submission; if (s?.status === 'graded') return 'graded'; if (s && s.status !== 'pending') return 'submitted'; return 'not_submitted'; };
+          const visibleAssigns = filteredAssignments
+            .filter(a => !assignFilterTitle || a.title.toLowerCase().includes(assignFilterTitle.toLowerCase()))
+            .filter(a => assignFilterStatus === 'all' || getStatus(a) === assignFilterStatus);
+          const hasAssignFilters = assignFilterTitle || assignFilterStatus !== 'all';
+
+          return (
           <Row>
             <Col>
+              {filteredAssignments.length > 0 && (
+                <div style={{ marginBottom: 14, padding: '10px 16px', background: '#fff', borderRadius: 12, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', boxShadow: '0 1px 3px rgba(0,0,0,.08)' }}>
+                  <input placeholder="Search title..." value={assignFilterTitle}
+                    onChange={(e) => setAssignFilterTitle(e.target.value)}
+                    style={{ width: 150, padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12 }} />
+                  <select value={assignFilterStatus} onChange={(e) => setAssignFilterStatus(e.target.value)}
+                    style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12 }}>
+                    <option value="all">All Status</option>
+                    <option value="graded">Graded</option>
+                    <option value="submitted">Submitted</option>
+                    <option value="not_submitted">Not Submitted</option>
+                  </select>
+                  {hasAssignFilters && (
+                    <button onClick={() => { setAssignFilterTitle(''); setAssignFilterStatus('all'); }}
+                      style={{ background: 'none', border: 'none', color: '#f5365c', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                      Clear
+                    </button>
+                  )}
+                  <span style={{ fontSize: 12, color: '#8898aa', marginLeft: 'auto' }}>
+                    {hasAssignFilters ? `${visibleAssigns.length} / ${filteredAssignments.length}` : filteredAssignments.length} assignment{filteredAssignments.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+              )}
               {filteredAssignments.length === 0 ? (
                 <Card className="shadow" style={{ borderRadius: 12 }}>
                   <CardBody className="text-center py-5">
                     <p className="text-muted">No assignments yet{topicView ? ' for this topic' : ''}</p>
                   </CardBody>
                 </Card>
+              ) : visibleAssigns.length === 0 ? (
+                <Card className="shadow" style={{ borderRadius: 12 }}>
+                  <CardBody className="text-center py-5">
+                    <p className="text-muted">No assignments match filters.</p>
+                  </CardBody>
+                </Card>
               ) : (
-                filteredAssignments.map((a) => {
+                visibleAssigns.map((a) => {
                   const sub = a.my_submission;
                   const isSubmitted = sub && sub.status !== 'pending';
                   const isGraded    = sub?.status === 'graded';
@@ -667,14 +706,16 @@ export default function SubjectStudent() {
                             }}>
                               {isGraded ? 'Graded' : isSubmitted ? 'Submitted' : 'Not Submitted'}
                             </span>
-                            <Button
-                              color={isSubmitted ? 'secondary' : 'warning'}
-                              size="sm"
-                              style={{ borderRadius: 8, minWidth: 110 }}
-                              onClick={() => openSubmitModal(a)}
-                            >
-                              {isSubmitted ? 'Edit Submission' : 'Submit'}
-                            </Button>
+                            {!isGraded && (
+                              <Button
+                                color={isSubmitted ? 'secondary' : 'warning'}
+                                size="sm"
+                                style={{ borderRadius: 8, minWidth: 110 }}
+                                onClick={() => openSubmitModal(a)}
+                              >
+                                {isSubmitted ? 'Edit Submission' : 'Submit'}
+                              </Button>
+                            )}
                           </div>
                         </div>
                       </CardBody>
@@ -684,7 +725,8 @@ export default function SubjectStudent() {
               )}
             </Col>
           </Row>
-        )}
+          );
+        })()}
 
         {/* ---- MATERIALS TAB ---- */}
         {tab === 'materials' && (() => {

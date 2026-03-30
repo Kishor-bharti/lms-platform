@@ -102,6 +102,7 @@ export async function submitAssignment(req: Request, res: Response) {
     return res.json(result);
   } catch (err: any) {
     if (err.message === 'Assignment not found') return res.status(404).json({ error: 'Assignment not found' });
+    if (err.message === 'ALREADY_GRADED') return res.status(403).json({ error: 'This assignment has been graded and cannot be edited' });
     logger.error('[assignment] submit:', err);
     return res.status(500).json({ error: 'Failed to submit assignment' });
   }
