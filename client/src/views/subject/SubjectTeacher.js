@@ -110,9 +110,17 @@ export default function SubjectTeacher() {
   // Materials
   const [materials,    setMaterials]    = useState([]);
   const [matModalOpen, setMatModalOpen] = useState(false);
-  const [matForm,      setMatForm]      = useState({ title: '', description: '', material_type: 'link', file_url: '', topicId: '' });
+  const [matForm,      setMatForm]      = useState({ title: '', description: '', material_type: 'pdf', file_url: '', file_name: '', topicId: '' });
   const [matSaving,    setMatSaving]    = useState(false);
   const [matError,     setMatError]     = useState('');
+  const [matUploading, setMatUploading] = useState(false);
+  const matFileRef = useRef(null);
+  // Material filters
+  const [matFilterTitle,   setMatFilterTitle]   = useState('');
+  const [matFilterType,    setMatFilterType]    = useState('all');
+  const [matFilterTopic,   setMatFilterTopic]   = useState('all');
+  const [matFilterStatus,  setMatFilterStatus]  = useState('all');
+  const [matFilterCreator, setMatFilterCreator] = useState('all');
 
   // Student Uploads
   const [studentUploads, setStudentUploads] = useState([]);
@@ -288,15 +296,36 @@ export default function SubjectTeacher() {
     } finally { setScheduling(false); }
   };
 
+  const handleMatFileUpload = async (file) => {
+    if (!file) return;
+    setMatUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await http.post('/api/upload/assignment', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      // Auto-detect type from extension
+      const ext = (file.name.split('.').pop() || '').toLowerCase();
+      const typeMap = { pdf: 'pdf', doc: 'doc', docx: 'doc', xls: 'doc', xlsx: 'doc', ppt: 'pptx', pptx: 'pptx', jpg: 'image', jpeg: 'image', png: 'image', gif: 'image', webp: 'image', mp4: 'video', webm: 'video', mov: 'video', avi: 'video', zip: 'zip' };
+      const detectedType = typeMap[ext] || 'doc';
+      setMatForm(f => ({ ...f, file_url: res.data.url, file_name: res.data.name || file.name, material_type: detectedType }));
+    } catch (err) {
+      setMatError(err?.response?.data?.error || 'File upload failed');
+    } finally {
+      setMatUploading(false);
+    }
+  };
+
   const handleAddMaterial = async (e) => {
     e.preventDefault(); setMatError('');
-    if (!matForm.title || !matForm.file_url) { setMatError('Title and URL are required'); return; }
+    if (!matForm.title || !matForm.file_url) { setMatError('Title and file are required'); return; }
     if (!matForm.topicId) { setMatError('Topic is required'); return; }
     setMatSaving(true);
     try {
-      await http.post('/api/materials', { subjectId, ...matForm, topicId: matForm.topicId || undefined });
+      await http.post('/api/materials', { subjectId, title: matForm.title, description: matForm.description, material_type: matForm.material_type, file_url: matForm.file_url, topicId: matForm.topicId || undefined });
       setMatModalOpen(false);
-      setMatForm({ title: '', description: '', material_type: 'link', file_url: '', topicId: '' });
+      setMatForm({ title: '', description: '', material_type: 'pdf', file_url: '', file_name: '', topicId: '' });
       fetchData();
     } catch (err) {
       setMatError(err?.response?.data?.error || 'Failed to add material');
@@ -1447,43 +1476,95 @@ export default function SubjectTeacher() {
         })()}
 
         {/* ---- MATERIALS TAB ---- */}
-        {tab === 'materials' && (
+        {tab === 'materials' && (() => {
+          const filteredMats = materials
+            .filter(m => !matFilterTitle || m.title.toLowerCase().includes(matFilterTitle.toLowerCase()))
+            .filter(m => matFilterType === 'all' || m.material_type === matFilterType)
+            .filter(m => matFilterTopic === 'all' || (matFilterTopic === 'none' ? !m.topic_id : m.topic_id === matFilterTopic))
+            .filter(m => matFilterStatus === 'all' || (matFilterStatus === 'published' ? m.is_published : !m.is_published))
+            .filter(m => matFilterCreator === 'all' || m.uploaded_by === matFilterCreator);
+          const matTypes = [...new Set(materials.map(m => m.material_type))];
+          const matTopics = [...new Map(materials.filter(m => m.topic_id).map(m => [m.topic_id, m.topic_name])).entries()];
+          const matCreators = [...new Map(materials.map(m => [m.uploaded_by, m.uploader_name])).entries()];
+          const hasMatFilters = matFilterTitle || matFilterType !== 'all' || matFilterTopic !== 'all' || matFilterStatus !== 'all' || matFilterCreator !== 'all';
+
+          return (
           <Row>
             <Col>
               <Card className="shadow" style={{ borderRadius: 14, border: 'none' }}>
                 <CardHeader style={{ background: 'linear-gradient(135deg,#e8fff0,#d6f5e0)', borderTopLeftRadius: 14, borderTopRightRadius: 14, padding: '18px 22px' }}>
                   <div className="d-flex justify-content-between align-items-center">
-                    <CardTitle className="mb-0" style={{ fontSize: 16, fontWeight: 700, color: '#32325d' }}>Study Materials</CardTitle>
+                    <CardTitle className="mb-0" style={{ fontSize: 16, fontWeight: 700, color: '#32325d' }}>
+                      Study Materials {materials.length > 0 && <Badge color="dark" pill style={{ fontSize: 11, marginLeft: 8 }}>{hasMatFilters ? `${filteredMats.length} / ${materials.length}` : materials.length}</Badge>}
+                    </CardTitle>
                     {canCreateContent && (
-                      <Button color="secondary" size="sm" style={{ borderRadius: 8 }} onClick={() => setMatModalOpen(true)}>
+                      <Button color="secondary" size="sm" style={{ borderRadius: 8 }} onClick={() => { setMatForm({ title: '', description: '', material_type: 'pdf', file_url: '', file_name: '', topicId: '' }); setMatError(''); setMatModalOpen(true); }}>
                         + Add Material
                       </Button>
                     )}
                   </div>
                 </CardHeader>
+                {materials.length > 0 && (
+                  <div style={{ padding: '12px 22px', background: '#f6f9fc', display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', borderBottom: '1px solid #e9ecef' }}>
+                    <input className="filter-input" placeholder="Search title..." value={matFilterTitle}
+                      onChange={(e) => setMatFilterTitle(e.target.value)}
+                      style={{ width: 150, padding: '6px 12px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12 }} />
+                    <select className="filter-select" value={matFilterType} onChange={(e) => setMatFilterType(e.target.value)}
+                      style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12 }}>
+                      <option value="all">All Types</option>
+                      {matTypes.map(t => <option key={t} value={t}>{t.toUpperCase()}</option>)}
+                    </select>
+                    <select className="filter-select" value={matFilterTopic} onChange={(e) => setMatFilterTopic(e.target.value)}
+                      style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12 }}>
+                      <option value="all">All Topics</option>
+                      <option value="none">No Topic</option>
+                      {matTopics.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+                    </select>
+                    <select className="filter-select" value={matFilterStatus} onChange={(e) => setMatFilterStatus(e.target.value)}
+                      style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12 }}>
+                      <option value="all">All Status</option>
+                      <option value="published">Published</option>
+                      <option value="draft">Draft</option>
+                    </select>
+                    <select className="filter-select" value={matFilterCreator} onChange={(e) => setMatFilterCreator(e.target.value)}
+                      style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12 }}>
+                      <option value="all">All Creators</option>
+                      {matCreators.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+                    </select>
+                    {hasMatFilters && (
+                      <button onClick={() => { setMatFilterTitle(''); setMatFilterType('all'); setMatFilterTopic('all'); setMatFilterStatus('all'); setMatFilterCreator('all'); }}
+                        style={{ background: 'none', border: 'none', color: '#f5365c', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                )}
                 <CardBody>
                   {materials.length === 0 ? (
                     <div className="text-center py-4">
-                      <p className="text-muted">No materials yet. Add PDFs, videos, or links.</p>
-                      {canCreateContent && <Button color="secondary" size="sm" onClick={() => setMatModalOpen(true)}>Add First Material</Button>}
+                      <p className="text-muted">No materials yet. Upload PDFs, documents, or videos.</p>
+                      {canCreateContent && <Button color="secondary" size="sm" onClick={() => { setMatForm({ title: '', description: '', material_type: 'pdf', file_url: '', file_name: '', topicId: '' }); setMatError(''); setMatModalOpen(true); }}>Add First Material</Button>}
                     </div>
+                  ) : filteredMats.length === 0 ? (
+                    <div className="text-center py-4"><p className="text-muted">No materials match filters.</p></div>
                   ) : (
                     <table className="subject-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead>
                         <tr style={{ background: '#f8f9fa' }}>
-                          {['Title', 'Type', 'Topic', 'Status', 'Assigned By', 'Assigned To', 'Actions'].map(h => (
+                          {['S.No', 'Title', 'Type', 'Topic', 'Created By', 'Status', 'Assigned By', 'Assigned To', 'Actions'].map(h => (
                             <th key={h} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
-                        {materials.map((m) => {
-                          const typeIcon  = { pdf: '📄', video: '🎥', link: '🔗', doc: '📝', image: '🖼' }[m.material_type] || '📁';
-                          const typeColor = { pdf: '#f5365c', video: '#825ee4', link: '#5e72e4', doc: '#fb6340', image: '#2dce89' }[m.material_type] || '#8898aa';
+                        {filteredMats.map((m, idx) => {
+                          const typeIcon  = { pdf: '📄', video: '🎥', doc: '📝', image: '🖼', pptx: '📊', zip: '📦' }[m.material_type] || '📁';
+                          const typeColor = { pdf: '#f5365c', video: '#825ee4', doc: '#fb6340', image: '#2dce89', pptx: '#5e72e4', zip: '#8898aa' }[m.material_type] || '#8898aa';
                           const mTo = assignedCount('material', m.id);
                           const mBy = assignedByCount('material', m.id);
                           return (
                             <tr key={m.id} style={{ borderBottom: '1px solid #f0f4f8' }}>
+                              <td style={{ padding: '12px 14px', fontWeight: 600, color: '#8898aa', fontSize: 13 }}>{idx + 1}</td>
                               <td style={{ padding: '12px 14px' }}>
                                 <a href={m.file_url} target="_blank" rel="noreferrer" style={{ fontWeight: 700, color: '#32325d' }}>{m.title}</a>
                                 {m.description && <div className="small text-muted mt-1">{m.description}</div>}
@@ -1495,9 +1576,10 @@ export default function SubjectTeacher() {
                               </td>
                               <td style={{ padding: '12px 14px' }}>
                                 {m.topic_name
-                                  ? <span style={{ fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10 }}>📌 {m.topic_name}</span>
+                                  ? <span style={{ fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10 }}>{m.topic_name}</span>
                                   : <span className="text-muted small">—</span>}
                               </td>
+                              <td style={{ padding: '12px 14px', fontSize: 13, color: '#525f7f' }}>{m.uploader_name}</td>
                               <td style={{ padding: '12px 14px' }}>
                                 <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
                                   background: m.is_published ? '#d4edda' : '#fff3cd',
@@ -1561,7 +1643,8 @@ export default function SubjectTeacher() {
               </Card>
             </Col>
           </Row>
-        )}
+          );
+        })()}
 
         {/* ---- UPLOADS TAB ---- */}
         {tab === 'uploads' && (() => {
@@ -2146,17 +2229,37 @@ export default function SubjectTeacher() {
           <ModalHeader toggle={() => setMatModalOpen(false)}>Add Study Material</ModalHeader>
           <ModalBody>
             <Form onSubmit={handleAddMaterial}>
-              <FormGroup><Label>Title *</Label><Input value={matForm.title} onChange={(e) => setMatForm({ ...matForm, title: e.target.value })} placeholder="e.g. Chapter 3 Notes" /></FormGroup>
-              <FormGroup><Label>Type</Label>
-                <Input type="select" value={matForm.material_type} onChange={(e) => setMatForm({ ...matForm, material_type: e.target.value })}>
-                  <option value="link">Link</option>
-                  <option value="pdf">PDF</option>
-                  <option value="video">Video</option>
-                  <option value="doc">Document</option>
-                  <option value="image">Image</option>
-                </Input>
+              <FormGroup><Label><strong>Title *</strong></Label><Input value={matForm.title} onChange={(e) => setMatForm({ ...matForm, title: e.target.value })} placeholder="e.g. Chapter 3 Notes" /></FormGroup>
+              <FormGroup>
+                <Label><strong>Upload File *</strong></Label>
+                <input type="file" ref={matFileRef} style={{ display: 'none' }}
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.webp,.mp4,.webm,.mov,.avi,.zip,.txt"
+                  onChange={(e) => e.target.files?.[0] && handleMatFileUpload(e.target.files[0])} />
+                <div className="d-flex align-items-center" style={{ gap: 10, marginBottom: 4 }}>
+                  <button type="button" onClick={() => matFileRef.current?.click()}
+                    disabled={matUploading}
+                    style={{ background: '#2dce89', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 16px', fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>
+                    {matUploading ? 'Uploading...' : 'Choose File'}
+                  </button>
+                  {matForm.file_name && (
+                    <span style={{ fontSize: 13, color: '#2dce89', fontWeight: 600 }}>&#10003; {matForm.file_name}</span>
+                  )}
+                </div>
+                <small className="text-muted">PDF, Word, Excel, PowerPoint, Image, Video, ZIP (max 100 MB)</small>
               </FormGroup>
-              <FormGroup><Label>URL *</Label><Input value={matForm.file_url} onChange={(e) => setMatForm({ ...matForm, file_url: e.target.value })} placeholder="https://..." /></FormGroup>
+              {matForm.file_url && (
+                <FormGroup>
+                  <Label>Detected Type</Label>
+                  <Input type="select" value={matForm.material_type} onChange={(e) => setMatForm({ ...matForm, material_type: e.target.value })}>
+                    <option value="pdf">PDF</option>
+                    <option value="doc">Document</option>
+                    <option value="video">Video</option>
+                    <option value="image">Image</option>
+                    <option value="pptx">Presentation</option>
+                    <option value="zip">ZIP Archive</option>
+                  </Input>
+                </FormGroup>
+              )}
               <FormGroup><Label>Description</Label><Input type="textarea" rows={2} value={matForm.description} onChange={(e) => setMatForm({ ...matForm, description: e.target.value })} placeholder="Optional..." /></FormGroup>
               <FormGroup>
                 <Label>Topic <span className="text-danger">*</span></Label>
@@ -2169,7 +2272,7 @@ export default function SubjectTeacher() {
             </Form>
           </ModalBody>
           <ModalFooter>
-            <Button color="secondary" disabled={matSaving} onClick={handleAddMaterial}>{matSaving ? 'Adding...' : 'Add Material'}</Button>
+            <Button color="secondary" disabled={matSaving || matUploading} onClick={handleAddMaterial}>{matSaving ? 'Adding...' : 'Add Material'}</Button>
             <Button color="link" onClick={() => setMatModalOpen(false)}>Cancel</Button>
           </ModalFooter>
         </Modal>

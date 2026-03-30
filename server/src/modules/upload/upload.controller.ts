@@ -12,7 +12,11 @@ export async function uploadAssignmentFile(req: Request, res: Response) {
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'application/vnd.ms-excel',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-powerpoint',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
       'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+      'video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo',
+      'application/zip', 'application/x-zip-compressed',
       'text/plain',
     ];
     if (!allowed.includes(req.file.mimetype))

@@ -29,7 +29,7 @@ export async function addMaterial(req: Request, res: Response) {
     if (!canCreate) {
       return res.status(403).json({ error: 'Insufficient permissions to add materials in this subject' });
     }
-    const valid = ['pdf', 'video', 'link', 'doc', 'image'];
+    const valid = ['pdf', 'video', 'doc', 'image', 'pptx', 'zip'];
     if (!valid.includes(material_type)) {
       return res.status(400).json({ error: `material_type must be one of: ${valid.join(', ')}` });
     }

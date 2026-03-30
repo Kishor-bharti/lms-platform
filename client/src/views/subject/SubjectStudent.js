@@ -69,6 +69,9 @@ export default function SubjectStudent() {
   const [uplFilterTitle,    setUplFilterTitle]    = useState('');
   const [uplFilterTeacher,  setUplFilterTeacher]  = useState('all');
   const [uplFilterFeedback, setUplFilterFeedback] = useState('all');
+  // Material filters
+  const [matFilterTitle,  setMatFilterTitle]  = useState('');
+  const [matFilterType,   setMatFilterType]   = useState('all');
   const [uploadOpen,        setUploadOpen]        = useState(false);
   const [uploadForm,        setUploadForm]        = useState({ title: '', description: '', teacherId: '', file_url: '', file_name: '' });
   const [uploadSaving,      setUploadSaving]      = useState(false);
@@ -684,20 +687,56 @@ export default function SubjectStudent() {
         )}
 
         {/* ---- MATERIALS TAB ---- */}
-        {tab === 'materials' && (
+        {tab === 'materials' && (() => {
+          const visibleMats = filteredMaterials
+            .filter(m => !matFilterTitle || m.title.toLowerCase().includes(matFilterTitle.toLowerCase()))
+            .filter(m => matFilterType === 'all' || m.material_type === matFilterType);
+          const matTypes = [...new Set(filteredMaterials.map(m => m.material_type))];
+          const hasMatFilters = matFilterTitle || matFilterType !== 'all';
+
+          return (
           <Row>
             <Col>
+              {filteredMaterials.length > 0 && (
+                <div style={{ marginBottom: 14, padding: '10px 16px', background: '#fff', borderRadius: 12, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', boxShadow: '0 1px 3px rgba(0,0,0,.08)' }}>
+                  <input placeholder="Search title..." value={matFilterTitle}
+                    onChange={(e) => setMatFilterTitle(e.target.value)}
+                    style={{ width: 150, padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12 }} />
+                  {matTypes.length > 1 && (
+                    <select value={matFilterType} onChange={(e) => setMatFilterType(e.target.value)}
+                      style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12 }}>
+                      <option value="all">All Types</option>
+                      {matTypes.map(t => <option key={t} value={t}>{t.toUpperCase()}</option>)}
+                    </select>
+                  )}
+                  {hasMatFilters && (
+                    <button onClick={() => { setMatFilterTitle(''); setMatFilterType('all'); }}
+                      style={{ background: 'none', border: 'none', color: '#f5365c', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                      Clear
+                    </button>
+                  )}
+                  <span style={{ fontSize: 12, color: '#8898aa', marginLeft: 'auto' }}>
+                    {hasMatFilters ? `${visibleMats.length} / ${filteredMaterials.length}` : `${filteredMaterials.length}`} material{filteredMaterials.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+              )}
               {filteredMaterials.length === 0 ? (
                 <Card className="shadow" style={{ borderRadius: 12 }}>
                   <CardBody className="text-center py-5">
                     <p className="text-muted">No materials uploaded yet{topicView ? ' for this topic' : ''}.</p>
                   </CardBody>
                 </Card>
+              ) : visibleMats.length === 0 ? (
+                <Card className="shadow" style={{ borderRadius: 12 }}>
+                  <CardBody className="text-center py-5">
+                    <p className="text-muted">No materials match filters.</p>
+                  </CardBody>
+                </Card>
               ) : (
                 <Row>
-                  {filteredMaterials.map((m) => {
-                    const typeIcon  = { pdf: '📄', video: '🎥', link: '🔗', doc: '📝', image: '🖼' }[m.material_type] || '📁';
-                    const typeColor = { pdf: '#f5365c', video: '#825ee4', link: '#5e72e4', doc: '#fb6340', image: '#2dce89' }[m.material_type] || '#8898aa';
+                  {visibleMats.map((m) => {
+                    const typeIcon  = { pdf: '📄', video: '🎥', doc: '📝', image: '🖼', pptx: '📊', zip: '📦' }[m.material_type] || '📁';
+                    const typeColor = { pdf: '#f5365c', video: '#825ee4', doc: '#fb6340', image: '#2dce89', pptx: '#5e72e4', zip: '#8898aa' }[m.material_type] || '#8898aa';
                     return (
                       <Col key={m.id} md="6" lg="4" className="mb-3">
                         <a href={m.file_url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
@@ -724,7 +763,8 @@ export default function SubjectStudent() {
               )}
             </Col>
           </Row>
-        )}
+          );
+        })()}
 
         {/* ---- UPLOADS TAB ---- */}
         {tab === 'uploads' && (() => {
