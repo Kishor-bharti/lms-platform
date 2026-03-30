@@ -35,19 +35,61 @@ export async function createUpload(req: Request, res: Response) {
     }
 
     const studentId = req.user!.id;
-    const { subjectId, teacherId, title, description, file_url, file_name } = req.body;
+    const { subjectId, teacherId, topicId, title, description, file_url, file_name } = req.body;
 
     if (!subjectId || !title || !file_url) {
       return res.status(400).json({ error: 'subjectId, title, and file_url are required' });
     }
 
     const upload = await uploadService.createUpload({
-      subjectId, studentId, teacherId, title, description, file_url, file_name,
+      subjectId, studentId, teacherId, topicId, title, description, file_url, file_name,
     });
     return res.status(201).json(upload);
   } catch (err: any) {
     logger.error('[student-uploads] create:', err);
     return res.status(500).json({ error: err.message || 'Failed to create upload' });
+  }
+}
+
+export async function addFeedback(req: Request, res: Response) {
+  try {
+    const role = req.user!.role;
+    if (role !== 'teacher' && role !== 'admin') {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const uploadId = req.params.uploadId as string;
+    const teacherId = req.user!.id;
+    const { feedback_text, feedback_file_url } = req.body;
+
+    if (!feedback_text && !feedback_file_url) {
+      return res.status(400).json({ error: 'Provide feedback text or file' });
+    }
+
+    const updated = await uploadService.addFeedback(uploadId, teacherId, role, feedback_text, feedback_file_url);
+    return res.json(updated);
+  } catch (err: any) {
+    if (err.message === 'FORBIDDEN') return res.status(403).json({ error: 'You can only give feedback on your students\' uploads' });
+    logger.error('[student-uploads] addFeedback:', err);
+    return res.status(500).json({ error: 'Failed to save feedback' });
+  }
+}
+
+export async function getStudentTeachers(req: Request, res: Response) {
+  try {
+    const role = req.user!.role;
+    if (role !== 'student') {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const subjectId = req.params.subjectId as string;
+    const studentId = req.user!.id;
+
+    const teachers = await uploadService.getStudentTeachers(subjectId, studentId);
+    return res.json(teachers);
+  } catch (err) {
+    logger.error('[student-uploads] getStudentTeachers:', err);
+    return res.status(500).json({ error: 'Failed to fetch teachers' });
   }
 }
 
@@ -63,7 +105,6 @@ export async function deleteUpload(req: Request, res: Response) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    // Admin can delete any upload; student can only delete their own
     if (role === 'admin') {
       const { query } = await import('../../config/db');
       const result = await query<any>('DELETE FROM student_uploads WHERE id = $1 RETURNING id', [uploadId]);

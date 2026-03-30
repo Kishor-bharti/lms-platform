@@ -89,7 +89,7 @@ export default function SubjectStudent() {
         http.get(`/api/materials/subject/${subjectId}`),
         http.get(`/api/subjects/${subjectId}/topics`),
         http.get(`/api/student-uploads/subject/${subjectId}`).catch(() => ({ data: [] })),
-        http.get(`/api/classes/subjects/${subjectId}/teachers`).catch(() => ({ data: [] })),
+        http.get(`/api/student-uploads/my-teachers/${subjectId}`).catch(() => ({ data: [] })),
       ]);
       setSessions((sessRes.data || []).filter((s) => s.subject_id === subjectId));
       const found = (classRes.data || []).find((c) => c.id === subjectId);
@@ -193,6 +193,7 @@ export default function SubjectStudent() {
       await http.post('/api/student-uploads', {
         subjectId,
         teacherId: uploadForm.teacherId || undefined,
+        topicId: topicView?.id || undefined,
         title: uploadForm.title,
         description: uploadForm.description || undefined,
         file_url: uploadForm.file_url,
@@ -247,13 +248,14 @@ export default function SubjectStudent() {
   const practiceQuizzes = allPracticeQuizzes.filter(q => !topicView || q.topic_id === topicView.id);
   const filteredAssignments = topicView ? assignments.filter(a => a.topic_id === topicView.id) : assignments;
   const filteredMaterials   = topicView ? materials.filter(m => m.topic_id === topicView.id) : materials;
+  const filteredUploads     = topicView ? studentUploads.filter(u => u.topic_id === topicView.id) : studentUploads;
 
   const TABS = [
     { key: 'sessions',    label: `Sessions (${allSessions.length})` },
     { key: 'quizzes',     label: `Practice (${practiceQuizzes.length})` },
     { key: 'assignments', label: `Assignments (${filteredAssignments.length})` },
     { key: 'materials',   label: `Materials (${filteredMaterials.length})` },
-    { key: 'uploads',     label: `Uploads (${studentUploads.length})` },
+    { key: 'uploads',     label: `Uploads (${filteredUploads.length})` },
   ];
 
   if (loading) return (
@@ -284,9 +286,11 @@ export default function SubjectStudent() {
                         <span className="mr-3">Course: {subject?.course_name}</span>
                         <Badge color="light">{subject?.code}</Badge>
                       </div>
-                      {subject?.teacher_name && (
+                      {subjectTeachers.length > 0 ? (
+                        <div className="text-muted small mt-1">Teacher: {subjectTeachers.map(t => `${t.first_name} ${t.last_name}`).join(', ')}</div>
+                      ) : subject?.teacher_name ? (
                         <div className="text-muted small mt-1">Teacher: {subject.teacher_name}</div>
-                      )}
+                      ) : null}
                     </div>
                   </div>
                 </CardBody>
@@ -726,7 +730,7 @@ export default function SubjectStudent() {
               <Card className="shadow" style={{ borderRadius: 12 }}>
                 <CardHeader className="d-flex justify-content-between align-items-center" style={{ background: 'linear-gradient(135deg,#ffecd2,#fcb69f)', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
                   <CardTitle className="mb-0" style={{ fontSize: 16, fontWeight: 700, color: '#32325d' }}>
-                    My Uploads {studentUploads.length > 0 && <Badge color="dark" pill style={{ fontSize: 11, marginLeft: 6 }}>{studentUploads.length}</Badge>}
+                    My Uploads {filteredUploads.length > 0 && <Badge color="dark" pill style={{ fontSize: 11, marginLeft: 6 }}>{filteredUploads.length}</Badge>}
                   </CardTitle>
                   <Button color="warning" size="sm" style={{ borderRadius: 8, fontWeight: 600 }}
                     onClick={() => { setUploadForm({ title: '', description: '', teacherId: '', file_url: '', file_name: '' }); setUploadError(''); setUploadOpen(true); }}>
@@ -734,26 +738,40 @@ export default function SubjectStudent() {
                   </Button>
                 </CardHeader>
                 <CardBody>
-                  {studentUploads.length === 0 ? (
+                  {filteredUploads.length === 0 ? (
                     <div className="text-center py-4">
-                      <p className="text-muted">You haven't uploaded any files yet.</p>
+                      <p className="text-muted">No uploads yet{topicView ? ' for this topic' : ''}.</p>
                       <Button color="warning" size="sm" onClick={() => { setUploadForm({ title: '', description: '', teacherId: '', file_url: '', file_name: '' }); setUploadError(''); setUploadOpen(true); }}>
                         Upload Your First File
                       </Button>
                     </div>
                   ) : (
                     <div>
-                      {studentUploads.map((u) => (
-                        <div key={u.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid #f0f4f8' }}>
+                      {filteredUploads.map((u) => (
+                        <div key={u.id} style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '14px 0', borderBottom: '1px solid #f0f4f8' }}>
                           <div style={{ flex: 1 }}>
                             <div style={{ fontWeight: 600, color: '#32325d', fontSize: 14 }}>{u.title}</div>
                             {u.description && <div style={{ fontSize: 12, color: '#8898aa', marginTop: 2 }}>{u.description}</div>}
                             <div style={{ fontSize: 11, color: '#8898aa', marginTop: 4 }}>
                               {u.teacher_name && <span>To: <strong>{u.teacher_name}</strong> &middot; </span>}
+                              {u.topic_name && <span>{u.topic_name} &middot; </span>}
                               {new Date(u.created_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}
                             </div>
+                            {/* Teacher Feedback */}
+                            {(u.feedback_text || u.feedback_file_url) && (
+                              <div style={{ marginTop: 8, padding: '8px 12px', background: '#e8f5e9', borderRadius: 8, borderLeft: '3px solid #2dce89' }}>
+                                <div style={{ fontSize: 11, fontWeight: 700, color: '#2dce89', marginBottom: 2 }}>Teacher Feedback</div>
+                                {u.feedback_text && <div style={{ fontSize: 13, color: '#32325d' }}>{u.feedback_text}</div>}
+                                {u.feedback_file_url && (
+                                  <a href={u.feedback_file_url} target="_blank" rel="noreferrer"
+                                    style={{ fontSize: 12, fontWeight: 600, color: '#5e72e4', marginTop: 4, display: 'inline-block' }}>
+                                    View Feedback File
+                                  </a>
+                                )}
+                              </div>
+                            )}
                           </div>
-                          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginLeft: 12, flexShrink: 0 }}>
                             <a href={u.file_url} target="_blank" rel="noreferrer"
                               style={{ fontSize: 12, fontWeight: 600, color: '#5e72e4', textDecoration: 'none' }}>
                               {u.file_name || 'Download'}

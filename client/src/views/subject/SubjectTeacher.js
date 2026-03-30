@@ -116,6 +116,12 @@ export default function SubjectTeacher() {
 
   // Student Uploads
   const [studentUploads, setStudentUploads] = useState([]);
+  const [feedbackModal,     setFeedbackModal]     = useState({ open: false, upload: null });
+  const [feedbackForm,      setFeedbackForm]      = useState({ feedback_text: '', feedback_file_url: '' });
+  const [feedbackSaving,    setFeedbackSaving]    = useState(false);
+  const [feedbackUploading, setFeedbackUploading] = useState(false);
+  const [feedbackFileName,  setFeedbackFileName]  = useState('');
+  const feedbackFileRef = useRef(null);
 
   // Preview modals
   const [previewAssign, setPreviewAssign] = useState(null);
@@ -659,6 +665,45 @@ export default function SubjectTeacher() {
     .filter(s => sessTopicFilter   === 'all' || s.topic_id  === sessTopicFilter)
     .filter(s => !isAdmin || sessTeacherFilter === 'all' || s.teacher_id === sessTeacherFilter)
     .sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
+
+  // ---- Upload feedback handlers ----
+  const openFeedbackModal = (upload) => {
+    setFeedbackModal({ open: true, upload });
+    setFeedbackForm({ feedback_text: upload.feedback_text || '', feedback_file_url: upload.feedback_file_url || '' });
+    setFeedbackFileName(upload.feedback_file_url ? '(existing file)' : '');
+  };
+
+  const handleFeedbackFileUpload = async (file) => {
+    if (!file) return;
+    setFeedbackUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await http.post('/api/upload/assignment', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setFeedbackForm(f => ({ ...f, feedback_file_url: res.data.url }));
+      setFeedbackFileName(res.data.name || file.name);
+    } catch (err) {
+      console.error('Feedback file upload failed', err);
+    } finally {
+      setFeedbackUploading(false);
+    }
+  };
+
+  const handleSubmitFeedback = async () => {
+    if (!feedbackForm.feedback_text && !feedbackForm.feedback_file_url) return;
+    setFeedbackSaving(true);
+    try {
+      await http.patch(`/api/student-uploads/${feedbackModal.upload.id}/feedback`, feedbackForm);
+      setFeedbackModal({ open: false, upload: null });
+      fetchData();
+    } catch (err) {
+      console.error('Failed to save feedback', err);
+    } finally {
+      setFeedbackSaving(false);
+    }
+  };
 
   const TABS = [
     { key: 'topics',      label: 'Topics',      count: topics.length },
@@ -1532,7 +1577,7 @@ export default function SubjectTeacher() {
                     <table className="subject-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead>
                         <tr style={{ background: '#f8f9fa' }}>
-                          {['S.No', 'Student', 'Title', 'File', ...(isAdmin ? ['Teacher'] : []), 'Uploaded At'].map(h => (
+                          {['S.No', 'Student', 'Title', 'Topic', 'File', ...(isAdmin ? ['Teacher'] : []), 'Uploaded At', 'Feedback'].map(h => (
                             <th key={h} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                           ))}
                         </tr>
@@ -1550,6 +1595,11 @@ export default function SubjectTeacher() {
                               {u.description && <div style={{ fontSize: 11, color: '#8898aa', marginTop: 2 }}>{u.description}</div>}
                             </td>
                             <td style={{ padding: '12px 14px' }}>
+                              {u.topic_name
+                                ? <span style={{ fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10 }}>{u.topic_name}</span>
+                                : <span className="text-muted small">—</span>}
+                            </td>
+                            <td style={{ padding: '12px 14px' }}>
                               <a href={u.file_url} target="_blank" rel="noreferrer"
                                 style={{ fontSize: 12, fontWeight: 600, color: '#5e72e4' }}>
                                 {u.file_name || 'Download'}
@@ -1563,6 +1613,18 @@ export default function SubjectTeacher() {
                             <td style={{ padding: '12px 14px', fontSize: 12, color: '#8898aa' }}>
                               {new Date(u.created_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}
                             </td>
+                            <td style={{ padding: '12px 14px' }}>
+                              {u.feedback_text || u.feedback_file_url ? (
+                                <div>
+                                  <Badge color="success" style={{ fontSize: 10, marginBottom: 4 }}>Given</Badge>
+                                  <Button size="sm" color="info" outline style={{ borderRadius: 20, fontSize: 11, marginLeft: 6 }}
+                                    onClick={() => openFeedbackModal(u)}>Edit</Button>
+                                </div>
+                              ) : (
+                                <Button size="sm" color="warning" outline style={{ borderRadius: 20, fontSize: 11 }}
+                                  onClick={() => openFeedbackModal(u)}>Give Feedback</Button>
+                              )}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -1573,6 +1635,56 @@ export default function SubjectTeacher() {
             </Col>
           </Row>
         )}
+
+        {/* Feedback Modal */}
+        <Modal isOpen={feedbackModal.open} toggle={() => setFeedbackModal({ open: false, upload: null })} centered>
+          <ModalHeader toggle={() => setFeedbackModal({ open: false, upload: null })}
+            style={{ background: 'linear-gradient(135deg,#ffecd2,#fcb69f)', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
+            Feedback — {feedbackModal.upload?.title}
+          </ModalHeader>
+          <ModalBody>
+            {feedbackModal.upload && (
+              <div style={{ marginBottom: 14, padding: '10px 14px', background: '#f6f9fc', borderRadius: 8 }}>
+                <div style={{ fontSize: 12, color: '#8898aa' }}>
+                  Student: <strong style={{ color: '#32325d' }}>{feedbackModal.upload.student_name}</strong>
+                </div>
+                <a href={feedbackModal.upload.file_url} target="_blank" rel="noreferrer"
+                  style={{ fontSize: 12, fontWeight: 600, color: '#5e72e4' }}>
+                  View Submitted File
+                </a>
+              </div>
+            )}
+            <FormGroup>
+              <Label><strong>Feedback Text</strong> <span className="text-muted small">(optional)</span></Label>
+              <Input type="textarea" rows={3} value={feedbackForm.feedback_text}
+                onChange={(e) => setFeedbackForm({ ...feedbackForm, feedback_text: e.target.value })}
+                placeholder="Write your feedback here..." />
+            </FormGroup>
+            <FormGroup>
+              <Label>Feedback File <span className="text-muted small">(optional)</span></Label>
+              <input type="file" ref={feedbackFileRef} style={{ display: 'none' }}
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.txt"
+                onChange={(e) => e.target.files?.[0] && handleFeedbackFileUpload(e.target.files[0])} />
+              <div className="d-flex align-items-center" style={{ gap: 10 }}>
+                <button type="button" onClick={() => feedbackFileRef.current?.click()}
+                  disabled={feedbackUploading}
+                  style={{ background: '#fb6340', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 16px', fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>
+                  {feedbackUploading ? 'Uploading...' : 'Choose File'}
+                </button>
+                {feedbackFileName && (
+                  <span style={{ fontSize: 13, color: '#2dce89', fontWeight: 600 }}>&#10003; {feedbackFileName}</span>
+                )}
+              </div>
+            </FormGroup>
+          </ModalBody>
+          <ModalFooter>
+            <Button color="success" disabled={feedbackSaving || feedbackUploading || (!feedbackForm.feedback_text && !feedbackForm.feedback_file_url)}
+              onClick={handleSubmitFeedback}>
+              {feedbackSaving ? 'Saving...' : 'Save Feedback'}
+            </Button>
+            <Button color="link" onClick={() => setFeedbackModal({ open: false, upload: null })}>Cancel</Button>
+          </ModalFooter>
+        </Modal>
 
         {/* Schedule Session Modal — upgraded with recurring + student checkboxes + teacher selector for admin */}
         <Modal isOpen={scheduleOpen} toggle={() => setScheduleOpen(false)} centered size="lg">

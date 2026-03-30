@@ -371,15 +371,18 @@ CREATE TABLE student_content_assignments (
 
 
 CREATE TABLE student_uploads (
-  id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-  subject_id  UUID         NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
-  student_id  UUID         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  teacher_id  UUID         REFERENCES users(id) ON DELETE SET NULL,
-  title       VARCHAR(255) NOT NULL,
-  description TEXT,
-  file_url    TEXT         NOT NULL,
-  file_name   VARCHAR(255),
-  created_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
+  id                UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  subject_id        UUID         NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+  student_id        UUID         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  teacher_id        UUID         REFERENCES users(id) ON DELETE SET NULL,
+  topic_id          UUID         REFERENCES topics(id) ON DELETE SET NULL,
+  title             VARCHAR(255) NOT NULL,
+  description       TEXT,
+  file_url          TEXT         NOT NULL,
+  file_name         VARCHAR(255),
+  feedback_text     TEXT,
+  feedback_file_url TEXT,
+  created_at        TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
 -- ============================================================
