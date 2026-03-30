@@ -122,6 +122,11 @@ export default function SubjectTeacher() {
   const [feedbackUploading, setFeedbackUploading] = useState(false);
   const [feedbackFileName,  setFeedbackFileName]  = useState('');
   const feedbackFileRef = useRef(null);
+  const [uploadFilterStudent, setUploadFilterStudent] = useState('all');
+  const [uploadFilterTopic,   setUploadFilterTopic]   = useState('all');
+  const [uploadFilterTeacher, setUploadFilterTeacher] = useState('all'); // admin only
+  const [uploadFilterTitle,   setUploadFilterTitle]   = useState('');
+  const [uploadFilterFeedback, setUploadFilterFeedback] = useState('all'); // 'all' | 'given' | 'pending'
 
   // Preview modals
   const [previewAssign, setPreviewAssign] = useState(null);
@@ -1559,36 +1564,93 @@ export default function SubjectTeacher() {
         )}
 
         {/* ---- UPLOADS TAB ---- */}
-        {tab === 'uploads' && (
+        {tab === 'uploads' && (() => {
+          const filteredUploads = studentUploads
+            .filter(u => uploadFilterStudent === 'all' || u.student_id === uploadFilterStudent)
+            .filter(u => uploadFilterTopic === 'all' || (uploadFilterTopic === 'none' ? !u.topic_id : u.topic_id === uploadFilterTopic))
+            .filter(u => !uploadFilterTitle || u.title.toLowerCase().includes(uploadFilterTitle.toLowerCase()))
+            .filter(u => uploadFilterFeedback === 'all' || (uploadFilterFeedback === 'given' ? (u.feedback_text || u.feedback_file_url) : (!u.feedback_text && !u.feedback_file_url)))
+            .filter(u => !isAdmin || uploadFilterTeacher === 'all' || (uploadFilterTeacher === 'none' ? !u.teacher_id : u.teacher_id === uploadFilterTeacher));
+
+          const uniqueStudents = [...new Map(studentUploads.map(u => [u.student_id, u.student_name])).entries()];
+          const uniqueTopics   = [...new Map(studentUploads.filter(u => u.topic_id).map(u => [u.topic_id, u.topic_name])).entries()];
+          const uniqueTeachers = [...new Map(studentUploads.filter(u => u.teacher_id).map(u => [u.teacher_id, u.teacher_name])).entries()];
+          const hasFilters = uploadFilterStudent !== 'all' || uploadFilterTopic !== 'all' || uploadFilterTitle || uploadFilterFeedback !== 'all' || (isAdmin && uploadFilterTeacher !== 'all');
+
+          return (
           <Row>
             <Col>
               <Card className="shadow" style={{ borderRadius: 14, border: 'none' }}>
                 <CardHeader style={{ background: 'linear-gradient(135deg,#ffecd2,#fcb69f)', borderTopLeftRadius: 14, borderTopRightRadius: 14, padding: '18px 22px' }}>
-                  <CardTitle className="mb-0" style={{ fontSize: 16, fontWeight: 700, color: '#32325d' }}>
-                    Student Uploads {studentUploads.length > 0 && <Badge color="dark" pill style={{ fontSize: 11, marginLeft: 8 }}>{studentUploads.length}</Badge>}
-                  </CardTitle>
+                  <div className="d-flex justify-content-between align-items-center">
+                    <CardTitle className="mb-0" style={{ fontSize: 16, fontWeight: 700, color: '#32325d' }}>
+                      Student Uploads {studentUploads.length > 0 && <Badge color="dark" pill style={{ fontSize: 11, marginLeft: 8 }}>{hasFilters ? `${filteredUploads.length} / ${studentUploads.length}` : studentUploads.length}</Badge>}
+                    </CardTitle>
+                  </div>
                 </CardHeader>
+                {studentUploads.length > 0 && (
+                  <div style={{ padding: '12px 22px', background: '#f6f9fc', display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', borderBottom: '1px solid #e9ecef' }}>
+                    <input className="filter-input" placeholder="Search title..." value={uploadFilterTitle}
+                      onChange={(e) => setUploadFilterTitle(e.target.value)}
+                      style={{ width: 160, padding: '6px 12px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12 }} />
+                    <select className="filter-select" value={uploadFilterStudent} onChange={(e) => setUploadFilterStudent(e.target.value)}
+                      style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12 }}>
+                      <option value="all">All Students</option>
+                      {uniqueStudents.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+                    </select>
+                    <select className="filter-select" value={uploadFilterTopic} onChange={(e) => setUploadFilterTopic(e.target.value)}
+                      style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12 }}>
+                      <option value="all">All Topics</option>
+                      <option value="none">No Topic</option>
+                      {uniqueTopics.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+                    </select>
+                    <select className="filter-select" value={uploadFilterFeedback} onChange={(e) => setUploadFilterFeedback(e.target.value)}
+                      style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12 }}>
+                      <option value="all">All Feedback</option>
+                      <option value="given">Feedback Given</option>
+                      <option value="pending">Pending</option>
+                    </select>
+                    {isAdmin && (
+                      <select className="filter-select" value={uploadFilterTeacher} onChange={(e) => setUploadFilterTeacher(e.target.value)}
+                        style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12 }}>
+                        <option value="all">All Teachers</option>
+                        <option value="none">No Teacher</option>
+                        {uniqueTeachers.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+                      </select>
+                    )}
+                    {hasFilters && (
+                      <button onClick={() => { setUploadFilterStudent('all'); setUploadFilterTopic('all'); setUploadFilterTitle(''); setUploadFilterFeedback('all'); setUploadFilterTeacher('all'); }}
+                        style={{ background: 'none', border: 'none', color: '#f5365c', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                )}
                 <CardBody>
                   {studentUploads.length === 0 ? (
                     <div className="text-center py-4">
                       <p className="text-muted">No student uploads yet.</p>
                     </div>
+                  ) : filteredUploads.length === 0 ? (
+                    <div className="text-center py-4">
+                      <p className="text-muted">No uploads match the current filters.</p>
+                    </div>
                   ) : (
                     <table className="subject-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead>
                         <tr style={{ background: '#f8f9fa' }}>
-                          {['S.No', 'Student', 'Title', 'Topic', 'File', ...(isAdmin ? ['Teacher'] : []), 'Uploaded At', 'Feedback'].map(h => (
+                          {['S.No', 'Student', 'Title', 'Topic', 'File', ...(isAdmin ? ['Sent To'] : []), 'Uploaded At', 'Feedback', ...(isAdmin ? ['Actions'] : [])].map(h => (
                             <th key={h} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
-                        {studentUploads.map((u, idx) => (
+                        {filteredUploads.map((u, idx) => (
                           <tr key={u.id} style={{ borderBottom: '1px solid #f0f4f8' }}>
                             <td style={{ padding: '12px 14px', fontWeight: 600, color: '#8898aa', fontSize: 13 }}>{idx + 1}</td>
                             <td style={{ padding: '12px 14px' }}>
                               <div style={{ fontWeight: 600, color: '#32325d', fontSize: 13 }}>{u.student_name || '—'}</div>
-                              {u.student_email && <div style={{ fontSize: 11, color: '#8898aa' }}>{u.student_email}</div>}
+                              {isAdmin && u.student_email && <div style={{ fontSize: 11, color: '#8898aa' }}>{u.student_email}</div>}
                             </td>
                             <td style={{ padding: '12px 14px' }}>
                               <div style={{ fontWeight: 600, color: '#32325d', fontSize: 13 }}>{u.title}</div>
@@ -1607,7 +1669,7 @@ export default function SubjectTeacher() {
                             </td>
                             {isAdmin && (
                               <td style={{ padding: '12px 14px', fontSize: 13, color: '#525f7f' }}>
-                                {u.teacher_name || <span className="text-muted">—</span>}
+                                {u.teacher_name || <span className="text-muted small">All Teachers</span>}
                               </td>
                             )}
                             <td style={{ padding: '12px 14px', fontSize: 12, color: '#8898aa' }}>
@@ -1625,6 +1687,14 @@ export default function SubjectTeacher() {
                                   onClick={() => openFeedbackModal(u)}>Give Feedback</Button>
                               )}
                             </td>
+                            {isAdmin && (
+                              <td style={{ padding: '12px 14px' }}>
+                                <Button size="sm" color="danger" outline style={{ borderRadius: 20, fontSize: 11 }}
+                                  onClick={async () => { if (!window.confirm(`Delete upload "${u.title}" by ${u.student_name}?`)) return; try { await http.delete(`/api/student-uploads/${u.id}`); fetchData(); } catch(e) { console.error(e); } }}>
+                                  Delete
+                                </Button>
+                              </td>
+                            )}
                           </tr>
                         ))}
                       </tbody>
@@ -1634,7 +1704,8 @@ export default function SubjectTeacher() {
               </Card>
             </Col>
           </Row>
-        )}
+          );
+        })()}
 
         {/* Feedback Modal */}
         <Modal isOpen={feedbackModal.open} toggle={() => setFeedbackModal({ open: false, upload: null })} centered>

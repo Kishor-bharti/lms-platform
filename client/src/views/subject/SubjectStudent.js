@@ -66,6 +66,9 @@ export default function SubjectStudent() {
   // Student Uploads
   const [studentUploads,    setStudentUploads]    = useState([]);
   const [subjectTeachers,   setSubjectTeachers]   = useState([]);
+  const [uplFilterTitle,    setUplFilterTitle]    = useState('');
+  const [uplFilterTeacher,  setUplFilterTeacher]  = useState('all');
+  const [uplFilterFeedback, setUplFilterFeedback] = useState('all');
   const [uploadOpen,        setUploadOpen]        = useState(false);
   const [uploadForm,        setUploadForm]        = useState({ title: '', description: '', teacherId: '', file_url: '', file_name: '' });
   const [uploadSaving,      setUploadSaving]      = useState(false);
@@ -724,19 +727,54 @@ export default function SubjectStudent() {
         )}
 
         {/* ---- UPLOADS TAB ---- */}
-        {tab === 'uploads' && (
+        {tab === 'uploads' && (() => {
+          const visibleUploads = filteredUploads
+            .filter(u => !uplFilterTitle || u.title.toLowerCase().includes(uplFilterTitle.toLowerCase()))
+            .filter(u => uplFilterTeacher === 'all' || (uplFilterTeacher === 'none' ? !u.teacher_id : u.teacher_id === uplFilterTeacher))
+            .filter(u => uplFilterFeedback === 'all' || (uplFilterFeedback === 'given' ? (u.feedback_text || u.feedback_file_url) : (!u.feedback_text && !u.feedback_file_url)));
+          const uniqueTeachers = [...new Map(filteredUploads.filter(u => u.teacher_id).map(u => [u.teacher_id, u.teacher_name])).entries()];
+          const hasUplFilters = uplFilterTitle || uplFilterTeacher !== 'all' || uplFilterFeedback !== 'all';
+
+          return (
           <Row>
             <Col>
               <Card className="shadow" style={{ borderRadius: 12 }}>
                 <CardHeader className="d-flex justify-content-between align-items-center" style={{ background: 'linear-gradient(135deg,#ffecd2,#fcb69f)', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
                   <CardTitle className="mb-0" style={{ fontSize: 16, fontWeight: 700, color: '#32325d' }}>
-                    My Uploads {filteredUploads.length > 0 && <Badge color="dark" pill style={{ fontSize: 11, marginLeft: 6 }}>{filteredUploads.length}</Badge>}
+                    My Uploads {filteredUploads.length > 0 && <Badge color="dark" pill style={{ fontSize: 11, marginLeft: 6 }}>{hasUplFilters ? `${visibleUploads.length} / ${filteredUploads.length}` : filteredUploads.length}</Badge>}
                   </CardTitle>
                   <Button color="warning" size="sm" style={{ borderRadius: 8, fontWeight: 600 }}
                     onClick={() => { setUploadForm({ title: '', description: '', teacherId: '', file_url: '', file_name: '' }); setUploadError(''); setUploadOpen(true); }}>
                     + Upload File
                   </Button>
                 </CardHeader>
+                {filteredUploads.length > 0 && (
+                  <div style={{ padding: '10px 18px', background: '#f6f9fc', display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', borderBottom: '1px solid #e9ecef' }}>
+                    <input placeholder="Search title..." value={uplFilterTitle}
+                      onChange={(e) => setUplFilterTitle(e.target.value)}
+                      style={{ width: 150, padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12 }} />
+                    {uniqueTeachers.length > 0 && (
+                      <select value={uplFilterTeacher} onChange={(e) => setUplFilterTeacher(e.target.value)}
+                        style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12 }}>
+                        <option value="all">All Teachers</option>
+                        <option value="none">No Teacher</option>
+                        {uniqueTeachers.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+                      </select>
+                    )}
+                    <select value={uplFilterFeedback} onChange={(e) => setUplFilterFeedback(e.target.value)}
+                      style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12 }}>
+                      <option value="all">All</option>
+                      <option value="given">Feedback Received</option>
+                      <option value="pending">Pending</option>
+                    </select>
+                    {hasUplFilters && (
+                      <button onClick={() => { setUplFilterTitle(''); setUplFilterTeacher('all'); setUplFilterFeedback('all'); }}
+                        style={{ background: 'none', border: 'none', color: '#f5365c', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                )}
                 <CardBody>
                   {filteredUploads.length === 0 ? (
                     <div className="text-center py-4">
@@ -745,9 +783,13 @@ export default function SubjectStudent() {
                         Upload Your First File
                       </Button>
                     </div>
+                  ) : visibleUploads.length === 0 ? (
+                    <div className="text-center py-4">
+                      <p className="text-muted">No uploads match filters.</p>
+                    </div>
                   ) : (
                     <div>
-                      {filteredUploads.map((u) => (
+                      {visibleUploads.map((u) => (
                         <div key={u.id} style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '14px 0', borderBottom: '1px solid #f0f4f8' }}>
                           <div style={{ flex: 1 }}>
                             <div style={{ fontWeight: 600, color: '#32325d', fontSize: 14 }}>{u.title}</div>
@@ -757,7 +799,6 @@ export default function SubjectStudent() {
                               {u.topic_name && <span>{u.topic_name} &middot; </span>}
                               {new Date(u.created_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}
                             </div>
-                            {/* Teacher Feedback */}
                             {(u.feedback_text || u.feedback_file_url) && (
                               <div style={{ marginTop: 8, padding: '8px 12px', background: '#e8f5e9', borderRadius: 8, borderLeft: '3px solid #2dce89' }}>
                                 <div style={{ fontSize: 11, fontWeight: 700, color: '#2dce89', marginBottom: 2 }}>Teacher Feedback</div>
@@ -789,7 +830,8 @@ export default function SubjectStudent() {
               </Card>
             </Col>
           </Row>
-        )}
+          );
+        })()}
 
         {/* Upload File Modal */}
         <Modal isOpen={uploadOpen} toggle={() => setUploadOpen(false)} centered>

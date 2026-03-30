@@ -48,10 +48,12 @@ export async function getUploads(
     return query<any>(`SELECT ${cols} ${joins} WHERE su.subject_id = $1 ORDER BY su.created_at DESC`, [subjectId]);
   }
 
-  // Teacher: only uploads from their assigned students
+  // Teacher: uploads from their assigned students where
+  // either the student sent it to this teacher specifically, or to no specific teacher (shared)
   return query<any>(`
     SELECT ${cols} ${joins}
     WHERE su.subject_id = $1
+      AND (su.teacher_id = $2 OR su.teacher_id IS NULL)
       AND EXISTS (
         SELECT 1 FROM subject_teacher_students sts
         WHERE sts.subject_id = $1 AND sts.teacher_id = $2 AND sts.student_id = su.student_id
@@ -115,21 +117,31 @@ export async function addFeedback(
   feedbackText?: string,
   feedbackFileUrl?: string
 ): Promise<StudentUpload> {
-  // Teacher can only give feedback on their students' uploads
-  const roleFilter = role === 'admin'
-    ? ''
-    : `AND EXISTS (
-        SELECT 1 FROM subject_teacher_students sts
-        WHERE sts.subject_id = su.subject_id AND sts.teacher_id = $3 AND sts.student_id = su.student_id
-      )`;
+  if (role === 'admin') {
+    const rows = await query<any>(`
+      UPDATE student_uploads
+      SET feedback_text = $1, feedback_file_url = $2
+      WHERE id = $3
+      RETURNING id, subject_id, student_id, teacher_id, topic_id,
+                title, description, file_url, file_name,
+                feedback_text, feedback_file_url, created_at
+    `, [feedbackText ?? null, feedbackFileUrl ?? null, uploadId]);
+    if (!rows[0]) throw new Error('FORBIDDEN');
+    return rows[0];
+  }
 
+  // Teacher can only give feedback on their students' uploads
   const rows = await query<any>(`
-    UPDATE student_uploads su
+    UPDATE student_uploads
     SET feedback_text = $1, feedback_file_url = $2
-    WHERE su.id = $4 ${roleFilter}
-    RETURNING su.id, su.subject_id, su.student_id, su.teacher_id, su.topic_id,
-              su.title, su.description, su.file_url, su.file_name,
-              su.feedback_text, su.feedback_file_url, su.created_at
+    WHERE id = $4
+      AND EXISTS (
+        SELECT 1 FROM subject_teacher_students sts
+        WHERE sts.subject_id = student_uploads.subject_id AND sts.teacher_id = $3 AND sts.student_id = student_uploads.student_id
+      )
+    RETURNING id, subject_id, student_id, teacher_id, topic_id,
+              title, description, file_url, file_name,
+              feedback_text, feedback_file_url, created_at
   `, [feedbackText ?? null, feedbackFileUrl ?? null, teacherId, uploadId]);
 
   if (!rows[0]) throw new Error('FORBIDDEN');
