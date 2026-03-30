@@ -43,6 +43,23 @@ export async function addMaterial(req: Request, res: Response) {
   }
 }
 
+export async function updateMaterial(req: Request, res: Response) {
+  try {
+    const { materialId } = req.params;
+    if (!materialId) return res.status(400).json({ error: 'materialId is required' });
+    if (req.user!.role !== 'admin') {
+      return res.status(403).json({ error: 'Only admins can edit materials' });
+    }
+    const { title, description, material_type, file_url, topicId } = req.body;
+    const updated = await materialsService.updateMaterial(materialId, { title, description, material_type, file_url, topicId });
+    return res.json(updated);
+  } catch (err: any) {
+    if (err.message === 'NOT_FOUND') return res.status(404).json({ error: 'Material not found' });
+    logger.error('[materials] update:', err);
+    return res.status(500).json({ error: 'Failed to update material' });
+  }
+}
+
 export async function publishMaterial(req: Request, res: Response) {
   try {
     const { materialId } = req.params;

@@ -115,6 +115,7 @@ export default function SubjectTeacher() {
   const [matError,     setMatError]     = useState('');
   const [matUploading, setMatUploading] = useState(false);
   const matFileRef = useRef(null);
+  const [editingMaterial, setEditingMaterial] = useState(null);
   // Material filters
   const [matFilterTitle,   setMatFilterTitle]   = useState('');
   const [matFilterType,    setMatFilterType]    = useState('all');
@@ -317,18 +318,34 @@ export default function SubjectTeacher() {
     }
   };
 
+  const openEditMaterial = (m) => {
+    setEditingMaterial(m);
+    setMatForm({
+      title: m.title || '', description: m.description || '', material_type: m.material_type || 'pdf',
+      file_url: m.file_url || '', file_name: m.file_url ? '(current file)' : '', topicId: m.topic_id || '',
+    });
+    setMatError('');
+    setMatModalOpen(true);
+  };
+
   const handleAddMaterial = async (e) => {
     e.preventDefault(); setMatError('');
     if (!matForm.title || !matForm.file_url) { setMatError('Title and file are required'); return; }
     if (!matForm.topicId) { setMatError('Topic is required'); return; }
     setMatSaving(true);
     try {
-      await http.post('/api/materials', { subjectId, title: matForm.title, description: matForm.description, material_type: matForm.material_type, file_url: matForm.file_url, topicId: matForm.topicId || undefined });
+      const payload = { title: matForm.title, description: matForm.description, material_type: matForm.material_type, file_url: matForm.file_url, topicId: matForm.topicId || undefined };
+      if (editingMaterial) {
+        await http.put(`/api/materials/${editingMaterial.id}`, payload);
+      } else {
+        await http.post('/api/materials', { subjectId, ...payload });
+      }
       setMatModalOpen(false);
+      setEditingMaterial(null);
       setMatForm({ title: '', description: '', material_type: 'pdf', file_url: '', file_name: '', topicId: '' });
       fetchData();
     } catch (err) {
-      setMatError(err?.response?.data?.error || 'Failed to add material');
+      setMatError(err?.response?.data?.error || 'Failed to save material');
     } finally { setMatSaving(false); }
   };
 
@@ -1605,6 +1622,12 @@ export default function SubjectTeacher() {
                               </td>
                               <td style={{ padding: '12px 14px' }}>
                                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                  {isAdmin && (
+                                    <Button size="sm" color="default" outline style={{ borderRadius: 20, fontSize: 11 }}
+                                      onClick={() => openEditMaterial(m)}>
+                                      Edit
+                                    </Button>
+                                  )}
                                   <Button size="sm" color="info" outline style={{ borderRadius: 20, fontSize: 11 }}
                                     onClick={() => setPreviewMat(m)}>
                                     Preview
@@ -1627,7 +1650,7 @@ export default function SubjectTeacher() {
                                       {m.is_published ? 'Unpublish' : 'Publish'}
                                     </Button>
                                   )}
-                                  {(isAdmin || (m.uploaded_by === userId && !m.is_published)) && (
+                                  {isAdmin && (
                                     <Button size="sm" color="danger" outline style={{ borderRadius: 20, fontSize: 11 }}
                                       onClick={() => setDeleteMatModal({ open: true, mat: m })}>Remove</Button>
                                   )}
@@ -2224,14 +2247,14 @@ export default function SubjectTeacher() {
           </ModalFooter>
         </Modal>
 
-      {/* Add Material Modal */}
-        <Modal isOpen={matModalOpen} toggle={() => setMatModalOpen(false)} centered>
-          <ModalHeader toggle={() => setMatModalOpen(false)}>Add Study Material</ModalHeader>
+      {/* Add/Edit Material Modal */}
+        <Modal isOpen={matModalOpen} toggle={() => { setMatModalOpen(false); setEditingMaterial(null); }} centered>
+          <ModalHeader toggle={() => { setMatModalOpen(false); setEditingMaterial(null); }}>{editingMaterial ? 'Edit Material' : 'Add Study Material'}</ModalHeader>
           <ModalBody>
             <Form onSubmit={handleAddMaterial}>
               <FormGroup><Label><strong>Title *</strong></Label><Input value={matForm.title} onChange={(e) => setMatForm({ ...matForm, title: e.target.value })} placeholder="e.g. Chapter 3 Notes" /></FormGroup>
               <FormGroup>
-                <Label><strong>Upload File *</strong></Label>
+                <Label><strong>{editingMaterial ? 'Replace File (optional)' : 'Upload File *'}</strong></Label>
                 <input type="file" ref={matFileRef} style={{ display: 'none' }}
                   accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.webp,.mp4,.webm,.mov,.avi,.zip,.txt"
                   onChange={(e) => e.target.files?.[0] && handleMatFileUpload(e.target.files[0])} />
@@ -2272,8 +2295,8 @@ export default function SubjectTeacher() {
             </Form>
           </ModalBody>
           <ModalFooter>
-            <Button color="secondary" disabled={matSaving || matUploading} onClick={handleAddMaterial}>{matSaving ? 'Adding...' : 'Add Material'}</Button>
-            <Button color="link" onClick={() => setMatModalOpen(false)}>Cancel</Button>
+            <Button color="secondary" disabled={matSaving || matUploading} onClick={handleAddMaterial}>{matSaving ? 'Saving...' : (editingMaterial ? 'Save Changes' : 'Add Material')}</Button>
+            <Button color="link" onClick={() => { setMatModalOpen(false); setEditingMaterial(null); }}>Cancel</Button>
           </ModalFooter>
         </Modal>
 

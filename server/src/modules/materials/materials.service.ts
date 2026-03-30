@@ -66,6 +66,36 @@ export async function getMaterials(
   return rows;
 }
 
+export async function updateMaterial(
+  materialId: string,
+  data: { title?: string; description?: string; material_type?: string; file_url?: string; topicId?: string }
+): Promise<Material> {
+  const sets: string[] = [];
+  const params: any[] = [];
+  let idx = 1;
+
+  if (data.title !== undefined)         { sets.push(`title = $${idx++}`);         params.push(data.title); }
+  if (data.description !== undefined)   { sets.push(`description = $${idx++}`);   params.push(data.description || null); }
+  if (data.material_type !== undefined) { sets.push(`material_type = $${idx++}`); params.push(data.material_type); }
+  if (data.file_url !== undefined)      { sets.push(`file_url = $${idx++}`);      params.push(data.file_url); }
+  if (data.topicId !== undefined)       { sets.push(`topic_id = $${idx++}`);      params.push(data.topicId || null); }
+
+  if (sets.length === 0) throw new Error('Nothing to update');
+
+  sets.push(`updated_at = now()`);
+  params.push(materialId);
+
+  const rows = await query<any>(`
+    UPDATE subject_materials SET ${sets.join(', ')}
+    WHERE id = $${idx}
+    RETURNING id, subject_id, topic_id, uploaded_by, title, description, material_type,
+              file_url, file_size_kb, order_index, is_active, is_published, created_at
+  `, params);
+
+  if (!rows[0]) throw new Error('NOT_FOUND');
+  return rows[0];
+}
+
 export async function publishMaterial(materialId: string, published: boolean): Promise<void> {
   await query(
     `UPDATE subject_materials SET is_published = $1, updated_at = now() WHERE id = $2`,
