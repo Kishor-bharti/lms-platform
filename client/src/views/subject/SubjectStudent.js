@@ -324,7 +324,7 @@ export default function SubjectStudent() {
           <Row>
             {topics.length === 0 ? (
               <Col>
-                <Card className="shadow" style={{ borderRadius: 12 }}>
+                <Card className="shadow" style={{ borderRadius: 14 }}>
                   <CardBody className="text-center py-5">
                     <div style={{ fontSize: 40, marginBottom: 12 }}>📚</div>
                     <p className="text-muted">No topics available yet for this subject.</p>
@@ -332,18 +332,18 @@ export default function SubjectStudent() {
                 </Card>
               </Col>
             ) : (
-              topics.map(topic => (
+              topics.map((topic, idx) => (
                 <Col key={topic.id} md="4" lg="3" className="mb-4">
-                  <Card className="shadow" style={{ borderRadius: 14, cursor: 'pointer', border: '2px solid transparent', transition: 'all 0.2s ease' }}
+                  <Card className="shadow-sm" style={{ borderRadius: 14, cursor: 'pointer', border: '2px solid transparent', transition: 'all 0.2s ease' }}
                     onClick={() => setTopicView(topic)}
-                    onMouseEnter={e => e.currentTarget.style.borderColor = '#5e72e4'}
-                    onMouseLeave={e => e.currentTarget.style.borderColor = 'transparent'}>
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = '#5e72e4'; e.currentTarget.style.transform = 'translateY(-3px)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'transparent'; e.currentTarget.style.transform = 'translateY(0)'; }}>
                     <CardBody style={{ padding: 20, textAlign: 'center' }}>
-                      <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'linear-gradient(135deg,#5e72e4,#825ee4)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', fontSize: 20, color: '#fff' }}>
-                        📖
+                      <div style={{ width: 48, height: 48, borderRadius: 12, background: 'linear-gradient(135deg,#5e72e4,#825ee4)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', fontSize: 18, color: '#fff', fontWeight: 700 }}>
+                        {idx + 1}
                       </div>
-                      <h6 style={{ color: '#32325d', marginBottom: 4, lineHeight: 1.3 }}>{topic.name}</h6>
+                      <h6 style={{ color: '#32325d', marginBottom: 4, lineHeight: 1.3, fontSize: 14 }}>{topic.name}</h6>
                       {topic.description && <p style={{ fontSize: 12, color: '#8898aa', marginBottom: 0 }}>{topic.description}</p>}
                     </CardBody>
                   </Card>
@@ -877,85 +877,100 @@ export default function SubjectStudent() {
           return (
           <Row>
             <Col>
-              <Card className="shadow" style={{ borderRadius: 12 }}>
-                <CardHeader className="d-flex justify-content-between align-items-center" style={{ background: 'linear-gradient(135deg,#ffecd2,#fcb69f)', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
+              <Card className="shadow" style={{ borderRadius: 14 }}>
+                <CardHeader className="d-flex justify-content-between align-items-center" style={{ background: 'linear-gradient(135deg,#ffecd2,#fcb69f)', borderTopLeftRadius: 14, borderTopRightRadius: 14, padding: '18px 22px' }}>
                   <CardTitle className="mb-0" style={{ fontSize: 16, fontWeight: 700, color: '#32325d' }}>
-                    My Uploads {filteredUploads.length > 0 && <Badge color="dark" pill style={{ fontSize: 11, marginLeft: 6 }}>{hasUplFilters ? `${visibleUploads.length} / ${filteredUploads.length}` : filteredUploads.length}</Badge>}
+                    My Uploads
+                    {filteredUploads.length > 0 && (
+                      <span style={{ fontSize: 12, fontWeight: 600, color: '#8898aa', marginLeft: 8 }}>
+                        {hasUplFilters ? `${visibleUploads.length} / ${filteredUploads.length}` : filteredUploads.length}
+                      </span>
+                    )}
                   </CardTitle>
-                  <Button color="warning" size="sm" style={{ borderRadius: 8, fontWeight: 600 }}
+                  <Button color="warning" size="sm" style={{ borderRadius: 20, fontWeight: 600, fontSize: 12 }}
                     onClick={() => { setUploadForm({ title: '', description: '', teacherId: '', file_url: '', file_name: '' }); setUploadError(''); setUploadOpen(true); }}>
                     + Upload File
                   </Button>
                 </CardHeader>
                 {filteredUploads.length > 0 && (
-                  <div style={{ padding: '10px 18px', background: '#f6f9fc', display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', borderBottom: '1px solid #e9ecef' }}>
+                  <div style={{ padding: '12px 22px', background: '#f6f9fc', display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', borderBottom: '1px solid #e9ecef' }}>
                     <input placeholder="Search title..." value={uplFilterTitle}
                       onChange={(e) => setUplFilterTitle(e.target.value)}
-                      style={{ width: 150, padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12 }} />
+                      style={{ width: 150, padding: '6px 12px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12 }} />
                     {uniqueTeachers.length > 0 && (
                       <select value={uplFilterTeacher} onChange={(e) => setUplFilterTeacher(e.target.value)}
-                        style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12 }}>
+                        style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12 }}>
                         <option value="all">All Teachers</option>
                         <option value="none">No Teacher</option>
                         {uniqueTeachers.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
                       </select>
                     )}
                     <select value={uplFilterFeedback} onChange={(e) => setUplFilterFeedback(e.target.value)}
-                      style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12 }}>
+                      style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12 }}>
                       <option value="all">All</option>
                       <option value="given">Feedback Received</option>
                       <option value="pending">Pending</option>
                     </select>
                     {hasUplFilters && (
                       <button onClick={() => { setUplFilterTitle(''); setUplFilterTeacher('all'); setUplFilterFeedback('all'); }}
-                        style={{ background: 'none', border: 'none', color: '#f5365c', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                        style={{ padding: '5px 12px', borderRadius: 8, border: 'none', background: '#f5365c', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
                         Clear
                       </button>
                     )}
                   </div>
                 )}
-                <CardBody>
+                <CardBody style={{ padding: '16px 22px' }}>
                   {filteredUploads.length === 0 ? (
-                    <div className="text-center py-4">
+                    <div className="text-center py-5">
+                      <div style={{ fontSize: 36, marginBottom: 10 }}>📤</div>
                       <p className="text-muted">No uploads yet{topicView ? ' for this topic' : ''}.</p>
-                      <Button color="warning" size="sm" onClick={() => { setUploadForm({ title: '', description: '', teacherId: '', file_url: '', file_name: '' }); setUploadError(''); setUploadOpen(true); }}>
+                      <Button color="warning" size="sm" style={{ borderRadius: 20, fontWeight: 600 }}
+                        onClick={() => { setUploadForm({ title: '', description: '', teacherId: '', file_url: '', file_name: '' }); setUploadError(''); setUploadOpen(true); }}>
                         Upload Your First File
                       </Button>
                     </div>
                   ) : visibleUploads.length === 0 ? (
-                    <div className="text-center py-4">
+                    <div className="text-center py-5">
                       <p className="text-muted">No uploads match filters.</p>
                     </div>
                   ) : (
                     <div>
-                      {visibleUploads.map((u) => (
+                      {visibleUploads.map((u, idx) => (
                         <div key={u.id} style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '14px 0', borderBottom: '1px solid #f0f4f8' }}>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontWeight: 600, color: '#32325d', fontSize: 14 }}>{u.title}</div>
-                            {u.description && <div style={{ fontSize: 12, color: '#8898aa', marginTop: 2 }}>{u.description}</div>}
-                            <div style={{ fontSize: 11, color: '#8898aa', marginTop: 4 }}>
-                              {u.teacher_name && <span>To: <strong>{u.teacher_name}</strong> &middot; </span>}
-                              {u.topic_name && <span>{u.topic_name} &middot; </span>}
-                              {new Date(u.created_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}
-                            </div>
-                            {(u.feedback_text || u.feedback_file_url) && (
-                              <div style={{ marginTop: 8, padding: '8px 12px', background: '#e8f5e9', borderRadius: 8, borderLeft: '3px solid #2dce89' }}>
-                                <div style={{ fontSize: 11, fontWeight: 700, color: '#2dce89', marginBottom: 2 }}>Teacher Feedback</div>
-                                {u.feedback_text && <div style={{ fontSize: 13, color: '#32325d' }}>{u.feedback_text}</div>}
-                                {u.feedback_file_url && (
-                                  <a href={u.feedback_file_url} target="_blank" rel="noreferrer"
-                                    style={{ fontSize: 12, fontWeight: 600, color: '#5e72e4', marginTop: 4, display: 'inline-block' }}>
-                                    View Feedback File
-                                  </a>
-                                )}
+                          <div style={{ display: 'flex', gap: 12, flex: 1, minWidth: 0 }}>
+                            <span style={{ fontWeight: 600, color: '#8898aa', fontSize: 12, minWidth: 24 }}>{idx + 1}</span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontWeight: 600, color: '#32325d', fontSize: 14 }}>{u.title}</div>
+                              {u.description && <div style={{ fontSize: 12, color: '#8898aa', marginTop: 2 }}>{u.description}</div>}
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', fontSize: 11, color: '#8898aa', marginTop: 4 }}>
+                                {u.teacher_name && <span>To: <strong>{u.teacher_name}</strong></span>}
+                                {u.topic_name && <span style={{ color: '#5e72e4', fontWeight: 600 }}>{u.topic_name}</span>}
+                                <span>{new Date(u.created_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</span>
                               </div>
-                            )}
+                              {(u.feedback_text || u.feedback_file_url) && (
+                                <div style={{ marginTop: 8, padding: '8px 12px', background: '#eafaf1', borderRadius: 8, borderLeft: '3px solid #2dce89' }}>
+                                  <div style={{ fontSize: 11, fontWeight: 700, color: '#2dce89', marginBottom: 2 }}>Teacher Feedback</div>
+                                  {u.feedback_text && <div style={{ fontSize: 13, color: '#32325d' }}>{u.feedback_text}</div>}
+                                  {u.feedback_file_url && (
+                                    <a href={u.feedback_file_url} target="_blank" rel="noreferrer"
+                                      style={{ fontSize: 12, fontWeight: 600, color: '#5e72e4', marginTop: 4, display: 'inline-block' }}>
+                                      View Feedback File
+                                    </a>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginLeft: 12, flexShrink: 0 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end', marginLeft: 12, flexShrink: 0 }}>
                             <a href={u.file_url} target="_blank" rel="noreferrer"
                               style={{ fontSize: 12, fontWeight: 600, color: '#5e72e4', textDecoration: 'none' }}>
                               {u.file_name || 'Download'}
                             </a>
+                            {(u.feedback_text || u.feedback_file_url) ? (
+                              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: '#d4edda', color: '#155724' }}>Reviewed</span>
+                            ) : (
+                              <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: '#fff3cd', color: '#856404' }}>Pending</span>
+                            )}
                             <Button size="sm" color="danger" outline style={{ borderRadius: 20, fontSize: 11 }}
                               onClick={() => handleDeleteUpload(u.id)}>
                               Remove
@@ -1013,7 +1028,7 @@ export default function SubjectStudent() {
                     <span style={{ fontSize: 13, color: '#2dce89', fontWeight: 600 }}>&#10003; {uploadForm.file_name}</span>
                   )}
                 </div>
-                <small className="text-muted">PDF, Word, Excel, image, ZIP (max 10 MB)</small>
+                <small className="text-muted">PDF, Word, Excel, image, ZIP (max 100 MB)</small>
               </FormGroup>
               {uploadError && <p className="text-danger small">{uploadError}</p>}
             </Form>
@@ -1049,7 +1064,7 @@ export default function SubjectStudent() {
                     <span style={{ fontSize: 13, color: '#2dce89', fontWeight: 600 }}>✓ {submitFileName}</span>
                   )}
                 </div>
-                <small className="text-muted">PDF, Word, Excel, image (max 10 MB)</small>
+                <small className="text-muted">PDF, Word, Excel, image (max 100 MB)</small>
               </FormGroup>
               <FormGroup>
                 <Label>Notes <span className="text-muted small">(optional)</span></Label>
