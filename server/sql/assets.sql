@@ -1,104 +1,64 @@
--- portal-assets bucket
--- 1. Create the bucket
--- Supabase Dashboard > Storage > New bucket:
+-- ============================================================
+-- Supabase Storage policies for LMS buckets
+-- Idempotent version (safe to re-run)
+-- ============================================================
 
--- Name: portal-assets
--- Public bucket: ON
--- File size limit: 100 MB (matches server-side multer limit)
--- Allowed MIME types: leave empty (accept all types — PDFs, docs, images, videos, zips)
--- 2. Add RLS policies
--- Go to SQL Editor in Supabase and run:
--- Public read — anyone can view/download published portal content
-CREATE POLICY "Public read access for portal-assets"
-ON storage.objects FOR SELECT
-USING (bucket_id = 'portal-assets');
+-- Drop existing policies first to avoid:
+-- ERROR: policy "..." for table "objects" already exists
+DROP POLICY IF EXISTS "Public read access for portal-assets" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can upload to portal-assets" ON storage.objects;
+DROP POLICY IF EXISTS "Anon and authenticated users can upload to portal-assets" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can update portal-assets" ON storage.objects;
+DROP POLICY IF EXISTS "Anon and authenticated users can update portal-assets" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can delete from portal-assets" ON storage.objects;
+DROP POLICY IF EXISTS "Anon and authenticated users can delete from portal-assets" ON storage.objects;
 
--- Authenticated upload — server uploads via anon key
-CREATE POLICY "Authenticated users can upload to portal-assets"
-ON storage.objects FOR INSERT
-WITH CHECK (
-  bucket_id = 'portal-assets'
-  AND auth.role() = 'authenticated'
-);
-
--- Authenticated update — needed for move-on-publish (upsert)
-CREATE POLICY "Authenticated users can update portal-assets"
-ON storage.objects FOR UPDATE
-USING (bucket_id = 'portal-assets')
-WITH CHECK (bucket_id = 'portal-assets');
-
--- Authenticated delete — needed for hard-delete cleanup
-CREATE POLICY "Authenticated users can delete from portal-assets"
-ON storage.objects FOR DELETE
-USING (
-  bucket_id = 'portal-assets'
-  AND auth.role() = 'authenticated'
-);
-
--- temp-uploads bucket
--- 1. Create the bucket
--- Supabase Dashboard > Storage > New bucket:
-
--- Name: temp-uploads
--- Public bucket: ON (students/teachers need to view their own uploads via public URL)
--- File size limit: 100 MB
--- Allowed MIME types: leave empty (accept all)
--- 2. Add RLS policies
--- Public read — users view their own uploads via public URLs
-CREATE POLICY "Public read access for temp-uploads"
-ON storage.objects FOR SELECT
-USING (bucket_id = 'temp-uploads');
-
--- Authenticated upload
-CREATE POLICY "Authenticated users can upload to temp-uploads"
-ON storage.objects FOR INSERT
-WITH CHECK (
-  bucket_id = 'temp-uploads'
-  AND auth.role() = 'authenticated'
-);
-
--- Authenticated delete — needed for hard-delete + move-on-publish (delete source)
-CREATE POLICY "Authenticated users can delete from temp-uploads"
-ON storage.objects FOR DELETE
-USING (
-  bucket_id = 'temp-uploads'
-  AND auth.role() = 'authenticated'
-);
-
-
--- All in one SQL file
+DROP POLICY IF EXISTS "Public read access for temp-uploads" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can upload to temp-uploads" ON storage.objects;
+DROP POLICY IF EXISTS "Anon and authenticated users can upload to temp-uploads" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated users can delete from temp-uploads" ON storage.objects;
+DROP POLICY IF EXISTS "Anon and authenticated users can delete from temp-uploads" ON storage.objects;
 
 -- ═══════════════════════════════════════════
 -- portal-assets policies
 -- ═══════════════════════════════════════════
+
+-- SELECT: public (includes anon + authenticated)
 CREATE POLICY "Public read access for portal-assets"
 ON storage.objects FOR SELECT
 USING (bucket_id = 'portal-assets');
 
-CREATE POLICY "Authenticated users can upload to portal-assets"
+-- INSERT: anon + authenticated
+CREATE POLICY "Anon and authenticated users can upload to portal-assets"
 ON storage.objects FOR INSERT
-WITH CHECK (bucket_id = 'portal-assets' AND auth.role() = 'authenticated');
+WITH CHECK (bucket_id = 'portal-assets' AND (auth.role() = 'anon' OR auth.role() = 'authenticated'));
 
-CREATE POLICY "Authenticated users can update portal-assets"
+-- UPDATE: anon + authenticated (needed for upsert move flow)
+CREATE POLICY "Anon and authenticated users can update portal-assets"
 ON storage.objects FOR UPDATE
-USING (bucket_id = 'portal-assets')
-WITH CHECK (bucket_id = 'portal-assets');
+USING (bucket_id = 'portal-assets' AND (auth.role() = 'anon' OR auth.role() = 'authenticated'))
+WITH CHECK (bucket_id = 'portal-assets' AND (auth.role() = 'anon' OR auth.role() = 'authenticated'));
 
-CREATE POLICY "Authenticated users can delete from portal-assets"
+-- DELETE: anon + authenticated
+CREATE POLICY "Anon and authenticated users can delete from portal-assets"
 ON storage.objects FOR DELETE
-USING (bucket_id = 'portal-assets' AND auth.role() = 'authenticated');
+USING (bucket_id = 'portal-assets' AND (auth.role() = 'anon' OR auth.role() = 'authenticated'));
 
 -- ═══════════════════════════════════════════
 -- temp-uploads policies
 -- ═══════════════════════════════════════════
+
+-- SELECT: public (includes anon + authenticated)
 CREATE POLICY "Public read access for temp-uploads"
 ON storage.objects FOR SELECT
 USING (bucket_id = 'temp-uploads');
 
-CREATE POLICY "Authenticated users can upload to temp-uploads"
+-- INSERT: anon + authenticated
+CREATE POLICY "Anon and authenticated users can upload to temp-uploads"
 ON storage.objects FOR INSERT
-WITH CHECK (bucket_id = 'temp-uploads' AND auth.role() = 'authenticated');
+WITH CHECK (bucket_id = 'temp-uploads' AND (auth.role() = 'anon' OR auth.role() = 'authenticated'));
 
-CREATE POLICY "Authenticated users can delete from temp-uploads"
+-- DELETE: anon + authenticated
+CREATE POLICY "Anon and authenticated users can delete from temp-uploads"
 ON storage.objects FOR DELETE
-USING (bucket_id = 'temp-uploads' AND auth.role() = 'authenticated');
+USING (bucket_id = 'temp-uploads' AND (auth.role() = 'anon' OR auth.role() = 'authenticated'));
