@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS student_uploads (
   created_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
+
 CREATE INDEX IF NOT EXISTS idx_student_uploads_subject  ON student_uploads(subject_id);
 CREATE INDEX IF NOT EXISTS idx_student_uploads_student  ON student_uploads(student_id);
 CREATE INDEX IF NOT EXISTS idx_student_uploads_teacher  ON student_uploads(teacher_id);
