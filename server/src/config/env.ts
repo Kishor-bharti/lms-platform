@@ -28,7 +28,8 @@ export const env = {
   // Supabase Storage
   SUPABASE_URL_PUBLIC:        process.env.SUPABASE_URL_PUBLIC        || '',
   SUPABASE_ANON_KEY:          process.env.SUPABASE_ANON_KEY          || '',
-  SUPABASE_ASSIGNMENT_BUCKET: process.env.SUPABASE_ASSIGNMENT_BUCKET || 'assignment-files',
+  SUPABASE_PORTAL_BUCKET: process.env.SUPABASE_PORTAL_BUCKET || 'portal-assets',
+  SUPABASE_TEMP_BUCKET:   process.env.SUPABASE_TEMP_BUCKET   || 'temp-uploads',
 
   // Zoom
   ZOOM_ACCOUNT_ID:    process.env.ZOOM_ACCOUNT_ID || '',

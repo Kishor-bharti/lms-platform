@@ -9,6 +9,7 @@ export interface UserProfile {
   phone: string | null;
   avatar_url: string | null;
   is_active: boolean;
+  is_super_admin: boolean;
   last_login_at: string | null;
   created_at: string;
   roles: string[];
@@ -18,7 +19,7 @@ export async function getProfile(userId: string): Promise<UserProfile> {
   const rows = await query<any>(`
     SELECT
       u.id, u.email, u.first_name, u.last_name, u.phone,
-      u.avatar_url, u.is_active, u.last_login_at, u.created_at,
+      u.avatar_url, u.is_active, u.is_super_admin, u.last_login_at, u.created_at,
       COALESCE(
         array_agg(r.name ORDER BY r.id) FILTER (WHERE r.name IS NOT NULL),
         '{}'
@@ -28,7 +29,8 @@ export async function getProfile(userId: string): Promise<UserProfile> {
     LEFT JOIN roles r ON r.id = ur.role_id
     WHERE u.id = $1
     GROUP BY u.id, u.email, u.first_name, u.last_name,
-             u.phone, u.avatar_url, u.is_active, u.last_login_at, u.created_at
+             u.phone, u.avatar_url, u.is_active, u.is_super_admin,
+             u.last_login_at, u.created_at
   `, [userId]);
 
   if (!rows[0]) throw new Error('User not found');

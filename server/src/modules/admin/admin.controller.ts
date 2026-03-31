@@ -29,12 +29,12 @@ export async function getUsers(req: Request, res: Response) {
 export async function createUser(req: Request, res: Response) {
   try {
     const adminId = req.user!.id;
-    const { email, password, first_name, last_name, phone, role } = req.body;
+    const { email, password, first_name, last_name, phone, description, role } = req.body;
     if (!email || !password || !first_name || !last_name || !role) {
       return res.status(400).json({ error: 'email, password, first_name, last_name, role are required' });
     }
     const user = await adminService.createUser({
-      email, password, first_name, last_name, phone, role, adminId
+      email, password, first_name, last_name, phone, description, role, adminId
     });
     return res.status(201).json(user);
   } catch (err: any) {
@@ -55,6 +55,11 @@ export async function toggleUserActive(req: Request, res: Response) {
     }
     if (typeof is_active !== 'boolean') {
       return res.status(400).json({ error: 'is_active (boolean) is required' });
+    }
+    // Prevent deactivating the super admin
+    const isSuper = await adminService.isSuperAdmin(userId);
+    if (isSuper && !is_active) {
+      return res.status(403).json({ error: 'Super admin cannot be deactivated' });
     }
     await adminService.toggleUserActive(userId, is_active);
     return res.json({ success: true });
@@ -426,5 +431,100 @@ export async function bulkDeleteSessions(req: Request, res: Response) {
   } catch (err: any) {
     logger.error('[admin] bulkDeleteSessions:', err);
     return res.status(500).json({ error: 'Failed to delete sessions' });
+  }
+}
+
+// ============================================================
+// Super Admin — User Detail, Password, Hard Delete
+// ============================================================
+
+export async function getUserDetail(req: Request, res: Response) {
+  try {
+    const { userId } = req.params;
+    if (!userId) return res.status(400).json({ error: 'userId is required' });
+    const user = await adminService.getUserDetail(userId);
+    return res.json(user);
+  } catch (err: any) {
+    if (err.message === 'USER_NOT_FOUND') return res.status(404).json({ error: 'User not found' });
+    logger.error('[admin] getUserDetail:', err);
+    return res.status(500).json({ error: 'Failed to fetch user detail' });
+  }
+}
+
+export async function verifyAdminPassword(req: Request, res: Response) {
+  try {
+    const adminId = req.user!.id;
+    const { password } = req.body;
+    if (!password) return res.status(400).json({ error: 'password is required' });
+
+    // Only super admin can use this endpoint
+    const isSuper = await adminService.isSuperAdmin(adminId);
+    if (!isSuper) return res.status(403).json({ error: 'Only super admin can perform this action' });
+
+    const valid = await adminService.verifyAdminPassword(adminId, password);
+    if (!valid) return res.status(401).json({ error: 'Incorrect password' });
+
+    return res.json({ verified: true });
+  } catch (err) {
+    logger.error('[admin] verifyAdminPassword:', err);
+    return res.status(500).json({ error: 'Verification failed' });
+  }
+}
+
+export async function resetUserPassword(req: Request, res: Response) {
+  try {
+    const adminId = req.user!.id;
+    const { userId } = req.params;
+    const { password, new_password } = req.body;
+
+    if (!userId) return res.status(400).json({ error: 'userId is required' });
+    if (!password) return res.status(400).json({ error: 'Admin password is required' });
+    if (!new_password) return res.status(400).json({ error: 'new_password is required' });
+
+    // Only super admin
+    const isSuper = await adminService.isSuperAdmin(adminId);
+    if (!isSuper) return res.status(403).json({ error: 'Only super admin can reset passwords' });
+
+    // Verify super admin password first
+    const valid = await adminService.verifyAdminPassword(adminId, password);
+    if (!valid) return res.status(401).json({ error: 'Incorrect admin password' });
+
+    // Cannot reset super admin's own password through this endpoint
+    const targetIsSuper = await adminService.isSuperAdmin(userId);
+    if (targetIsSuper) return res.status(403).json({ error: 'Use profile to change your own password' });
+
+    await adminService.resetUserPassword(userId, new_password);
+    return res.json({ success: true });
+  } catch (err: any) {
+    if (err.message === 'TOO_SHORT') return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    logger.error('[admin] resetUserPassword:', err);
+    return res.status(500).json({ error: 'Failed to reset password' });
+  }
+}
+
+export async function hardDeleteUser(req: Request, res: Response) {
+  try {
+    const adminId = req.user!.id;
+    const { userId } = req.params;
+    const { password } = req.body;
+
+    if (!userId) return res.status(400).json({ error: 'userId is required' });
+    if (!password) return res.status(400).json({ error: 'Admin password is required for confirmation' });
+
+    // Only super admin
+    const isSuper = await adminService.isSuperAdmin(adminId);
+    if (!isSuper) return res.status(403).json({ error: 'Only super admin can permanently delete users' });
+
+    // Verify super admin password
+    const valid = await adminService.verifyAdminPassword(adminId, password);
+    if (!valid) return res.status(401).json({ error: 'Incorrect admin password' });
+
+    const result = await adminService.hardDeleteUser(userId, adminId);
+    return res.json({ success: true, deletedFiles: result.deletedFiles });
+  } catch (err: any) {
+    if (err.message === 'USER_NOT_FOUND') return res.status(404).json({ error: 'User not found' });
+    if (err.message === 'CANNOT_DELETE_SUPER_ADMIN') return res.status(403).json({ error: 'Cannot delete the super admin' });
+    logger.error('[admin] hardDeleteUser:', err);
+    return res.status(500).json({ error: err.message || 'Failed to delete user' });
   }
 }

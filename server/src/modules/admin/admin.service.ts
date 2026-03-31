@@ -1,5 +1,7 @@
 import { query, withTransaction, queryWithClient } from '../../config/db';
-import { hashPassword } from '../../utils/password';
+import { hashPassword, comparePassword } from '../../utils/password';
+import { deleteFilesByUrls, parseStorageUrl } from '../../utils/storage';
+import logger from '../../config/logger';
 
 // ---- Types ----
 
@@ -9,7 +11,9 @@ export interface AdminUser {
   first_name: string;
   last_name: string;
   phone: string | null;
+  description: string | null;
   is_active: boolean;
+  is_super_admin: boolean;
   last_login_at: string | null;
   created_at: string;
   roles: string[];
@@ -108,8 +112,8 @@ export async function getUsers(
   const rows = await query<any>(`
     SELECT
       COUNT(*) OVER() AS total_count,
-      u.id, u.email, u.first_name, u.last_name, u.phone,
-      u.is_active, u.last_login_at, u.created_at,
+      u.id, u.email, u.first_name, u.last_name, u.phone, u.description,
+      u.is_active, u.is_super_admin, u.last_login_at, u.created_at,
       COALESCE(
         array_agg(r.name ORDER BY r.id) FILTER (WHERE r.name IS NOT NULL),
         '{}'
@@ -119,7 +123,8 @@ export async function getUsers(
     LEFT JOIN roles r ON r.id = ur.role_id
     ${whereClause}
     GROUP BY u.id, u.email, u.first_name, u.last_name,
-             u.phone, u.is_active, u.last_login_at, u.created_at
+             u.phone, u.description, u.is_active, u.is_super_admin,
+             u.last_login_at, u.created_at
     ORDER BY u.created_at DESC
     LIMIT $${params.length + 1} OFFSET $${params.length + 2}
   `, [...params, limit, (page - 1) * limit]);
@@ -128,15 +133,17 @@ export async function getUsers(
 
   return {
     users: rows.map((r) => ({
-      id:            r.id,
-      email:         r.email,
-      first_name:    r.first_name,
-      last_name:     r.last_name,
-      phone:         r.phone,
-      is_active:     r.is_active,
-      last_login_at: r.last_login_at,
-      created_at:    r.created_at,
-      roles:         r.roles ?? [],
+      id:             r.id,
+      email:          r.email,
+      first_name:     r.first_name,
+      last_name:      r.last_name,
+      phone:          r.phone,
+      description:    r.description,
+      is_active:      r.is_active,
+      is_super_admin: r.is_super_admin,
+      last_login_at:  r.last_login_at,
+      created_at:     r.created_at,
+      roles:          r.roles ?? [],
     })),
     total,
     page,
@@ -150,6 +157,7 @@ export async function createUser(data: {
   first_name: string;
   last_name: string;
   phone?: string;
+  description?: string;
   role: string;
   adminId: string;
 }): Promise<AdminUser> {
@@ -157,10 +165,10 @@ export async function createUser(data: {
 
   return withTransaction(async (client) => {
     const userRows = await queryWithClient<any>(client, `
-      INSERT INTO users (email, password_hash, first_name, last_name, phone)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING id, email, first_name, last_name, phone, is_active, created_at
-    `, [data.email, hash, data.first_name, data.last_name, data.phone ?? null]);
+      INSERT INTO users (email, password_hash, first_name, last_name, phone, description)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id, email, first_name, last_name, phone, description, is_active, is_super_admin, created_at
+    `, [data.email, hash, data.first_name, data.last_name, data.phone ?? null, data.description ?? null]);
 
     const user = userRows[0];
 
@@ -993,4 +1001,344 @@ export async function getAllSessionsAdmin(filters: AdminSessionFilters = {}) {
     teacher_email: r.teacher_email,
     students:     parseJson(r.session_students_list),
   }));
+}
+
+// ============================================================
+// Super Admin — User Detail, Password, Hard Delete
+// ============================================================
+
+/**
+ * Check if the requesting admin is the super admin.
+ */
+export async function isSuperAdmin(userId: string): Promise<boolean> {
+  const rows = await query<any>(
+    `SELECT is_super_admin FROM users WHERE id = $1`, [userId]
+  );
+  return rows[0]?.is_super_admin === true;
+}
+
+/**
+ * Get detailed user info (for super admin user detail modal).
+ */
+export async function getUserDetail(userId: string) {
+  const rows = await query<any>(`
+    SELECT
+      u.id, u.email, u.first_name, u.last_name, u.phone, u.description,
+      u.avatar_url, u.is_active, u.is_super_admin, u.last_login_at,
+      u.created_at, u.updated_at,
+      COALESCE(
+        array_agg(r.name ORDER BY r.id) FILTER (WHERE r.name IS NOT NULL),
+        '{}'
+      ) AS roles
+    FROM users u
+    LEFT JOIN user_roles ur ON ur.user_id = u.id
+    LEFT JOIN roles r ON r.id = ur.role_id
+    WHERE u.id = $1
+    GROUP BY u.id
+  `, [userId]);
+
+  if (!rows[0]) throw new Error('USER_NOT_FOUND');
+  return rows[0];
+}
+
+/**
+ * Verify admin password (super admin confirms their own password before sensitive ops).
+ */
+export async function verifyAdminPassword(adminId: string, password: string): Promise<boolean> {
+  const rows = await query<any>(
+    `SELECT password_hash FROM users WHERE id = $1`, [adminId]
+  );
+  if (!rows[0]) return false;
+  return comparePassword(password, rows[0].password_hash);
+}
+
+/**
+ * Reset a user's password (super admin only).
+ */
+export async function resetUserPassword(targetUserId: string, newPassword: string): Promise<void> {
+  if (newPassword.length < 6) throw new Error('TOO_SHORT');
+  const hash = await hashPassword(newPassword);
+  await query(`UPDATE users SET password_hash = $1, updated_at = now() WHERE id = $2`, [hash, targetUserId]);
+}
+
+/**
+ * Hard delete a user and all their data. Rules:
+ * - Cannot delete the super admin
+ * - For teachers: published content (quizzes, assignments, materials) is preserved
+ *   (ownership is transferred to the super admin). Only unpublished content is deleted.
+ * - For students: all data is deleted
+ * - Storage files for deleted content are also removed
+ */
+export async function hardDeleteUser(targetUserId: string, superAdminId: string): Promise<{ deletedFiles: number }> {
+  // Safety checks
+  const targetRows = await query<any>(
+    `SELECT is_super_admin FROM users WHERE id = $1`, [targetUserId]
+  );
+  if (!targetRows[0]) throw new Error('USER_NOT_FOUND');
+  if (targetRows[0].is_super_admin) throw new Error('CANNOT_DELETE_SUPER_ADMIN');
+
+  // Determine user roles
+  const roleRows = await query<any>(
+    `SELECT r.name FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = $1`,
+    [targetUserId]
+  );
+  const roles = roleRows.map((r: any) => r.name);
+  const isTeacher = roles.includes('teacher');
+
+  // Collect file URLs to delete from storage
+  const filesToDelete: string[] = [];
+
+  return withTransaction(async (client) => {
+    // ── 1. Collect & handle teacher-specific content ──────────────────
+    if (isTeacher) {
+      // Transfer published quizzes created_by to super admin
+      await queryWithClient(client, `
+        UPDATE quizzes SET created_by = $1
+        WHERE created_by = $2 AND is_published = true
+      `, [superAdminId, targetUserId]);
+
+      // Transfer published assignments created_by to super admin
+      await queryWithClient(client, `
+        UPDATE assignments SET created_by = $1
+        WHERE created_by = $2 AND is_published = true
+      `, [superAdminId, targetUserId]);
+
+      // Transfer published materials uploaded_by to super admin
+      await queryWithClient(client, `
+        UPDATE subject_materials SET uploaded_by = $1
+        WHERE uploaded_by = $2 AND is_published = true
+      `, [superAdminId, targetUserId]);
+
+      // Transfer published questions created_by to super admin
+      await queryWithClient(client, `
+        UPDATE questions SET created_by = $1
+        WHERE created_by = $2 AND quiz_id IN (SELECT id FROM quizzes WHERE is_published = true)
+      `, [superAdminId, targetUserId]);
+
+      // Collect unpublished material file URLs before deleting
+      const unpubMaterials = await queryWithClient<any>(client, `
+        SELECT file_url FROM subject_materials WHERE uploaded_by = $1 AND is_published = false
+      `, [targetUserId]);
+      unpubMaterials.forEach((m: any) => { if (m.file_url) filesToDelete.push(m.file_url); });
+
+      // Collect unpublished assignment attachment URLs
+      const unpubAssignments = await queryWithClient<any>(client, `
+        SELECT attachment_url FROM assignments WHERE created_by = $1 AND is_published = false
+      `, [targetUserId]);
+      unpubAssignments.forEach((a: any) => { if (a.attachment_url) filesToDelete.push(a.attachment_url); });
+
+      // Collect unpublished quiz question images
+      const unpubQuizImages = await queryWithClient<any>(client, `
+        SELECT q.image_url, q.explanation_image_url
+        FROM questions q
+        JOIN quizzes qz ON qz.id = q.quiz_id
+        WHERE q.created_by = $1 AND qz.is_published = false
+      `, [targetUserId]);
+      unpubQuizImages.forEach((q: any) => {
+        if (q.image_url) filesToDelete.push(q.image_url);
+        if (q.explanation_image_url) filesToDelete.push(q.explanation_image_url);
+      });
+
+      // Collect unpublished quiz question option images
+      const unpubOptionImages = await queryWithClient<any>(client, `
+        SELECT o.option_image_url
+        FROM options o
+        JOIN questions q ON q.id = o.question_id
+        JOIN quizzes qz ON qz.id = q.quiz_id
+        WHERE q.created_by = $1 AND qz.is_published = false AND o.option_image_url IS NOT NULL
+      `, [targetUserId]);
+      unpubOptionImages.forEach((o: any) => { if (o.option_image_url) filesToDelete.push(o.option_image_url); });
+
+      // Delete unpublished materials
+      await queryWithClient(client, `
+        DELETE FROM subject_materials WHERE uploaded_by = $1 AND is_published = false
+      `, [targetUserId]);
+
+      // Delete attempt_answers for unpublished quiz attempts before deleting quizzes
+      await queryWithClient(client, `
+        DELETE FROM attempt_answers WHERE attempt_id IN (
+          SELECT qa.id FROM quiz_attempts qa
+          JOIN quizzes qz ON qz.id = qa.quiz_id
+          WHERE qz.created_by = $1 AND qz.is_published = false
+        )
+      `, [targetUserId]);
+
+      // Delete unpublished assignments (cascade deletes submissions)
+      await queryWithClient(client, `
+        DELETE FROM assignments WHERE created_by = $1 AND is_published = false
+      `, [targetUserId]);
+
+      // Delete unpublished quizzes (cascade deletes questions, options, quiz_sets, attempts)
+      await queryWithClient(client, `
+        DELETE FROM quizzes WHERE created_by = $1 AND is_published = false
+      `, [targetUserId]);
+
+      // Delete all sessions by this teacher
+      const teacherSessions = await queryWithClient<{ id: string }>(client, `
+        SELECT id FROM sessions WHERE teacher_id = $1
+      `, [targetUserId]);
+      if (teacherSessions.length > 0) {
+        const sessionIds = teacherSessions.map(s => s.id);
+        await queryWithClient(client, `
+          DELETE FROM session_students WHERE session_id = ANY($1::uuid[])
+        `, [sessionIds]);
+        await queryWithClient(client, `
+          DELETE FROM sessions WHERE teacher_id = $1
+        `, [targetUserId]);
+      }
+
+      // Remove from subject_teachers, subject_teacher_students
+      await queryWithClient(client, `
+        DELETE FROM subject_teacher_students WHERE teacher_id = $1
+      `, [targetUserId]);
+      await queryWithClient(client, `
+        DELETE FROM subject_teachers WHERE teacher_id = $1
+      `, [targetUserId]);
+
+      // Clean up quiz_write_permissions
+      await queryWithClient(client, `
+        DELETE FROM quiz_write_permissions WHERE teacher_id = $1
+      `, [targetUserId]);
+    }
+
+    // ── 2. Handle student-specific data ──────────────────────────────
+    if (roles.includes('student')) {
+      // Collect student upload file URLs
+      const studentUploads = await queryWithClient<any>(client, `
+        SELECT file_url, feedback_file_url FROM student_uploads WHERE student_id = $1
+      `, [targetUserId]);
+      studentUploads.forEach((u: any) => {
+        if (u.file_url) filesToDelete.push(u.file_url);
+        if (u.feedback_file_url) filesToDelete.push(u.feedback_file_url);
+      });
+
+      // Collect assignment submission file URLs
+      const submissions = await queryWithClient<any>(client, `
+        SELECT submission_url, feedback_file_url FROM assignment_submissions WHERE student_id = $1
+      `, [targetUserId]);
+      submissions.forEach((s: any) => {
+        if (s.submission_url) filesToDelete.push(s.submission_url);
+        if (s.feedback_file_url) filesToDelete.push(s.feedback_file_url);
+      });
+
+      // Delete attempt_answers for this student
+      await queryWithClient(client, `
+        DELETE FROM attempt_answers WHERE attempt_id IN (
+          SELECT id FROM quiz_attempts WHERE student_id = $1
+        )
+      `, [targetUserId]);
+
+      // Delete quiz_attempts
+      await queryWithClient(client, `
+        DELETE FROM quiz_attempts WHERE student_id = $1
+      `, [targetUserId]);
+
+      // Delete assignment_submissions
+      await queryWithClient(client, `
+        DELETE FROM assignment_submissions WHERE student_id = $1
+      `, [targetUserId]);
+
+      // Delete student_uploads
+      await queryWithClient(client, `
+        DELETE FROM student_uploads WHERE student_id = $1
+      `, [targetUserId]);
+
+      // Delete student_progress
+      await queryWithClient(client, `
+        DELETE FROM student_progress WHERE student_id = $1
+      `, [targetUserId]);
+
+      // Delete student_content_assignments
+      await queryWithClient(client, `
+        DELETE FROM student_content_assignments WHERE student_id = $1
+      `, [targetUserId]);
+
+      // Remove from enrollments
+      await queryWithClient(client, `
+        DELETE FROM subject_enrollments WHERE student_id = $1
+      `, [targetUserId]);
+
+      // Remove from session_students
+      await queryWithClient(client, `
+        DELETE FROM session_students WHERE student_id = $1
+      `, [targetUserId]);
+
+      // Remove from subject_teacher_students
+      await queryWithClient(client, `
+        DELETE FROM subject_teacher_students WHERE student_id = $1
+      `, [targetUserId]);
+    }
+
+    // ── 3. Clean up references where this user assigned/enrolled others ─
+    // These have ON DELETE SET NULL or we need to handle them
+    // Update assigned_by references in user_roles to super admin
+    await queryWithClient(client, `
+      UPDATE user_roles SET assigned_by = $1 WHERE assigned_by = $2
+    `, [superAdminId, targetUserId]);
+
+    // Update enrolled_by references
+    await queryWithClient(client, `
+      UPDATE subject_enrollments SET enrolled_by = $1 WHERE enrolled_by = $2
+    `, [superAdminId, targetUserId]);
+
+    // Update assigned_by in subject_teachers
+    await queryWithClient(client, `
+      UPDATE subject_teachers SET assigned_by = $1 WHERE assigned_by = $2
+    `, [superAdminId, targetUserId]);
+
+    // Update assigned_by in subject_teacher_students
+    await queryWithClient(client, `
+      UPDATE subject_teacher_students SET assigned_by = $1 WHERE assigned_by = $2
+    `, [superAdminId, targetUserId]);
+
+    // Update assigned_by in student_content_assignments
+    await queryWithClient(client, `
+      UPDATE student_content_assignments SET assigned_by = $1 WHERE assigned_by = $2
+    `, [superAdminId, targetUserId]);
+
+    // Update granted_by in quiz_write_permissions
+    await queryWithClient(client, `
+      UPDATE quiz_write_permissions SET granted_by = $1 WHERE granted_by = $2
+    `, [superAdminId, targetUserId]);
+
+    // Update graded_by in assignment_submissions
+    await queryWithClient(client, `
+      UPDATE assignment_submissions SET graded_by = $1 WHERE graded_by = $2
+    `, [superAdminId, targetUserId]);
+
+    // Update created_by references for courses, subjects, topics (admin-created stuff)
+    await queryWithClient(client, `
+      UPDATE courses SET created_by = $1 WHERE created_by = $2
+    `, [superAdminId, targetUserId]);
+    await queryWithClient(client, `
+      UPDATE subjects SET created_by = $1 WHERE created_by = $2
+    `, [superAdminId, targetUserId]);
+    await queryWithClient(client, `
+      UPDATE topics SET created_by = $1 WHERE created_by = $2
+    `, [superAdminId, targetUserId]);
+
+    // ── 4. Delete user_roles and then the user ──────────────────────
+    await queryWithClient(client, `
+      DELETE FROM user_roles WHERE user_id = $1
+    `, [targetUserId]);
+
+    await queryWithClient(client, `
+      DELETE FROM users WHERE id = $1
+    `, [targetUserId]);
+
+    // ── 5. Delete storage files (outside transaction for safety) ─────
+    // We'll do this after the transaction commits
+    return { deletedFiles: filesToDelete.length };
+  }).then(async (result) => {
+    // Delete files from storage after transaction succeeds
+    if (filesToDelete.length > 0) {
+      try {
+        await deleteFilesByUrls(filesToDelete);
+        logger.info(`[hardDelete] Deleted ${filesToDelete.length} files for user ${targetUserId}`);
+      } catch (err) {
+        logger.error(`[hardDelete] Failed to delete some files for user ${targetUserId}:`, err);
+      }
+    }
+    return result;
+  });
 }

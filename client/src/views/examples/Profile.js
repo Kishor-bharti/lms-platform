@@ -217,55 +217,58 @@ export default function Profile() {
                     </button>
                   </Form>
 
-                  <hr style={{ margin: '28px 0', borderColor: '#eef2f7' }} />
-
-                  {/* Password change */}
-                  <Form onSubmit={handlePasswordChange}>
-                    <h6 className="profile-section-label">Change Password</h6>
-                    <Row>
-                      <Col lg="4">
-                        <FormGroup>
-                          <Label className="profile-field-label">Current Password</Label>
-                          <Input
-                            className="profile-input"
-                            type="password"
-                            value={pwForm.current_password}
-                            onChange={(e) => setPwForm({ ...pwForm, current_password: e.target.value })}
-                            placeholder="Current password"
-                          />
-                        </FormGroup>
-                      </Col>
-                      <Col lg="4">
-                        <FormGroup>
-                          <Label className="profile-field-label">New Password</Label>
-                          <Input
-                            className="profile-input"
-                            type="password"
-                            value={pwForm.new_password}
-                            onChange={(e) => setPwForm({ ...pwForm, new_password: e.target.value })}
-                            placeholder="Min 6 characters"
-                          />
-                        </FormGroup>
-                      </Col>
-                      <Col lg="4">
-                        <FormGroup>
-                          <Label className="profile-field-label">Confirm New Password</Label>
-                          <Input
-                            className="profile-input"
-                            type="password"
-                            value={pwForm.confirm}
-                            onChange={(e) => setPwForm({ ...pwForm, confirm: e.target.value })}
-                            placeholder="Repeat new password"
-                          />
-                        </FormGroup>
-                      </Col>
-                    </Row>
-                    {pwMsg && <div className="profile-success-msg"><i className="ni ni-check-bold mr-2" />{pwMsg}</div>}
-                    {pwErr && <div className="profile-error-msg"><i className="ni ni-fat-remove mr-2" />{pwErr}</div>}
-                    <button className="profile-pw-btn" type="submit" disabled={pwSaving}>
-                      {pwSaving ? 'Changing...' : 'Change Password'}
-                    </button>
-                  </Form>
+                  {/* Password change — only visible to super admin */}
+                  {profile?.is_super_admin && (
+                    <>
+                      <hr style={{ margin: '28px 0', borderColor: '#eef2f7' }} />
+                      <Form onSubmit={handlePasswordChange}>
+                        <h6 className="profile-section-label">Change Password</h6>
+                        <Row>
+                          <Col lg="4">
+                            <FormGroup>
+                              <Label className="profile-field-label">Current Password</Label>
+                              <Input
+                                className="profile-input"
+                                type="password"
+                                value={pwForm.current_password}
+                                onChange={(e) => setPwForm({ ...pwForm, current_password: e.target.value })}
+                                placeholder="Current password"
+                              />
+                            </FormGroup>
+                          </Col>
+                          <Col lg="4">
+                            <FormGroup>
+                              <Label className="profile-field-label">New Password</Label>
+                              <Input
+                                className="profile-input"
+                                type="password"
+                                value={pwForm.new_password}
+                                onChange={(e) => setPwForm({ ...pwForm, new_password: e.target.value })}
+                                placeholder="Min 6 characters"
+                              />
+                            </FormGroup>
+                          </Col>
+                          <Col lg="4">
+                            <FormGroup>
+                              <Label className="profile-field-label">Confirm New Password</Label>
+                              <Input
+                                className="profile-input"
+                                type="password"
+                                value={pwForm.confirm}
+                                onChange={(e) => setPwForm({ ...pwForm, confirm: e.target.value })}
+                                placeholder="Repeat new password"
+                              />
+                            </FormGroup>
+                          </Col>
+                        </Row>
+                        {pwMsg && <div className="profile-success-msg"><i className="ni ni-check-bold mr-2" />{pwMsg}</div>}
+                        {pwErr && <div className="profile-error-msg"><i className="ni ni-fat-remove mr-2" />{pwErr}</div>}
+                        <button className="profile-pw-btn" type="submit" disabled={pwSaving}>
+                          {pwSaving ? 'Changing...' : 'Change Password'}
+                        </button>
+                      </Form>
+                    </>
+                  )}
                 </CardBody>
               </Card>
             </div>

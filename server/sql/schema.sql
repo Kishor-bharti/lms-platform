@@ -32,17 +32,19 @@ CREATE TABLE roles (
 INSERT INTO roles VALUES (1,'admin'),(2,'teacher'),(3,'student');
 
 CREATE TABLE users (
-  id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-  email         VARCHAR(150) NOT NULL UNIQUE,
-  password_hash VARCHAR(255) NOT NULL,
-  first_name    VARCHAR(100) NOT NULL,
-  last_name     VARCHAR(100) NOT NULL,
-  phone         VARCHAR(20),
-  avatar_url    TEXT,
-  is_active     BOOLEAN      NOT NULL DEFAULT TRUE,
-  last_login_at TIMESTAMPTZ,
-  created_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
-  updated_at    TIMESTAMPTZ  NOT NULL DEFAULT now()
+  id             UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  email          VARCHAR(150) NOT NULL UNIQUE,
+  password_hash  VARCHAR(255) NOT NULL,
+  first_name     VARCHAR(100) NOT NULL,
+  last_name      VARCHAR(100) NOT NULL,
+  phone          VARCHAR(20),
+  avatar_url     TEXT,
+  description    TEXT,
+  is_active      BOOLEAN      NOT NULL DEFAULT TRUE,
+  is_super_admin BOOLEAN      NOT NULL DEFAULT FALSE,
+  last_login_at  TIMESTAMPTZ,
+  created_at     TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  updated_at     TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
 CREATE TABLE user_roles (
@@ -396,6 +398,8 @@ CREATE UNIQUE INDEX idx_one_correct_per_question
 -- Identity
 CREATE INDEX idx_users_email     ON users(email);
 CREATE INDEX idx_users_is_active ON users(is_active);
+-- Only one super admin can exist
+CREATE UNIQUE INDEX idx_single_super_admin ON users(is_super_admin) WHERE is_super_admin = TRUE;
 
 -- Course & Enrollment
 CREATE INDEX idx_subject_teachers_teacher  ON subject_teachers(teacher_id);

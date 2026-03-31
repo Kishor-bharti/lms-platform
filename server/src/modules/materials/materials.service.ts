@@ -1,4 +1,7 @@
 import { query } from '../../config/db';
+import { moveFileBetweenBuckets } from '../../utils/storage';
+import { env } from '../../config/env';
+import logger from '../../config/logger';
 
 export interface Material {
   id: string;
@@ -97,6 +100,20 @@ export async function updateMaterial(
 }
 
 export async function publishMaterial(materialId: string, published: boolean): Promise<void> {
+  // When publishing, move file from temp-uploads to portal-assets
+  if (published) {
+    const rows = await query<any>(`SELECT file_url FROM subject_materials WHERE id = $1`, [materialId]);
+    if (rows[0]?.file_url) {
+      try {
+        const newUrl = await moveFileBetweenBuckets(rows[0].file_url, env.SUPABASE_PORTAL_BUCKET);
+        if (newUrl && newUrl !== rows[0].file_url) {
+          await query(`UPDATE subject_materials SET file_url = $1 WHERE id = $2`, [newUrl, materialId]);
+        }
+      } catch (err) {
+        logger.warn('[materials] Failed to move file on publish, continuing with original URL:', err);
+      }
+    }
+  }
   await query(
     `UPDATE subject_materials SET is_published = $1, updated_at = now() WHERE id = $2`,
     [published, materialId]

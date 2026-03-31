@@ -1,4 +1,7 @@
 import { query } from '../../config/db';
+import { moveFileBetweenBuckets } from '../../utils/storage';
+import { env } from '../../config/env';
+import logger from '../../config/logger';
 
 export interface AssignmentSummary {
   id: string;
@@ -266,6 +269,20 @@ export async function updateAssignment(
 // ---- Teacher: publish/unpublish ----
 
 export async function setAssignmentPublished(assignmentId: string, published: boolean): Promise<void> {
+  // When publishing, move attachment from temp-uploads to portal-assets
+  if (published) {
+    const rows = await query<any>(`SELECT attachment_url FROM assignments WHERE id = $1`, [assignmentId]);
+    if (rows[0]?.attachment_url) {
+      try {
+        const newUrl = await moveFileBetweenBuckets(rows[0].attachment_url, env.SUPABASE_PORTAL_BUCKET);
+        if (newUrl && newUrl !== rows[0].attachment_url) {
+          await query(`UPDATE assignments SET attachment_url = $1 WHERE id = $2`, [newUrl, assignmentId]);
+        }
+      } catch (err) {
+        logger.warn('[assignments] Failed to move file on publish, continuing with original URL:', err);
+      }
+    }
+  }
   await query(`UPDATE assignments SET is_published=$1, updated_at=now() WHERE id=$2`, [published, assignmentId]);
 }
 

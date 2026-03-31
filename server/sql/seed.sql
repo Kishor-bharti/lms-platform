@@ -30,8 +30,8 @@ DECLARE
 BEGIN
 
   -- ── ADMIN ───────────────────────────────────────────────────
-  INSERT INTO users (id, email, password_hash, first_name, last_name, is_active)
-  VALUES (gen_random_uuid(), 'admin@10xaccel.com', v_admin_hash, 'Super', 'Admin', TRUE)
+  INSERT INTO users (id, email, password_hash, first_name, last_name, is_active, is_super_admin, description)
+  VALUES (gen_random_uuid(), 'admin@10xaccel.com', v_admin_hash, 'Super', 'Admin', TRUE, TRUE, 'Platform super administrator')
   ON CONFLICT (email) DO NOTHING;
 
   SELECT id INTO v_admin_id FROM users WHERE email = 'admin@10xaccel.com';
