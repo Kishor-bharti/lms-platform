@@ -697,7 +697,7 @@ export default function SubjectTeacher() {
 
   const canStartSession = (s) => {
     if (['COMPLETED', 'MISSED'].includes(s.status)) return false;
-    return (new Date(s.scheduled_at) - Date.now()) / 60000 <= 5;
+    return (new Date(s.scheduled_at) - Date.now()) / 60000 <= 30;
   };
 
   const navSessionDate = (offset) => {
@@ -1063,7 +1063,7 @@ export default function SubjectTeacher() {
                                 <Button size="sm"
                                   color={isStartable ? 'success' : 'secondary'}
                                   disabled={!isStartable || startingSession === s.id}
-                                  title={isStartable ? 'Start this session' : 'Available 5 min before start time'}
+                                  title={isStartable ? 'Start this session' : 'Available 30 min before start time'}
                                   style={{ borderRadius: 8, fontWeight: 700, opacity: isStartable ? 1 : 0.55, cursor: isStartable ? 'pointer' : 'not-allowed' }}
                                   onClick={() => { if (isStartable) handleStart(s.id); }}>
                                   {startingSession === s.id ? '...' : 'Start Session'}

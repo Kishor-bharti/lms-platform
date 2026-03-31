@@ -43,7 +43,7 @@ function calculateSessionStatus(
   const sessionInstant = new Date(`${session_date}T${timePart}${tzOffset}`);
   if (Number.isNaN(sessionInstant.getTime())) return 'SCHEDULED';
 
-  const gracePeriodMs = 10 * 60 * 1000;
+  const gracePeriodMs = 20 * 60 * 1000;
   if (now.getTime() > sessionInstant.getTime() + gracePeriodMs) return 'MISSED';
 
   const todayKey = dateKeyInTz(now);
@@ -545,14 +545,14 @@ export async function startSessionById(
     if (existing.status === 'live')   throw new Error('Session is already LIVE');
     if (existing.status === 'missed') throw new Error('Session was missed');
 
-    // Teachers may only start a session from 5 minutes before its scheduled time.
+    // Teachers may only start a session from 30 minutes before its scheduled time.
     // Admins bypass this restriction.
     if (role !== 'admin') {
       const tz       = existing.start_time.match(/[+-]\d{2}:\d{2}$/)?.[0] ?? '+05:30';
       const timePart = existing.start_time.slice(0, 8);
       const scheduledMs = new Date(`${existing.session_date}T${timePart}${tz}`).getTime();
-      const FIVE_MIN_MS = 5 * 60 * 1000;
-      if (Date.now() < scheduledMs - FIVE_MIN_MS) {
+      const THIRTY_MIN_MS = 30 * 60 * 1000;
+      if (Date.now() < scheduledMs - THIRTY_MIN_MS) {
         const minsLeft = Math.ceil((scheduledMs - Date.now()) / 60000);
         throw Object.assign(new Error('TOO_EARLY'), { minsLeft });
       }
