@@ -140,7 +140,8 @@ describe('assignment.service', () => {
         is_late: false, marks_awarded: null, feedback: null, status: 'submitted',
       };
       mockQuery
-        .mockResolvedValueOnce([{ due_date: futureDue }]) // SELECT assignment
+        .mockResolvedValueOnce([{ effective_due_date: futureDue }]) // SELECT assignment
+        .mockResolvedValueOnce([])                         // SELECT existing submission
         .mockResolvedValueOnce([resultRow]);               // UPSERT submission
 
       const result = await submitAssignment({ assignmentId: 'a-uuid', studentId: 'student-uuid' });
@@ -157,13 +158,14 @@ describe('assignment.service', () => {
         is_late: true, marks_awarded: null, feedback: null, status: 'submitted',
       };
       mockQuery
-        .mockResolvedValueOnce([{ due_date: pastDue }])
+        .mockResolvedValueOnce([{ effective_due_date: pastDue }])
+        .mockResolvedValueOnce([])                         // SELECT existing submission
         .mockResolvedValueOnce([resultRow]);
 
       const result = await submitAssignment({ assignmentId: 'a-uuid', studentId: 'student-uuid' });
 
       // is_late is determined by the service and passed to the query
-      const insertParams = (mockQuery.mock.calls[1] as any[])[1] as any[];
+      const insertParams = (mockQuery.mock.calls[2] as any[])[1] as any[];
       expect(insertParams[4]).toBe(true); // is_late parameter
     });
 
