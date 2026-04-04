@@ -1,4 +1,5 @@
 import { query, withTransaction, queryWithClient } from '../../config/db';
+import { signFileFields } from '../../utils/storage';
 
 // ---- Types ----
 
@@ -246,20 +247,20 @@ export async function getQuizWithQuestions(quizId: string, role: string): Promis
   const optsByQuestion = new Map<string, Option[]>();
   for (const o of optionRows) {
     if (!optsByQuestion.has(o.question_id)) optsByQuestion.set(o.question_id, []);
-    optsByQuestion.get(o.question_id)!.push({
+    optsByQuestion.get(o.question_id)!.push(await signFileFields({
       id: o.id,
       option_label: o.option_label,
       option_text: o.option_text ?? null,
       option_image_url: o.option_image_url ?? null,
       ...(role === 'teacher' || role === 'admin' ? { is_correct: o.is_correct } : {}),
-    });
+    }, ['option_image_url']));
   }
 
   return {
     ...quiz,
     question_count: Number(quiz.question_count),
     passing_score: quiz.passing_score ? Number(quiz.passing_score) : null,
-    questions: questionRows.map((q: any) => ({
+    questions: await Promise.all(questionRows.map(async (q: any) => signFileFields({
       id: q.id,
       question_text: q.question_text,
       image_url: q.image_url,
@@ -271,7 +272,7 @@ export async function getQuizWithQuestions(quizId: string, role: string): Promis
       topic_id: q.topic_id ?? null,
       topic_name: q.topic_name ?? null,
       options: optsByQuestion.get(q.id) ?? [],
-    })),
+    }, ['image_url', 'explanation_image_url']))),
   };
 }
 
@@ -493,12 +494,12 @@ export async function partialSubmitPractice(data: {
       for (const s of selRows) selMap.set(s.id, s);
     }
 
-    const reviewAnswers = data.answers.map((ans) => {
+    const reviewAnswers = await Promise.all(data.answers.map(async (ans) => {
       const correct = correctMap.get(ans.question_id) as any;
       if (!correct) return null;
       const sel = ans.selected_option_id ? selMap.get(ans.selected_option_id) : null;
       const isCorrect = ans.selected_option_id === correct.correct_option_id;
-      return {
+      return signFileFields({
         question_id: ans.question_id,
         question_text: correct.question_text,
         image_url: correct.image_url,
@@ -517,10 +518,11 @@ export async function partialSubmitPractice(data: {
         is_correct: isCorrect,
         marks_awarded: isCorrect ? Number(correct.marks) : 0,
         total_marks: Number(correct.marks),
-      };
-    }).filter((x): x is NonNullable<typeof x> => x !== null);
+      }, ['image_url', 'explanation_image_url', 'selected_image_url', 'correct_image_url']);
+    }));
+    const filteredReviewAnswers = reviewAnswers.filter((x): x is NonNullable<typeof x> => x !== null);
 
-    return { answeredCount: data.answers.length, correctCount, marksObtained, partialTotalMarks, scorePct, reviewAnswers };
+    return { answeredCount: data.answers.length, correctCount, marksObtained, partialTotalMarks, scorePct, reviewAnswers: filteredReviewAnswers };
   });
 }
 
@@ -665,9 +667,13 @@ export async function getAttemptResult(attemptId: string, studentId: string) {
     ORDER BY q.order_index
   `, [attemptId]);
 
+  const signedAnswers = await Promise.all(answerRows.map((a: any) =>
+    signFileFields(a, ['image_url', 'explanation_image_url', 'selected_image_url', 'correct_image_url'])
+  ));
+
   return {
     attempt,
-    answers: answerRows,
+    answers: signedAnswers,
   };
 }
 

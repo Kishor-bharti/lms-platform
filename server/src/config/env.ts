@@ -26,8 +26,9 @@ export const env = {
     .filter(Boolean),
 
   // Supabase Storage
-  SUPABASE_URL_PUBLIC:        process.env.SUPABASE_URL_PUBLIC        || '',
-  SUPABASE_ANON_KEY:          process.env.SUPABASE_ANON_KEY          || '',
+  SUPABASE_URL_PUBLIC:          process.env.SUPABASE_URL_PUBLIC          || '',
+  SUPABASE_ANON_KEY:            process.env.SUPABASE_ANON_KEY            || '',
+  SUPABASE_SERVICE_ROLE_KEY:    process.env.SUPABASE_SERVICE_ROLE_KEY    || '',
   SUPABASE_PORTAL_BUCKET: process.env.SUPABASE_PORTAL_BUCKET || 'portal-assets',
   SUPABASE_TEMP_BUCKET:   process.env.SUPABASE_TEMP_BUCKET   || 'temp-uploads',
 

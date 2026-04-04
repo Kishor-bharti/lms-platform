@@ -1,4 +1,5 @@
 import { query } from '../../config/db';
+import { signFileFields } from '../../utils/storage';
 
 export interface StudentUpload {
   id: string;
@@ -44,13 +45,16 @@ export async function getUploads(
     LEFT JOIN users ut ON ut.id = su.teacher_id
     LEFT JOIN topics t ON t.id = su.topic_id`;
 
+  const FILE_FIELDS: (keyof StudentUpload)[] = ['file_url', 'feedback_file_url'];
+
   if (role === 'admin') {
-    return query<any>(`SELECT ${cols} ${joins} WHERE su.subject_id = $1 ORDER BY su.created_at DESC`, [subjectId]);
+    const rows = await query<any>(`SELECT ${cols} ${joins} WHERE su.subject_id = $1 ORDER BY su.created_at DESC`, [subjectId]);
+    return Promise.all(rows.map((r: any) => signFileFields(r, FILE_FIELDS)));
   }
 
   // Teacher: uploads from their assigned students where
   // either the student sent it to this teacher specifically, or to no specific teacher (shared)
-  return query<any>(`
+  const rows = await query<any>(`
     SELECT ${cols} ${joins}
     WHERE su.subject_id = $1
       AND (su.teacher_id = $2 OR su.teacher_id IS NULL)
@@ -60,6 +64,7 @@ export async function getUploads(
       )
     ORDER BY su.created_at DESC
   `, [subjectId, userId]);
+  return Promise.all(rows.map((r: any) => signFileFields(r, FILE_FIELDS)));
 }
 
 // ---- Student: get own uploads for a subject ----
@@ -68,7 +73,7 @@ export async function getMyUploads(
   subjectId: string,
   studentId: string
 ): Promise<StudentUpload[]> {
-  return query<any>(`
+  const rows = await query<any>(`
     SELECT
       su.id, su.subject_id, su.student_id, su.teacher_id,
       ut.first_name || ' ' || ut.last_name AS teacher_name,
@@ -81,6 +86,7 @@ export async function getMyUploads(
     WHERE su.subject_id = $1 AND su.student_id = $2
     ORDER BY su.created_at DESC
   `, [subjectId, studentId]);
+  return Promise.all(rows.map((r: any) => signFileFields(r, ['file_url', 'feedback_file_url'])));
 }
 
 // ---- Student: create an upload ----
@@ -105,7 +111,7 @@ export async function createUpload(data: {
     data.title, data.description ?? null, data.file_url, data.file_name ?? null,
   ]);
 
-  return rows[0];
+  return signFileFields(rows[0], ['file_url']);
 }
 
 // ---- Teacher/Admin: add feedback to an upload ----
@@ -127,7 +133,7 @@ export async function addFeedback(
                 feedback_text, feedback_file_url, created_at
     `, [feedbackText ?? null, feedbackFileUrl ?? null, uploadId]);
     if (!rows[0]) throw new Error('FORBIDDEN');
-    return rows[0];
+    return signFileFields(rows[0], ['file_url', 'feedback_file_url']);
   }
 
   // Teacher can only give feedback on their students' uploads
@@ -145,7 +151,7 @@ export async function addFeedback(
   `, [feedbackText ?? null, feedbackFileUrl ?? null, teacherId, uploadId]);
 
   if (!rows[0]) throw new Error('FORBIDDEN');
-  return rows[0];
+  return signFileFields(rows[0], ['file_url', 'feedback_file_url']);
 }
 
 // ---- Student: delete own upload ----

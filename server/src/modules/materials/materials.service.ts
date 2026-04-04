@@ -1,5 +1,5 @@
 import { query } from '../../config/db';
-import { moveFileBetweenBuckets } from '../../utils/storage';
+import { moveFileBetweenBuckets, signFileFields } from '../../utils/storage';
 import { env } from '../../config/env';
 import logger from '../../config/logger';
 
@@ -66,7 +66,7 @@ export async function getMaterials(
     ORDER BY sm.order_index, sm.created_at
   `, params);
 
-  return rows;
+  return Promise.all(rows.map((r: any) => signFileFields(r, ['file_url'])));
 }
 
 export async function updateMaterial(
@@ -96,7 +96,7 @@ export async function updateMaterial(
   `, params);
 
   if (!rows[0]) throw new Error('NOT_FOUND');
-  return rows[0];
+  return signFileFields(rows[0], ['file_url']);
 }
 
 export async function publishMaterial(materialId: string, published: boolean): Promise<void> {
@@ -152,7 +152,7 @@ export async function addMaterial(data: {
     `SELECT first_name || ' ' || last_name AS name FROM users WHERE id = $1`, [data.uploadedBy]
   );
 
-  return { ...rows[0], uploader_name: uploaderRows[0]?.name ?? 'Teacher' };
+  return signFileFields({ ...rows[0], uploader_name: uploaderRows[0]?.name ?? 'Teacher' }, ['file_url']);
 }
 
 export async function deleteMaterial(materialId: string, requesterId: string): Promise<void> {

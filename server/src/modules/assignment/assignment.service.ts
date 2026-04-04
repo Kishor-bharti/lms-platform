@@ -1,5 +1,5 @@
 import { query } from '../../config/db';
-import { moveFileBetweenBuckets } from '../../utils/storage';
+import { moveFileBetweenBuckets, signFileFields } from '../../utils/storage';
 import { env } from '../../config/env';
 import logger from '../../config/logger';
 
@@ -102,12 +102,12 @@ export async function getAssignmentsBySubject(
 
   const rows = await query<any>(sql, params);
 
-  return rows.map((r: any) => ({
+  return Promise.all(rows.map(async (r: any) => signFileFields({
     ...r,
     max_marks: Number(r.max_marks),
     submission_count: Number(r.submission_count),
     duration_days: r.duration_days ? Number(r.duration_days) : null,
-  }));
+  }, ['attachment_url'])));
 }
 
 // ---- Student: get assignments with my submission status ----
@@ -152,24 +152,27 @@ export async function getStudentAssignments(
     ORDER BY a.due_date ASC NULLS LAST
   `, [subjectId, studentId]);
 
-  return rows.map((r: any) => ({
-    id: r.id,
-    subject_id: r.subject_id,
-    topic_id: r.topic_id ?? null,
-    topic_name: r.topic_name ?? null,
-    title: r.title,
-    description: r.description,
-    due_date: r.student_due_date ?? r.due_date,
-    duration_days: r.duration_days ? Number(r.duration_days) : null,
-    max_marks: Number(r.max_marks),
-    is_published: r.is_published,
-    attachment_url: r.attachment_url,
-    created_at: r.created_at,
-    created_by: r.created_by,
-    creator_name: r.creator_name,
-    student_assigned_at: r.student_assigned_at,
-    assigned_by_name: r.assigned_by_name,
-    my_submission: r.sub_id ? {
+  return Promise.all(rows.map(async (r: any) => {
+    const assignment = await signFileFields({
+      id: r.id,
+      subject_id: r.subject_id,
+      topic_id: r.topic_id ?? null,
+      topic_name: r.topic_name ?? null,
+      title: r.title,
+      description: r.description,
+      due_date: r.student_due_date ?? r.due_date,
+      duration_days: r.duration_days ? Number(r.duration_days) : null,
+      max_marks: Number(r.max_marks),
+      is_published: r.is_published,
+      attachment_url: r.attachment_url,
+      created_at: r.created_at,
+      created_by: r.created_by,
+      creator_name: r.creator_name,
+      student_assigned_at: r.student_assigned_at,
+      assigned_by_name: r.assigned_by_name,
+    }, ['attachment_url']);
+
+    const my_submission = r.sub_id ? await signFileFields({
       id: r.sub_id,
       assignment_id: r.id,
       student_id: studentId,
@@ -181,7 +184,9 @@ export async function getStudentAssignments(
       feedback: r.feedback,
       feedback_file_url: r.feedback_file_url ?? null,
       status: r.sub_status,
-    } : null,
+    }, ['submission_url', 'feedback_file_url']) : null;
+
+    return { ...assignment, my_submission };
   }));
 }
 
@@ -211,7 +216,7 @@ export async function createAssignment(data: {
     data.topicId ?? null, data.assignedTo ?? null,
   ]);
 
-  return { ...rows[0], max_marks: Number(rows[0].max_marks), submission_count: 0, due_date: null };
+  return signFileFields({ ...rows[0], max_marks: Number(rows[0].max_marks), submission_count: 0, due_date: null }, ['attachment_url']);
 }
 
 // ---- Teacher/Admin: update assignment ----
@@ -263,7 +268,7 @@ export async function updateAssignment(
   `, params);
 
   if (!rows[0]) throw new Error('FORBIDDEN');
-  return { ...rows[0], max_marks: Number(rows[0].max_marks) };
+  return signFileFields({ ...rows[0], max_marks: Number(rows[0].max_marks) }, ['attachment_url']);
 }
 
 // ---- Teacher: publish/unpublish ----
@@ -350,10 +355,10 @@ export async function getSubmissions(assignmentId: string, teacherId?: string): 
 
   const rows = await query<any>(sql, params);
 
-  return rows.map((r: any) => ({
+  return Promise.all(rows.map(async (r: any) => signFileFields({
     ...r,
     marks_awarded: r.marks_awarded ? Number(r.marks_awarded) : null,
-  }));
+  }, ['submission_url', 'feedback_file_url'])));
 }
 
 // ---- Student: submit assignment ----
@@ -404,7 +409,7 @@ export async function submitAssignment(data: {
   `, [data.assignmentId, data.studentId, data.submission_url ?? null,
       data.notes ?? null, isLate]);
 
-  return rows[0];
+  return signFileFields(rows[0], ['submission_url']);
 }
 
 // ---- Teacher: grade a submission ----
@@ -430,5 +435,5 @@ export async function gradeSubmission(data: {
   `, [data.marks_awarded, data.feedback ?? null, data.feedback_file_url ?? null, data.graderId, data.submissionId]);
 
   if (!rows[0]) throw new Error('Submission not found');
-  return rows[0];
+  return signFileFields(rows[0], ['submission_url', 'feedback_file_url']);
 }
