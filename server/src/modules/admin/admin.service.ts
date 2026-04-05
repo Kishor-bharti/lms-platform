@@ -1,6 +1,6 @@
 import { query, withTransaction, queryWithClient } from '../../config/db';
 import { hashPassword, comparePassword } from '../../utils/password';
-import { deleteFilesByUrls, parseStorageUrl } from '../../utils/storage';
+import { deleteFilesByUrls } from '../../utils/storage';
 import logger from '../../config/logger';
 
 // ---- Types ----
@@ -254,6 +254,166 @@ export async function createCourse(data: {
   `, [data.name, data.code.toUpperCase(), data.description ?? null, data.adminId]);
 
   return { ...rows[0], subject_count: 0 };
+}
+
+export async function updateCourse(courseId: string, data: { name?: string; code?: string; description?: string | null; is_active?: boolean }): Promise<AdminCourse> {
+  const sets: string[] = [];
+  const params: any[] = [];
+  let idx = 1;
+
+  if (data.name !== undefined) {
+    sets.push(`name = $${idx++}`);
+    params.push(data.name);
+  }
+  if (data.code !== undefined) {
+    sets.push(`code = $${idx++}`);
+    params.push(data.code.toUpperCase());
+  }
+  if (data.description !== undefined) {
+    sets.push(`description = $${idx++}`);
+    params.push(data.description ?? null);
+  }
+  if (data.is_active !== undefined) {
+    sets.push(`is_active = $${idx++}`);
+    params.push(data.is_active);
+  }
+
+  if (sets.length === 0) throw new Error('NOTHING_TO_UPDATE');
+
+  params.push(courseId);
+  const rows = await query<any>(`
+    UPDATE courses
+    SET ${sets.join(', ')}, updated_at = now()
+    WHERE id = $${idx}
+    RETURNING id, name, code, description, is_active, created_at
+  `, params);
+
+  if (!rows[0]) throw new Error('COURSE_NOT_FOUND');
+
+  const subjectRows = await query<any>(
+    `SELECT COUNT(*) AS subject_count FROM subjects WHERE course_id = $1 AND is_active = true`,
+    [courseId]
+  );
+
+  return {
+    ...rows[0],
+    subject_count: Number(subjectRows[0]?.subject_count ?? 0),
+  };
+}
+
+export async function hardDeleteCourse(courseId: string): Promise<{ deletedFiles: number }> {
+  const courseRows = await query<any>(`SELECT id, name FROM courses WHERE id = $1`, [courseId]);
+  if (!courseRows[0]) throw new Error('COURSE_NOT_FOUND');
+
+  const filesToDelete = new Set<string>();
+
+  return withTransaction(async (client) => {
+    const subjectRows = await queryWithClient<any>(client, `
+      SELECT id FROM subjects WHERE course_id = $1
+    `, [courseId]);
+    const subjectIds = subjectRows.map((row: any) => row.id);
+
+    const quizRows = await queryWithClient<any>(client, `
+      SELECT id
+      FROM quizzes
+      WHERE course_id = $1
+         OR (array_length($2::uuid[], 1) IS NOT NULL AND subject_id = ANY($2::uuid[]))
+    `, [courseId, subjectIds]);
+    const quizIds = quizRows.map((row: any) => row.id);
+
+    const questionRows = quizIds.length > 0
+      ? await queryWithClient<any>(client, `
+          SELECT id, image_url, explanation_image_url FROM questions WHERE quiz_id = ANY($1::uuid[])
+        `, [quizIds])
+      : [];
+    const questionIds = questionRows.map((row: any) => row.id);
+
+    if (subjectIds.length > 0) {
+      const materialRows = await queryWithClient<any>(client, `
+        SELECT file_url FROM subject_materials WHERE subject_id = ANY($1::uuid[])
+      `, [subjectIds]);
+      materialRows.forEach((row: any) => { if (row.file_url) filesToDelete.add(row.file_url); });
+
+      const uploadRows = await queryWithClient<any>(client, `
+        SELECT file_url, feedback_file_url FROM student_uploads WHERE subject_id = ANY($1::uuid[])
+      `, [subjectIds]);
+      uploadRows.forEach((row: any) => {
+        if (row.file_url) filesToDelete.add(row.file_url);
+        if (row.feedback_file_url) filesToDelete.add(row.feedback_file_url);
+      });
+
+      const assignmentRows = await queryWithClient<any>(client, `
+        SELECT id, attachment_url FROM assignments WHERE subject_id = ANY($1::uuid[])
+      `, [subjectIds]);
+      assignmentRows.forEach((row: any) => { if (row.attachment_url) filesToDelete.add(row.attachment_url); });
+
+      const submissionRows = assignmentRows.length > 0
+        ? await queryWithClient<any>(client, `
+            SELECT submission_url, feedback_file_url
+            FROM assignment_submissions
+            WHERE assignment_id = ANY($1::uuid[])
+          `, [assignmentRows.map((row: any) => row.id)])
+        : [];
+      submissionRows.forEach((row: any) => {
+        if (row.submission_url) filesToDelete.add(row.submission_url);
+        if (row.feedback_file_url) filesToDelete.add(row.feedback_file_url);
+      });
+
+      const sessionRows = await queryWithClient<any>(client, `
+        SELECT id, recurrence_id, recording_url
+        FROM sessions
+        WHERE subject_id = ANY($1::uuid[])
+      `, [subjectIds]);
+      sessionRows.forEach((row: any) => { if (row.recording_url) filesToDelete.add(row.recording_url); });
+
+      const recurrenceIds = Array.from(new Set(sessionRows.map((row: any) => row.recurrence_id).filter(Boolean)));
+
+      const quizImageRows = questionRows.length > 0
+        ? await queryWithClient<any>(client, `
+            SELECT option_image_url FROM options WHERE question_id = ANY($1::uuid[]) AND option_image_url IS NOT NULL
+          `, [questionIds])
+        : [];
+      questionRows.forEach((row: any) => {
+        if (row.image_url) filesToDelete.add(row.image_url);
+        if (row.explanation_image_url) filesToDelete.add(row.explanation_image_url);
+      });
+      quizImageRows.forEach((row: any) => { if (row.option_image_url) filesToDelete.add(row.option_image_url); });
+
+      if (questionIds.length > 0) {
+        await queryWithClient(client, `
+          DELETE FROM attempt_answers
+          WHERE question_id = ANY($1::uuid[])
+        `, [questionIds]);
+      }
+
+      if (recurrenceIds.length > 0) {
+        await queryWithClient(client, `
+          DELETE FROM session_students WHERE session_id IN (
+            SELECT id FROM sessions WHERE recurrence_id = ANY($1::uuid[])
+          )
+        `, [recurrenceIds]);
+      }
+    }
+
+    await queryWithClient(client, `DELETE FROM courses WHERE id = $1`, [courseId]);
+
+    if (subjectIds.length > 0) {
+      await queryWithClient(client, `
+        DELETE FROM session_recurrence sr
+        WHERE NOT EXISTS (
+          SELECT 1 FROM sessions s WHERE s.recurrence_id = sr.id
+        )
+      `);
+    }
+
+    return { deletedFiles: filesToDelete.size };
+  }).then(async (result) => {
+    if (filesToDelete.size > 0) {
+      await deleteFilesByUrls(Array.from(filesToDelete));
+      logger.info(`[hardDeleteCourse] Deleted ${filesToDelete.size} files for course ${courseId}`);
+    }
+    return result;
+  });
 }
 
 // ---- Subjects ----
@@ -1086,7 +1246,7 @@ export async function hardDeleteUser(targetUserId: string, superAdminId: string)
   const isTeacher = roles.includes('teacher');
 
   // Collect file URLs to delete from storage
-  const filesToDelete: string[] = [];
+  const filesToDelete = new Set<string>();
 
   return withTransaction(async (client) => {
     // ── 1. Collect & handle teacher-specific content ──────────────────
@@ -1115,17 +1275,24 @@ export async function hardDeleteUser(targetUserId: string, superAdminId: string)
         WHERE created_by = $2 AND quiz_id IN (SELECT id FROM quizzes WHERE is_published = true)
       `, [superAdminId, targetUserId]);
 
+      // Extra safety: if any published question remains with this teacher as creator,
+      // transfer ownership regardless of quiz flags to avoid FK failures on user delete.
+      await queryWithClient(client, `
+        UPDATE questions SET created_by = $1
+        WHERE created_by = $2
+      `, [superAdminId, targetUserId]);
+
       // Collect unpublished material file URLs before deleting
       const unpubMaterials = await queryWithClient<any>(client, `
         SELECT file_url FROM subject_materials WHERE uploaded_by = $1 AND is_published = false
       `, [targetUserId]);
-      unpubMaterials.forEach((m: any) => { if (m.file_url) filesToDelete.push(m.file_url); });
+      unpubMaterials.forEach((m: any) => { if (m.file_url) filesToDelete.add(m.file_url); });
 
       // Collect unpublished assignment attachment URLs
       const unpubAssignments = await queryWithClient<any>(client, `
         SELECT attachment_url FROM assignments WHERE created_by = $1 AND is_published = false
       `, [targetUserId]);
-      unpubAssignments.forEach((a: any) => { if (a.attachment_url) filesToDelete.push(a.attachment_url); });
+      unpubAssignments.forEach((a: any) => { if (a.attachment_url) filesToDelete.add(a.attachment_url); });
 
       // Collect unpublished quiz question images
       const unpubQuizImages = await queryWithClient<any>(client, `
@@ -1135,8 +1302,8 @@ export async function hardDeleteUser(targetUserId: string, superAdminId: string)
         WHERE q.created_by = $1 AND qz.is_published = false
       `, [targetUserId]);
       unpubQuizImages.forEach((q: any) => {
-        if (q.image_url) filesToDelete.push(q.image_url);
-        if (q.explanation_image_url) filesToDelete.push(q.explanation_image_url);
+        if (q.image_url) filesToDelete.add(q.image_url);
+        if (q.explanation_image_url) filesToDelete.add(q.explanation_image_url);
       });
 
       // Collect unpublished quiz question option images
@@ -1147,7 +1314,17 @@ export async function hardDeleteUser(targetUserId: string, superAdminId: string)
         JOIN quizzes qz ON qz.id = q.quiz_id
         WHERE q.created_by = $1 AND qz.is_published = false AND o.option_image_url IS NOT NULL
       `, [targetUserId]);
-      unpubOptionImages.forEach((o: any) => { if (o.option_image_url) filesToDelete.push(o.option_image_url); });
+      unpubOptionImages.forEach((o: any) => { if (o.option_image_url) filesToDelete.add(o.option_image_url); });
+
+      // Collect session recording URLs before deleting sessions
+      const teacherSessionsWithFiles = await queryWithClient<any>(client, `
+        SELECT recording_url, recurrence_id
+        FROM sessions
+        WHERE teacher_id = $1
+      `, [targetUserId]);
+      teacherSessionsWithFiles.forEach((s: any) => {
+        if (s.recording_url) filesToDelete.add(s.recording_url);
+      });
 
       // Delete unpublished materials
       await queryWithClient(client, `
@@ -1185,6 +1362,14 @@ export async function hardDeleteUser(targetUserId: string, superAdminId: string)
         await queryWithClient(client, `
           DELETE FROM sessions WHERE teacher_id = $1
         `, [targetUserId]);
+
+        // Remove orphan recurrence rows
+        await queryWithClient(client, `
+          DELETE FROM session_recurrence sr
+          WHERE NOT EXISTS (
+            SELECT 1 FROM sessions s WHERE s.recurrence_id = sr.id
+          )
+        `);
       }
 
       // Remove from subject_teachers, subject_teacher_students
@@ -1208,8 +1393,8 @@ export async function hardDeleteUser(targetUserId: string, superAdminId: string)
         SELECT file_url, feedback_file_url FROM student_uploads WHERE student_id = $1
       `, [targetUserId]);
       studentUploads.forEach((u: any) => {
-        if (u.file_url) filesToDelete.push(u.file_url);
-        if (u.feedback_file_url) filesToDelete.push(u.feedback_file_url);
+        if (u.file_url) filesToDelete.add(u.file_url);
+        if (u.feedback_file_url) filesToDelete.add(u.feedback_file_url);
       });
 
       // Collect assignment submission file URLs
@@ -1217,8 +1402,8 @@ export async function hardDeleteUser(targetUserId: string, superAdminId: string)
         SELECT submission_url, feedback_file_url FROM assignment_submissions WHERE student_id = $1
       `, [targetUserId]);
       submissions.forEach((s: any) => {
-        if (s.submission_url) filesToDelete.push(s.submission_url);
-        if (s.feedback_file_url) filesToDelete.push(s.feedback_file_url);
+        if (s.submission_url) filesToDelete.add(s.submission_url);
+        if (s.feedback_file_url) filesToDelete.add(s.feedback_file_url);
       });
 
       // Delete attempt_answers for this student
@@ -1328,13 +1513,13 @@ export async function hardDeleteUser(targetUserId: string, superAdminId: string)
 
     // ── 5. Delete storage files (outside transaction for safety) ─────
     // We'll do this after the transaction commits
-    return { deletedFiles: filesToDelete.length };
+    return { deletedFiles: filesToDelete.size };
   }).then(async (result) => {
     // Delete files from storage after transaction succeeds
-    if (filesToDelete.length > 0) {
+    if (filesToDelete.size > 0) {
       try {
-        await deleteFilesByUrls(filesToDelete);
-        logger.info(`[hardDelete] Deleted ${filesToDelete.length} files for user ${targetUserId}`);
+        await deleteFilesByUrls(Array.from(filesToDelete));
+        logger.info(`[hardDelete] Deleted ${filesToDelete.size} files for user ${targetUserId}`);
       } catch (err) {
         logger.error(`[hardDelete] Failed to delete some files for user ${targetUserId}:`, err);
       }

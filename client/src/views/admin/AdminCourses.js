@@ -8,6 +8,10 @@ import Header from 'components/Headers/Header.js';
 import http from 'utils/http';
 import { CourseCardSkeleton } from 'components/Skeleton.js';
 
+function getCurrentUser() {
+  try { return JSON.parse(window.localStorage.getItem('user') || '{}'); } catch { return {}; }
+}
+
 export default function AdminCourses() {
   const [courses,    setCourses]    = useState([]);
   const [loading,    setLoading]    = useState(true);
@@ -15,6 +19,15 @@ export default function AdminCourses() {
   const [submitting, setSubmitting] = useState(false);
   const [formError,  setFormError]  = useState('');
   const [form, setForm] = useState({ name: '', code: '', description: '' });
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
+  const currentUser = getCurrentUser();
+  const isSuperAdmin = currentUser.isSuperAdmin === true;
 
   useEffect(() => { fetchCourses(); }, []);
 
@@ -47,6 +60,40 @@ export default function AdminCourses() {
       setFormError(err?.response?.data?.error || 'Failed to create course');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const openHardDelete = (course) => {
+    setDeleteTarget(course);
+    setDeletePassword('');
+    setDeleteConfirmText('');
+    setDeleteError('');
+    setDeleteOpen(true);
+  };
+
+  const handleHardDelete = async () => {
+    setDeleteError('');
+    const normalized = (deleteConfirmText || '').trim().toLowerCase();
+    if (normalized !== 'yes i want to delete' && normalized !== 'yes i want to proceed') {
+      setDeleteError('Type exactly: "Yes I want to delete" or "Yes I want to proceed"');
+      return;
+    }
+    if (!deletePassword) {
+      setDeleteError('Your super admin password is required');
+      return;
+    }
+
+    setDeleteSubmitting(true);
+    try {
+      await http.delete(`/api/admin/courses/${deleteTarget.id}/hard-delete`, {
+        data: { password: deletePassword },
+      });
+      setDeleteOpen(false);
+      fetchCourses();
+    } catch (err) {
+      setDeleteError(err?.response?.data?.error || 'Failed to hard delete course');
+    } finally {
+      setDeleteSubmitting(false);
     }
   };
 
@@ -107,6 +154,13 @@ export default function AdminCourses() {
                               {c.subject_count} {c.subject_count === 1 ? 'subject' : 'subjects'}
                             </span>
                           </div>
+                          {isSuperAdmin && (
+                            <div className="mt-3" style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                              <Button color="danger" size="sm" style={{ borderRadius: 8 }} onClick={() => openHardDelete(c)}>
+                                Hard Delete
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       </Col>
                     ))}
@@ -156,6 +210,63 @@ export default function AdminCourses() {
               {submitting ? 'Creating...' : 'Create Course'}
             </Button>
             <Button color="link" onClick={() => setModalOpen(false)}>Cancel</Button>
+          </ModalFooter>
+        </Modal>
+
+        {/* Hard Delete Course Modal */}
+        <Modal isOpen={deleteOpen} toggle={() => setDeleteOpen(false)} centered>
+          <ModalHeader toggle={() => setDeleteOpen(false)} style={{ background: '#fde8ec' }}>
+            <span style={{ color: '#f5365c' }}>Permanently Delete Course</span>
+          </ModalHeader>
+          <ModalBody>
+            <div style={{ background: '#f8d7da', border: '1px solid #f5c6cb', borderRadius: 8, padding: '12px 16px', marginBottom: 16, fontSize: 13 }}>
+              <strong>WARNING:</strong> This action is irreversible.
+              <div style={{ marginTop: 8 }}>
+                If you hard delete <strong>{deleteTarget?.name}</strong>, all linked data will be permanently removed:
+                <ul style={{ marginTop: 8, marginBottom: 0, paddingLeft: 18 }}>
+                  <li>Subjects and topics</li>
+                  <li>Quizzes, questions, options and practice/test sets</li>
+                  <li>Published and unpublished assignments + submissions</li>
+                  <li>Published and unpublished materials</li>
+                  <li>Student uploads and feedback files</li>
+                  <li>Teacher/student allocations and enrollments</li>
+                  <li>Sessions and related recurrence links</li>
+                </ul>
+              </div>
+            </div>
+
+            <FormGroup>
+              <Label style={{ fontWeight: 700 }}>
+                Type <strong>Yes I want to delete</strong> or <strong>Yes I want to proceed</strong>
+              </Label>
+              <Input
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder="Yes I want to delete"
+              />
+            </FormGroup>
+
+            <FormGroup>
+              <Label style={{ fontWeight: 700 }}>Confirm Super Admin Password *</Label>
+              <Input
+                type="password"
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+                placeholder="Enter your super admin password"
+              />
+            </FormGroup>
+
+            {deleteError && (
+              <div style={{ background: '#fde8ec', border: '1px solid #f8c4cf', borderRadius: 8, padding: '8px 12px', color: '#f5365c', fontWeight: 600, fontSize: 13 }}>
+                {deleteError}
+              </div>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button color="danger" disabled={deleteSubmitting} onClick={handleHardDelete}>
+              {deleteSubmitting ? 'Deleting...' : 'Yes I want to delete'}
+            </Button>
+            <Button color="link" onClick={() => setDeleteOpen(false)}>Cancel</Button>
           </ModalFooter>
         </Modal>
       </Container>

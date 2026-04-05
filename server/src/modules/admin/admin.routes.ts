@@ -30,6 +30,8 @@ router.delete('/users/:userId/hard-delete', adminController.hardDeleteUser);
 // Courses
 router.get('/courses', adminController.getCourses);
 router.post('/courses', adminController.createCourse);
+router.patch('/courses/:courseId', adminController.updateCourse);
+router.delete('/courses/:courseId/hard-delete', adminController.hardDeleteCourse);
 
 // Subjects
 router.get('/subjects', adminController.getSubjects);

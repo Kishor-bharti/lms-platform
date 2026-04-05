@@ -1,5 +1,5 @@
 import { query } from '../../config/db';
-import { moveFileBetweenBuckets, signFileFields } from '../../utils/storage';
+import { deleteFilesByUrls, moveFileBetweenBuckets, signFileFields } from '../../utils/storage';
 import { env } from '../../config/env';
 import logger from '../../config/logger';
 
@@ -294,6 +294,20 @@ export async function setAssignmentPublished(assignmentId: string, published: bo
 // ---- Teacher/Admin: delete assignment (creator or admin only) ----
 
 export async function deleteAssignment(assignmentId: string, requesterId: string): Promise<void> {
+  const fileRows = await query<any>(`
+    SELECT a.attachment_url, s.submission_url, s.feedback_file_url
+    FROM assignments a
+    LEFT JOIN assignment_submissions s ON s.assignment_id = a.id
+    WHERE a.id = $1
+  `, [assignmentId]);
+
+  const filesToDelete = new Set<string>();
+  for (const row of fileRows) {
+    if (row.attachment_url) filesToDelete.add(row.attachment_url);
+    if (row.submission_url) filesToDelete.add(row.submission_url);
+    if (row.feedback_file_url) filesToDelete.add(row.feedback_file_url);
+  }
+
   const result = await query<any>(`
     DELETE FROM assignments
     WHERE id = $1
@@ -308,6 +322,10 @@ export async function deleteAssignment(assignmentId: string, requesterId: string
   `, [assignmentId, requesterId]);
 
   if (!result[0]) throw new Error('FORBIDDEN');
+
+  if (filesToDelete.size > 0) {
+    await deleteFilesByUrls(Array.from(filesToDelete));
+  }
 }
 
 // ---- Teacher: get all submissions for an assignment ----

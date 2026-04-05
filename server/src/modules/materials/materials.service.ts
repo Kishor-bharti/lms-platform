@@ -1,5 +1,5 @@
 import { query } from '../../config/db';
-import { moveFileBetweenBuckets, signFileFields } from '../../utils/storage';
+import { deleteFilesByUrls, moveFileBetweenBuckets, signFileFields } from '../../utils/storage';
 import { env } from '../../config/env';
 import logger from '../../config/logger';
 
@@ -156,6 +156,7 @@ export async function addMaterial(data: {
 }
 
 export async function deleteMaterial(materialId: string, requesterId: string): Promise<void> {
+  const fileRows = await query<any>(`SELECT file_url FROM subject_materials WHERE id = $1`, [materialId]);
   // Soft-delete: teachers can only delete their own drafts; published content requires admin
   const result = await query<any>(`
     UPDATE subject_materials SET is_active = false, updated_at = now()
@@ -171,6 +172,10 @@ export async function deleteMaterial(materialId: string, requesterId: string): P
   `, [materialId, requesterId]);
 
   if (!result[0]) throw new Error('FORBIDDEN');
+
+  if (fileRows[0]?.file_url) {
+    await deleteFilesByUrls([fileRows[0].file_url]);
+  }
 }
 
 export async function reorderMaterials(subjectId: string, orderedIds: string[]): Promise<void> {

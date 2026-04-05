@@ -1,5 +1,5 @@
 import { query } from '../../config/db';
-import { signFileFields } from '../../utils/storage';
+import { deleteFilesByUrls, signFileFields } from '../../utils/storage';
 
 export interface StudentUpload {
   id: string;
@@ -157,11 +157,41 @@ export async function addFeedback(
 // ---- Student: delete own upload ----
 
 export async function deleteUpload(uploadId: string, studentId: string): Promise<void> {
+  const fileRows = await query<any>(`
+    SELECT file_url, feedback_file_url FROM student_uploads WHERE id = $1 AND student_id = $2
+  `, [uploadId, studentId]);
+
   const result = await query<any>(
     `DELETE FROM student_uploads WHERE id = $1 AND student_id = $2 RETURNING id`,
     [uploadId, studentId]
   );
   if (!result[0]) throw new Error('FORBIDDEN');
+
+  const filesToDelete = new Set<string>();
+  if (fileRows[0]?.file_url) filesToDelete.add(fileRows[0].file_url);
+  if (fileRows[0]?.feedback_file_url) filesToDelete.add(fileRows[0].feedback_file_url);
+  if (filesToDelete.size > 0) {
+    await deleteFilesByUrls(Array.from(filesToDelete));
+  }
+}
+
+export async function deleteUploadAsAdmin(uploadId: string): Promise<void> {
+  const fileRows = await query<any>(`
+    SELECT file_url, feedback_file_url FROM student_uploads WHERE id = $1
+  `, [uploadId]);
+
+  const result = await query<any>(
+    `DELETE FROM student_uploads WHERE id = $1 RETURNING id`,
+    [uploadId]
+  );
+  if (!result[0]) throw new Error('NOT_FOUND');
+
+  const filesToDelete = new Set<string>();
+  if (fileRows[0]?.file_url) filesToDelete.add(fileRows[0].file_url);
+  if (fileRows[0]?.feedback_file_url) filesToDelete.add(fileRows[0].feedback_file_url);
+  if (filesToDelete.size > 0) {
+    await deleteFilesByUrls(Array.from(filesToDelete));
+  }
 }
 
 // ---- Get teachers assigned to a specific student in a subject ----

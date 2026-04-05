@@ -1,5 +1,5 @@
 import { query, withTransaction, queryWithClient } from '../../config/db';
-import { signFileFields } from '../../utils/storage';
+import { deleteFilesByUrls, signFileFields } from '../../utils/storage';
 
 // ---- Types ----
 
@@ -801,10 +801,28 @@ export async function appendQuestionsToQuiz(
 // ---- Admin: delete quiz (soft delete by marking inactive) ----
 
 export async function deleteQuiz(quizId: string): Promise<void> {
+  const fileRows = await query<any>(`
+    SELECT q.image_url, q.explanation_image_url, o.option_image_url
+    FROM questions q
+    LEFT JOIN options o ON o.question_id = q.id
+    WHERE q.quiz_id = $1
+  `, [quizId]);
+
+  const filesToDelete = new Set<string>();
+  for (const row of fileRows) {
+    if (row.image_url) filesToDelete.add(row.image_url);
+    if (row.explanation_image_url) filesToDelete.add(row.explanation_image_url);
+    if (row.option_image_url) filesToDelete.add(row.option_image_url);
+  }
+
   // First mark questions as inactive
   await query(`UPDATE questions SET is_active = false WHERE quiz_id = $1`, [quizId]);
   // Then mark quiz as inactive and unpublished
   await query(`UPDATE quizzes SET is_published = false, is_active = false WHERE id = $1`, [quizId]);
+
+  if (filesToDelete.size > 0) {
+    await deleteFilesByUrls(Array.from(filesToDelete));
+  }
 }
 
 // ---- Student: get attempt status for all quizzes in a subject ----

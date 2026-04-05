@@ -106,9 +106,7 @@ export async function deleteUpload(req: Request, res: Response) {
     }
 
     if (role === 'admin') {
-      const { query } = await import('../../config/db');
-      const result = await query<any>('DELETE FROM student_uploads WHERE id = $1 RETURNING id', [uploadId]);
-      if (!result[0]) return res.status(404).json({ error: 'Upload not found' });
+      await uploadService.deleteUploadAsAdmin(uploadId);
     } else {
       await uploadService.deleteUpload(uploadId, studentId);
     }

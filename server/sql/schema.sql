@@ -230,7 +230,7 @@ CREATE TABLE quiz_attempts (
 CREATE TABLE attempt_answers (
   id                 UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
   attempt_id         UUID         NOT NULL REFERENCES quiz_attempts(id) ON DELETE CASCADE,
-  question_id        UUID         NOT NULL REFERENCES questions(id),
+  question_id        UUID         NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
   selected_option_id UUID         REFERENCES options(id),
   is_correct         BOOLEAN,
   marks_awarded      NUMERIC(4,2),
@@ -333,6 +333,24 @@ CREATE TABLE sessions (
   CHECK (end_time > start_time),
   CHECK (status IN ('scheduled','live','completed','cancelled','missed'))
 );
+
+CREATE OR REPLACE FUNCTION fn_cleanup_orphan_session_recurrence()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF OLD.recurrence_id IS NOT NULL THEN
+    DELETE FROM session_recurrence sr
+    WHERE sr.id = OLD.recurrence_id
+      AND NOT EXISTS (
+        SELECT 1 FROM sessions s WHERE s.recurrence_id = OLD.recurrence_id
+      );
+  END IF;
+  RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_cleanup_orphan_session_recurrence
+  AFTER DELETE ON sessions
+  FOR EACH ROW EXECUTE FUNCTION fn_cleanup_orphan_session_recurrence();
 
 CREATE TABLE subject_materials (
   id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),

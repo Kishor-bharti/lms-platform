@@ -125,6 +125,45 @@ export async function createCourse(req: Request, res: Response) {
   }
 }
 
+export async function updateCourse(req: Request, res: Response) {
+  try {
+    const { courseId } = req.params;
+    const { name, code, description, is_active } = req.body;
+    if (!courseId) return res.status(400).json({ error: 'courseId is required' });
+    const course = await adminService.updateCourse(courseId, { name, code, description, is_active });
+    return res.json(course);
+  } catch (err: any) {
+    logger.error('[admin] updateCourse:', err);
+    if (err.message === 'COURSE_NOT_FOUND') return res.status(404).json({ error: 'Course not found' });
+    if (err.message === 'NOTHING_TO_UPDATE') return res.status(400).json({ error: 'No fields to update' });
+    return res.status(500).json({ error: 'Failed to update course' });
+  }
+}
+
+export async function hardDeleteCourse(req: Request, res: Response) {
+  try {
+    const adminId = req.user!.id;
+    const { courseId } = req.params;
+    const { password } = req.body;
+
+    if (!courseId) return res.status(400).json({ error: 'courseId is required' });
+    if (!password) return res.status(400).json({ error: 'Admin password is required for confirmation' });
+
+    const isSuper = await adminService.isSuperAdmin(adminId);
+    if (!isSuper) return res.status(403).json({ error: 'Only super admin can permanently delete courses' });
+
+    const valid = await adminService.verifyAdminPassword(adminId, password);
+    if (!valid) return res.status(401).json({ error: 'Incorrect admin password' });
+
+    const result = await adminService.hardDeleteCourse(courseId);
+    return res.json({ success: true, deletedFiles: result.deletedFiles });
+  } catch (err: any) {
+    if (err.message === 'COURSE_NOT_FOUND') return res.status(404).json({ error: 'Course not found' });
+    logger.error('[admin] hardDeleteCourse:', err);
+    return res.status(500).json({ error: err.message || 'Failed to delete course' });
+  }
+}
+
 export async function getSubjects(req: Request, res: Response) {
   try {
     const courseId = req.query.courseId as string | undefined;
