@@ -135,6 +135,8 @@ export default function QuizBuilder() {
     try {
       const formData = new FormData();
       formData.append('image', file);
+      const q = teacherEditMode ? newQuestions[qi] : questions[qi];
+      formData.append('title', (q?.question_text || '').trim() || `question-${qi + 1}`);
       const res = await http.post('/api/upload/quiz-image', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
@@ -158,6 +160,8 @@ export default function QuizBuilder() {
     try {
       const formData = new FormData();
       formData.append('image', file);
+      const q = teacherEditMode ? newQuestions[qi] : questions[qi];
+      formData.append('title', `explanation-${(q?.question_text || '').trim() || `question-${qi + 1}`}`);
       const res = await http.post('/api/upload/quiz-image', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
@@ -182,6 +186,9 @@ export default function QuizBuilder() {
     try {
       const formData = new FormData();
       formData.append('image', file);
+      const q = teacherEditMode ? newQuestions[qi] : questions[qi];
+      const option = q?.options?.[oi];
+      formData.append('title', `option-${option?.label || String.fromCharCode(65 + oi)}-${(q?.question_text || '').trim() || `question-${qi + 1}`}`);
       const res = await http.post('/api/upload/quiz-image', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });

@@ -140,6 +140,7 @@ export default function SubjectStudent() {
     try {
       const fd = new FormData();
       fd.append('file', file);
+      fd.append('title', (submitTarget?.title || '').trim() || file.name.replace(/\.[^.]+$/, ''));
       const res = await http.post('/api/upload/assignment', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
@@ -179,6 +180,7 @@ export default function SubjectStudent() {
     try {
       const fd = new FormData();
       fd.append('file', file);
+      fd.append('title', (uploadForm.title || '').trim() || file.name.replace(/\.[^.]+$/, ''));
       const res = await http.post('/api/upload/assignment', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });

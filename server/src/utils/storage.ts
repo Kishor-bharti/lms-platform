@@ -64,6 +64,83 @@ export function buildStorageRef(bucket: string, path: string): string {
   return `${bucket}/${path}`;
 }
 
+/**
+ * Slugify a free-text title into a safe storage filename segment.
+ */
+export function sanitizeStorageFileName(input: string): string {
+  const cleaned = (input || '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .replace(/[^a-zA-Z0-9\s_-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^[-_]+|[-_]+$/g, '')
+    .toLowerCase();
+
+  return cleaned || 'file';
+}
+
+/**
+ * Extract extension from a storage path.
+ */
+export function getExtensionFromPath(path: string, fallback: string = 'bin'): string {
+  const clean = (path || '').split('?')[0].split('#')[0];
+  const base = clean.split('/').pop() || '';
+  const dot = base.lastIndexOf('.');
+  if (dot <= 0 || dot === base.length - 1) return fallback;
+  return base.slice(dot + 1).toLowerCase();
+}
+
+/**
+ * Build a new path with the same directory and a new base filename.
+ */
+export function replacePathFileName(path: string, newBaseFileName: string): string {
+  const parts = (path || '').split('/');
+  if (parts.length <= 1) return newBaseFileName;
+  parts[parts.length - 1] = newBaseFileName;
+  return parts.join('/');
+}
+
+/**
+ * Rename a stored file to match a new title while preserving bucket and directory.
+ * Returns the updated compact storage ref (`bucket/path`) or null on failure.
+ */
+export async function renameStorageRefToTitle(
+  storedRef: string,
+  title: string,
+  fallbackExt: string = 'bin'
+): Promise<string | null> {
+  const parsed = resolveStorageRef(storedRef);
+  if (!parsed) return null;
+
+  const ext = getExtensionFromPath(parsed.path, fallbackExt);
+  const safeTitle = sanitizeStorageFileName(title);
+  const targetFileName = `${safeTitle}.${ext}`;
+  let targetPath = replacePathFileName(parsed.path, targetFileName);
+
+  if (targetPath === parsed.path) {
+    return buildStorageRef(parsed.bucket, parsed.path);
+  }
+
+  const supabase = getStorageClient();
+  let { error } = await supabase.storage.from(parsed.bucket).move(parsed.path, targetPath);
+
+  if (error) {
+    // If target already exists, keep a readable filename and add timestamp suffix.
+    const stampedName = `${safeTitle}-${Date.now()}.${ext}`;
+    targetPath = replacePathFileName(parsed.path, stampedName);
+    const retry = await supabase.storage.from(parsed.bucket).move(parsed.path, targetPath);
+    error = retry.error;
+    if (error) {
+      logger.error(`[storage] Failed to rename ${parsed.bucket}/${parsed.path} to title "${title}":`, error);
+      return null;
+    }
+  }
+
+  return buildStorageRef(parsed.bucket, targetPath);
+}
+
 // ---------------------------------------------------------------------------
 // Signed URL generation
 // ---------------------------------------------------------------------------

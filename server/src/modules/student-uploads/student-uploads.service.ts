@@ -1,5 +1,5 @@
 import { query } from '../../config/db';
-import { deleteFilesByUrls, signFileFields } from '../../utils/storage';
+import { deleteFilesByUrls, getExtensionFromPath, renameStorageRefToTitle, signFileFields } from '../../utils/storage';
 
 export interface StudentUpload {
   id: string;
@@ -101,6 +101,15 @@ export async function createUpload(data: {
   file_url: string;
   file_name?: string;
 }): Promise<StudentUpload> {
+  let fileRef = data.file_url;
+  if (fileRef) {
+    const renamed = await renameStorageRefToTitle(fileRef, data.title, 'bin');
+    if (renamed) fileRef = renamed;
+  }
+
+  const ext = getExtensionFromPath(fileRef, 'bin');
+  const preferredFileName = `${data.title}.${ext}`;
+
   const rows = await query<any>(`
     INSERT INTO student_uploads
       (subject_id, student_id, teacher_id, topic_id, title, description, file_url, file_name)
@@ -108,7 +117,7 @@ export async function createUpload(data: {
     RETURNING id, subject_id, student_id, teacher_id, topic_id, title, description, file_url, file_name, created_at
   `, [
     data.subjectId, data.studentId, data.teacherId ?? null, data.topicId ?? null,
-    data.title, data.description ?? null, data.file_url, data.file_name ?? null,
+    data.title, data.description ?? null, fileRef, data.file_name ?? preferredFileName,
   ]);
 
   return signFileFields(rows[0], ['file_url']);

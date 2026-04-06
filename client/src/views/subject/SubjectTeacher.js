@@ -303,6 +303,7 @@ export default function SubjectTeacher() {
     try {
       const fd = new FormData();
       fd.append('file', file);
+      fd.append('title', (matForm.title || '').trim() || file.name.replace(/\.[^.]+$/, ''));
       const res = await http.post('/api/upload/assignment', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
@@ -500,6 +501,7 @@ export default function SubjectTeacher() {
     try {
       const fd = new FormData();
       fd.append('file', file);
+      fd.append('title', (assignForm.title || editingAssignment?.title || '').trim() || file.name.replace(/\.[^.]+$/, ''));
       const res = await http.post('/api/upload/assignment', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
@@ -510,7 +512,7 @@ export default function SubjectTeacher() {
     } finally {
       setAssignUploading(false);
     }
-  }, []);
+  }, [assignForm.title, editingAssignment]);
 
   const handleCreateAssignment = async (e) => {
     e.preventDefault(); setAssignError('');
@@ -630,6 +632,7 @@ export default function SubjectTeacher() {
     try {
       const fd = new FormData();
       fd.append('file', file);
+      fd.append('title', `grade-feedback-${viewSubsTitle || 'assignment'}`);
       const res = await http.post('/api/upload/assignment', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
@@ -638,7 +641,7 @@ export default function SubjectTeacher() {
     } catch (err) {
       console.error('Upload failed', err);
     } finally { setGradeUploading(false); }
-  }, []);
+  }, [viewSubsTitle]);
 
   // ---- Topics CRUD ----
   const openCreateTopic = () => {
@@ -730,6 +733,7 @@ export default function SubjectTeacher() {
     try {
       const fd = new FormData();
       fd.append('file', file);
+      fd.append('title', `upload-feedback-${feedbackModal.upload?.title || 'student-work'}`);
       const res = await http.post('/api/upload/assignment', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });

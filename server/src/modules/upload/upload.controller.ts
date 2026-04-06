@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import logger from '../../config/logger';
 import { env } from '../../config/env';
-import { getStorageClient, buildStorageRef, createSignedUrl } from '../../utils/storage';
+import { getStorageClient, buildStorageRef, createSignedUrl, sanitizeStorageFileName } from '../../utils/storage';
 
 export async function uploadAssignmentFile(req: Request, res: Response) {
   try {
@@ -27,8 +27,13 @@ export async function uploadAssignmentFile(req: Request, res: Response) {
     const role = req.user!.role;
     const bucket = role === 'admin' ? env.SUPABASE_PORTAL_BUCKET : env.SUPABASE_TEMP_BUCKET;
     const supabase = getStorageClient();
-    const ext = req.file.originalname.split('.').pop() || 'bin';
-    const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const ext = (req.file.originalname.split('.').pop() || 'bin').toLowerCase();
+    const explicitTitle = typeof req.body?.title === 'string' ? req.body.title : '';
+    const originalBase = req.file.originalname.replace(/\.[^.]+$/, '');
+    const sourceTitle = explicitTitle.trim() || originalBase;
+    const safeBaseName = sanitizeStorageFileName(sourceTitle);
+    const nonce = Math.random().toString(36).slice(2, 10);
+    const filename = `${role}/${Date.now()}-${nonce}/${safeBaseName}.${ext}`;
 
     const { error } = await supabase.storage
       .from(bucket)
@@ -71,8 +76,13 @@ export async function uploadQuizImage(req: Request, res: Response) {
       return res.status(400).json({ error: 'Only jpg/png/gif/webp allowed' });
 
     const supabase = getStorageClient();
-    const ext = req.file.originalname.split('.').pop() || 'jpg';
-    const filename = `quiz-images/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const ext = (req.file.originalname.split('.').pop() || 'jpg').toLowerCase();
+    const explicitTitle = typeof req.body?.title === 'string' ? req.body.title : '';
+    const originalBase = req.file.originalname.replace(/\.[^.]+$/, '');
+    const sourceTitle = explicitTitle.trim() || originalBase;
+    const safeBaseName = sanitizeStorageFileName(sourceTitle);
+    const nonce = Math.random().toString(36).slice(2, 10);
+    const filename = `quiz-images/${Date.now()}-${nonce}/${safeBaseName}.${ext}`;
     const bucket = 'quiz-images';
 
     const { error } = await supabase.storage

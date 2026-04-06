@@ -1,5 +1,5 @@
 import { query } from '../../config/db';
-import { deleteFilesByUrls, moveFileBetweenBuckets, signFileFields } from '../../utils/storage';
+import { deleteFilesByUrls, moveFileBetweenBuckets, renameStorageRefToTitle, signFileFields } from '../../utils/storage';
 import { env } from '../../config/env';
 import logger from '../../config/logger';
 
@@ -73,6 +73,19 @@ export async function updateMaterial(
   materialId: string,
   data: { title?: string; description?: string; material_type?: string; file_url?: string; topicId?: string }
 ): Promise<Material> {
+  const currentRows = await query<any>(`SELECT title, file_url FROM subject_materials WHERE id = $1`, [materialId]);
+  const current = currentRows[0];
+  if (!current) throw new Error('NOT_FOUND');
+
+  let resolvedFileUrl = data.file_url;
+  if (data.title !== undefined && data.title !== current.title) {
+    const candidate = data.file_url ?? current.file_url;
+    if (candidate) {
+      const renamed = await renameStorageRefToTitle(candidate, data.title, 'bin');
+      if (renamed) resolvedFileUrl = renamed;
+    }
+  }
+
   const sets: string[] = [];
   const params: any[] = [];
   let idx = 1;
@@ -80,7 +93,7 @@ export async function updateMaterial(
   if (data.title !== undefined)         { sets.push(`title = $${idx++}`);         params.push(data.title); }
   if (data.description !== undefined)   { sets.push(`description = $${idx++}`);   params.push(data.description || null); }
   if (data.material_type !== undefined) { sets.push(`material_type = $${idx++}`); params.push(data.material_type); }
-  if (data.file_url !== undefined)      { sets.push(`file_url = $${idx++}`);      params.push(data.file_url); }
+  if (resolvedFileUrl !== undefined)    { sets.push(`file_url = $${idx++}`);      params.push(resolvedFileUrl); }
   if (data.topicId !== undefined)       { sets.push(`topic_id = $${idx++}`);      params.push(data.topicId || null); }
 
   if (sets.length === 0) throw new Error('Nothing to update');
@@ -130,6 +143,12 @@ export async function addMaterial(data: {
   file_size_kb?: number;
   topicId?: string;
 }): Promise<Material> {
+  let fileRef = data.file_url;
+  if (fileRef) {
+    const renamed = await renameStorageRefToTitle(fileRef, data.title, 'bin');
+    if (renamed) fileRef = renamed;
+  }
+
   const countRows = await query<any>(
     `SELECT COUNT(*) AS cnt FROM subject_materials WHERE subject_id = $1 AND is_active = true`,
     [data.subjectId]
@@ -144,7 +163,7 @@ export async function addMaterial(data: {
               file_url, file_size_kb, order_index, is_active, created_at
   `, [
     data.subjectId, data.uploadedBy, data.title,
-    data.description ?? null, data.material_type, data.file_url,
+    data.description ?? null, data.material_type, fileRef,
     data.file_size_kb ?? null, nextIndex, data.topicId ?? null,
   ]);
 

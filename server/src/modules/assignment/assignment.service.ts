@@ -1,5 +1,5 @@
 import { query } from '../../config/db';
-import { deleteFilesByUrls, moveFileBetweenBuckets, signFileFields } from '../../utils/storage';
+import { deleteFilesByUrls, moveFileBetweenBuckets, renameStorageRefToTitle, signFileFields } from '../../utils/storage';
 import { env } from '../../config/env';
 import logger from '../../config/logger';
 
@@ -203,6 +203,12 @@ export async function createAssignment(data: {
   topicId?: string;
   assignedTo?: string;
 }): Promise<AssignmentSummary> {
+  let attachmentRef = data.attachment_url ?? null;
+  if (attachmentRef) {
+    const renamed = await renameStorageRefToTitle(attachmentRef, data.title, 'bin');
+    if (renamed) attachmentRef = renamed;
+  }
+
   const rows = await query<any>(`
     INSERT INTO assignments
       (subject_id, created_by, title, description, duration_days, max_marks, attachment_url, topic_id, assigned_to, is_published)
@@ -212,7 +218,7 @@ export async function createAssignment(data: {
   `, [
     data.subjectId, data.createdBy, data.title,
     data.description ?? null, data.duration_days ?? null,
-    data.max_marks ?? 100, data.attachment_url ?? null,
+    data.max_marks ?? 100, attachmentRef,
     data.topicId ?? null, data.assignedTo ?? null,
   ]);
 
@@ -234,6 +240,24 @@ export async function updateAssignment(
     assignedTo?: string | null;
   }
 ): Promise<AssignmentSummary> {
+  const currentRows = await query<any>(
+    `SELECT title, attachment_url FROM assignments WHERE id = $1`,
+    [assignmentId]
+  );
+  const current = currentRows[0];
+  if (!current) throw new Error('FORBIDDEN');
+
+  let resolvedAttachment = data.attachment_url;
+  if (data.title !== undefined && data.title !== current.title) {
+    const candidate = data.attachment_url ?? current.attachment_url;
+    if (candidate) {
+      const renamed = await renameStorageRefToTitle(candidate, data.title, 'bin');
+      if (renamed) {
+        resolvedAttachment = renamed;
+      }
+    }
+  }
+
   // Build dynamic SET clause
   const sets: string[] = [];
   const params: any[] = [];
@@ -243,7 +267,7 @@ export async function updateAssignment(
   if (data.description !== undefined) { sets.push(`description = $${idx++}`); params.push(data.description); }
   if (data.duration_days !== undefined) { sets.push(`duration_days = $${idx++}`); params.push(data.duration_days); }
   if (data.max_marks !== undefined) { sets.push(`max_marks = $${idx++}`); params.push(data.max_marks); }
-  if (data.attachment_url !== undefined) { sets.push(`attachment_url = $${idx++}`); params.push(data.attachment_url); }
+  if (resolvedAttachment !== undefined) { sets.push(`attachment_url = $${idx++}`); params.push(resolvedAttachment); }
   if (data.topicId !== undefined) { sets.push(`topic_id = $${idx++}`); params.push(data.topicId || null); }
   if (data.assignedTo !== undefined) { sets.push(`assigned_to = $${idx++}`); params.push(data.assignedTo || null); }
 
