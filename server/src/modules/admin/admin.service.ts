@@ -624,63 +624,73 @@ export async function updateSubject(
 export async function deleteSubject(subjectId: string): Promise<void> {
   const filesToDelete = new Set<string>();
 
-  // Collect all storage file URLs before the cascade fires and removes the rows
-  const [materialRows, uploadRows, assignmentRows, sessionRows, questionRows] = await Promise.all([
-    query<any>(`SELECT file_url FROM subject_materials WHERE subject_id = $1`, [subjectId]),
-    query<any>(`SELECT file_url, feedback_file_url FROM student_uploads WHERE subject_id = $1`, [subjectId]),
-    query<any>(`SELECT id, attachment_url FROM assignments WHERE subject_id = $1`, [subjectId]),
-    query<any>(`SELECT recording_url FROM sessions WHERE subject_id = $1`, [subjectId]),
-    query<any>(`
-      SELECT q.image_url, q.explanation_image_url
-      FROM questions q
-      JOIN quizzes qz ON qz.id = q.quiz_id
-      WHERE qz.subject_id = $1
-    `, [subjectId]),
-  ]);
+  await withTransaction(async (client) => {
+    // Collect all storage file URLs before the cascade fires and removes the rows
+    const [quizRows, materialRows, uploadRows, assignmentRows, sessionRows] = await Promise.all([
+      queryWithClient<any>(client, `SELECT id FROM quizzes WHERE subject_id = $1`, [subjectId]),
+      queryWithClient<any>(client, `SELECT file_url FROM subject_materials WHERE subject_id = $1`, [subjectId]),
+      queryWithClient<any>(client, `SELECT file_url, feedback_file_url FROM student_uploads WHERE subject_id = $1`, [subjectId]),
+      queryWithClient<any>(client, `SELECT id, attachment_url FROM assignments WHERE subject_id = $1`, [subjectId]),
+      queryWithClient<any>(client, `SELECT recording_url FROM sessions WHERE subject_id = $1`, [subjectId]),
+    ]);
 
-  materialRows.forEach((r: any) => { if (r.file_url) filesToDelete.add(r.file_url); });
-  uploadRows.forEach((r: any) => {
-    if (r.file_url) filesToDelete.add(r.file_url);
-    if (r.feedback_file_url) filesToDelete.add(r.feedback_file_url);
+    const quizIds = quizRows.map((row: any) => row.id);
+    const [questionRows, submissionRows] = await Promise.all([
+      quizIds.length > 0
+        ? queryWithClient<any>(client, `
+            SELECT id, image_url, explanation_image_url
+            FROM questions
+            WHERE quiz_id = ANY($1::uuid[])
+          `, [quizIds])
+        : Promise.resolve([]),
+      assignmentRows.length > 0
+        ? queryWithClient<any>(client, `
+            SELECT submission_url, feedback_file_url
+            FROM assignment_submissions
+            WHERE assignment_id = ANY($1::uuid[])
+          `, [assignmentRows.map((row: any) => row.id)])
+        : Promise.resolve([]),
+    ]);
+
+    const questionIds = questionRows.map((row: any) => row.id);
+    const optionRows = questionIds.length > 0
+      ? await queryWithClient<any>(client, `
+          SELECT option_image_url
+          FROM options
+          WHERE question_id = ANY($1::uuid[]) AND option_image_url IS NOT NULL
+        `, [questionIds])
+      : [];
+
+    materialRows.forEach((r: any) => { if (r.file_url) filesToDelete.add(r.file_url); });
+    uploadRows.forEach((r: any) => {
+      if (r.file_url) filesToDelete.add(r.file_url);
+      if (r.feedback_file_url) filesToDelete.add(r.feedback_file_url);
+    });
+    assignmentRows.forEach((r: any) => { if (r.attachment_url) filesToDelete.add(r.attachment_url); });
+    sessionRows.forEach((r: any) => { if (r.recording_url) filesToDelete.add(r.recording_url); });
+    questionRows.forEach((r: any) => {
+      if (r.image_url) filesToDelete.add(r.image_url);
+      if (r.explanation_image_url) filesToDelete.add(r.explanation_image_url);
+    });
+    submissionRows.forEach((r: any) => {
+      if (r.submission_url) filesToDelete.add(r.submission_url);
+      if (r.feedback_file_url) filesToDelete.add(r.feedback_file_url);
+    });
+    optionRows.forEach((r: any) => {
+      if (r.option_image_url) filesToDelete.add(r.option_image_url);
+    });
+
+    // attempt_answers.question_id has no ON DELETE CASCADE — must clear manually
+    // before the cascade on quizzes→questions fires and blocks the delete
+    if (questionIds.length > 0) {
+      await queryWithClient(client, `
+        DELETE FROM attempt_answers
+        WHERE question_id = ANY($1::uuid[])
+      `, [questionIds]);
+    }
+
+    await queryWithClient(client, `DELETE FROM subjects WHERE id = $1`, [subjectId]);
   });
-  assignmentRows.forEach((r: any) => { if (r.attachment_url) filesToDelete.add(r.attachment_url); });
-  sessionRows.forEach((r: any) => { if (r.recording_url) filesToDelete.add(r.recording_url); });
-  questionRows.forEach((r: any) => {
-    if (r.image_url) filesToDelete.add(r.image_url);
-    if (r.explanation_image_url) filesToDelete.add(r.explanation_image_url);
-  });
-
-  // Collect assignment submission files and quiz option images
-  const assignmentIds = assignmentRows.map((r: any) => r.id);
-  const [submissionRows, questionIds] = await Promise.all([
-    assignmentIds.length > 0
-      ? query<any>(`SELECT submission_url, feedback_file_url FROM assignment_submissions WHERE assignment_id = ANY($1::uuid[])`, [assignmentIds])
-      : Promise.resolve([]),
-    query<any>(`
-      SELECT o.option_image_url
-      FROM options o
-      JOIN questions q ON q.id = o.question_id
-      JOIN quizzes qz ON qz.id = q.quiz_id
-      WHERE qz.subject_id = $1 AND o.option_image_url IS NOT NULL
-    `, [subjectId]),
-  ]);
-
-  submissionRows.forEach((r: any) => {
-    if (r.submission_url) filesToDelete.add(r.submission_url);
-    if (r.feedback_file_url) filesToDelete.add(r.feedback_file_url);
-  });
-  questionIds.forEach((r: any) => { if (r.option_image_url) filesToDelete.add(r.option_image_url); });
-
-  // attempt_answers.question_id has no ON DELETE CASCADE — must clear manually
-  // before the cascade on quizzes→questions fires and blocks the delete
-  await query(`
-    DELETE FROM attempt_answers WHERE question_id IN (
-      SELECT q.id FROM questions q
-      JOIN quizzes qz ON qz.id = q.quiz_id
-      WHERE qz.subject_id = $1
-    )
-  `, [subjectId]);
-  await query(`DELETE FROM subjects WHERE id = $1`, [subjectId]);
 
   if (filesToDelete.size > 0) {
     await deleteFilesByUrls(Array.from(filesToDelete));

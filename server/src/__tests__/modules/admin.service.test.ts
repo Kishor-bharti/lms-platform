@@ -259,27 +259,28 @@ describe('admin.service', () => {
   // ── deleteSubject ───────────────────────────────────────────────────
 
   describe('deleteSubject', () => {
-    it('clears attempt_answers then deletes the subject', async () => {
-      mockQuery
-        // First Promise.all — 5 parallel file-collection queries
-        .mockResolvedValueOnce([])  // subject_materials
-        .mockResolvedValueOnce([])  // student_uploads
-        .mockResolvedValueOnce([])  // assignments (empty → no submission query fires)
-        .mockResolvedValueOnce([])  // sessions
-        .mockResolvedValueOnce([])  // questions
-        // Second Promise.all — option images only (submission query short-circuits when no assignments)
-        .mockResolvedValueOnce([])  // options
-        // Deletes
-        .mockResolvedValueOnce([])  // DELETE attempt_answers
-        .mockResolvedValueOnce([]); // DELETE subjects
+    it('clears attempt_answers and deletes the subject inside a transaction', async () => {
+      mockQueryWithClient
+        .mockResolvedValueOnce([{ id: 'quiz-uuid' }]) // quizzes
+        .mockResolvedValueOnce([])                    // subject_materials
+        .mockResolvedValueOnce([])                    // student_uploads
+        .mockResolvedValueOnce([{ id: 'assignment-uuid', attachment_url: null }]) // assignments
+        .mockResolvedValueOnce([])                    // sessions
+        .mockResolvedValueOnce([{ id: 'question-uuid', image_url: null, explanation_image_url: null }]) // questions
+        .mockResolvedValueOnce([])                    // submission rows
+        .mockResolvedValueOnce([])                    // option rows
+        .mockResolvedValueOnce([])                    // DELETE attempt_answers
+        .mockResolvedValueOnce([]);                   // DELETE subjects
 
       await deleteSubject('sub-uuid');
 
-      expect(mockQuery).toHaveBeenCalledTimes(8);
-      const deleteSql = (mockQuery.mock.calls[6] as any[])[0] as string;
-      expect(deleteSql).toContain('attempt_answers');
-      const subjectSql = (mockQuery.mock.calls[7] as any[])[0] as string;
-      expect(subjectSql).toContain('subjects');
+      expect(mockWithTransaction).toHaveBeenCalled();
+      expect(mockQueryWithClient).toHaveBeenCalledTimes(10);
+
+      const attemptDeleteSql = (mockQueryWithClient.mock.calls[8] as any[])[1] as string;
+      expect(attemptDeleteSql).toContain('attempt_answers');
+      const subjectDeleteSql = (mockQueryWithClient.mock.calls[9] as any[])[1] as string;
+      expect(subjectDeleteSql).toContain('subjects');
     });
   });
 });
