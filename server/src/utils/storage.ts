@@ -24,6 +24,42 @@ export function getStorageClient(): SupabaseClient {
 }
 
 // ---------------------------------------------------------------------------
+// Signed URL in-memory cache
+// ---------------------------------------------------------------------------
+
+interface CacheEntry {
+  url: string;
+  expiresAt: number; // Date.now() ms
+}
+
+/**
+ * Process-level signed URL cache.
+ *
+ * Key format: "bucket\0path\0expiresIn" — null byte prevents bucket/path collisions.
+ * TTL = (expiresIn - 60) seconds so we never serve a URL with less than 60 s of
+ * life left. Entries are evicted proactively on delete and move so we never hand
+ * out a signed URL for a file that no longer exists.
+ *
+ * Why this matters: every signFileFields() call that resolves N file fields makes
+ * N round-trips to Supabase. When 50 students open the same materials page at the
+ * same time that is 50 × N redundant API calls for the exact same URLs. The cache
+ * collapses that to 1 call per unique file within the TTL window.
+ */
+const _signedUrlCache = new Map<string, CacheEntry>();
+
+function _cacheKey(bucket: string, path: string, expiresIn: number): string {
+  return `${bucket}\0${path}\0${expiresIn}`;
+}
+
+/** Remove all cached entries for a given file (any expiresIn variant). */
+function _evictFile(bucket: string, path: string): void {
+  const prefix = `${bucket}\0${path}\0`;
+  for (const key of _signedUrlCache.keys()) {
+    if (key.startsWith(prefix)) _signedUrlCache.delete(key);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Storage reference helpers
 // ---------------------------------------------------------------------------
 
@@ -65,13 +101,14 @@ export function buildStorageRef(bucket: string, path: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Signed URL generation
+// Signed URL generation (with cache)
 // ---------------------------------------------------------------------------
 
 const DEFAULT_SIGNED_URL_EXPIRY = 900; // 15 minutes
 
 /**
  * Generate a signed URL for a stored reference.
+ * Checks the in-memory cache first; calls Supabase only on a cache miss.
  * Returns null if the reference is invalid or signing fails.
  */
 export async function createSignedUrl(
@@ -79,12 +116,23 @@ export async function createSignedUrl(
   path: string,
   expiresIn: number = DEFAULT_SIGNED_URL_EXPIRY
 ): Promise<string | null> {
+  const key = _cacheKey(bucket, path, expiresIn);
+  const cached = _signedUrlCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.url;
+  }
+
   const supabase = getStorageClient();
   const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, expiresIn);
   if (error) {
     logger.error(`[storage] Failed to sign ${bucket}/${path}:`, error);
     return null;
   }
+
+  // Cache for (expiresIn - 60) seconds so the URL is always served with ≥ 60 s left
+  const ttlMs = Math.max(0, expiresIn - 60) * 1000;
+  _signedUrlCache.set(key, { url: data.signedUrl, expiresAt: Date.now() + ttlMs });
+
   return data.signedUrl;
 }
 
@@ -129,6 +177,7 @@ export async function signFileFields<T extends Record<string, any>>(
 /**
  * Move a file from one bucket to another (download + upload + delete).
  * Returns the new storage reference ("bucket/path"), or null on failure.
+ * Evicts the source file's cache entry on success.
  */
 export async function moveFileBetweenBuckets(
   storedRef: string,
@@ -161,7 +210,9 @@ export async function moveFileBetweenBuckets(
     return null;
   }
 
-  // Delete from source
+  // Delete from source — evict cache so the old bucket reference is no longer served
+  _evictFile(parsed.bucket, parsed.path);
+
   const { error: rmErr } = await supabase.storage
     .from(parsed.bucket)
     .remove([parsed.path]);
@@ -175,10 +226,13 @@ export async function moveFileBetweenBuckets(
 
 /**
  * Delete a file from Supabase storage by its stored reference.
+ * Evicts the cache entry so subsequent calls don't return a dead URL.
  */
 export async function deleteFileByUrl(storedRef: string): Promise<boolean> {
   const parsed = resolveStorageRef(storedRef);
   if (!parsed) return false;
+
+  _evictFile(parsed.bucket, parsed.path);
 
   const supabase = getStorageClient();
   const { error } = await supabase.storage.from(parsed.bucket).remove([parsed.path]);
@@ -191,6 +245,7 @@ export async function deleteFileByUrl(storedRef: string): Promise<boolean> {
 
 /**
  * Delete multiple files from Supabase storage by their stored references.
+ * Evicts all affected cache entries before deletion.
  */
 export async function deleteFilesByUrls(refs: string[]): Promise<void> {
   // Group by bucket for efficiency
@@ -199,6 +254,7 @@ export async function deleteFilesByUrls(refs: string[]): Promise<void> {
     if (!ref) continue;
     const parsed = resolveStorageRef(ref);
     if (!parsed) continue;
+    _evictFile(parsed.bucket, parsed.path);
     const list = byBucket.get(parsed.bucket) || [];
     list.push(parsed.path);
     byBucket.set(parsed.bucket, list);

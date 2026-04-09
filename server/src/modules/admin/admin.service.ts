@@ -1248,6 +1248,10 @@ export async function hardDeleteUser(targetUserId: string, superAdminId: string)
   // Collect file URLs to delete from storage
   const filesToDelete = new Set<string>();
 
+  // Collect avatar before entering the transaction
+  const avatarRows = await query<any>(`SELECT avatar_url FROM users WHERE id = $1`, [targetUserId]);
+  if (avatarRows[0]?.avatar_url) filesToDelete.add(avatarRows[0].avatar_url);
+
   return withTransaction(async (client) => {
     // ── 1. Collect & handle teacher-specific content ──────────────────
     if (isTeacher) {
@@ -1500,6 +1504,31 @@ export async function hardDeleteUser(targetUserId: string, superAdminId: string)
     `, [superAdminId, targetUserId]);
     await queryWithClient(client, `
       UPDATE topics SET created_by = $1 WHERE created_by = $2
+    `, [superAdminId, targetUserId]);
+
+    // Transfer any remaining content FK references that are NOT covered by the
+    // teacher block above. This handles two edge cases:
+    //   (a) A student who previously had teacher role, created content, then had
+    //       the role removed — isTeacher is false so the teacher block never ran,
+    //       but the FK references still exist and would block DELETE FROM users.
+    //   (b) Multi-role users where the teacher block ran but left residual rows
+    //       (these UPDATEs become no-ops in that case).
+    // sessions.teacher_id has NO ON DELETE action (defaults to RESTRICT) and is
+    // completely absent from the teacher block's cleanup, so it must be here.
+    await queryWithClient(client, `
+      UPDATE sessions SET teacher_id = $1 WHERE teacher_id = $2
+    `, [superAdminId, targetUserId]);
+    await queryWithClient(client, `
+      UPDATE quizzes SET created_by = $1 WHERE created_by = $2
+    `, [superAdminId, targetUserId]);
+    await queryWithClient(client, `
+      UPDATE assignments SET created_by = $1 WHERE created_by = $2
+    `, [superAdminId, targetUserId]);
+    await queryWithClient(client, `
+      UPDATE subject_materials SET uploaded_by = $1 WHERE uploaded_by = $2
+    `, [superAdminId, targetUserId]);
+    await queryWithClient(client, `
+      UPDATE questions SET created_by = $1 WHERE created_by = $2
     `, [superAdminId, targetUserId]);
 
     // ── 4. Delete user_roles and then the user ──────────────────────
