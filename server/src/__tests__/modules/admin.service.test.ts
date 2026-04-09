@@ -261,16 +261,25 @@ describe('admin.service', () => {
   describe('deleteSubject', () => {
     it('clears attempt_answers then deletes the subject', async () => {
       mockQuery
-        .mockResolvedValueOnce([]) // DELETE attempt_answers
+        // First Promise.all — 5 parallel file-collection queries
+        .mockResolvedValueOnce([])  // subject_materials
+        .mockResolvedValueOnce([])  // student_uploads
+        .mockResolvedValueOnce([])  // assignments (empty → no submission query fires)
+        .mockResolvedValueOnce([])  // sessions
+        .mockResolvedValueOnce([])  // questions
+        // Second Promise.all — option images only (submission query short-circuits when no assignments)
+        .mockResolvedValueOnce([])  // options
+        // Deletes
+        .mockResolvedValueOnce([])  // DELETE attempt_answers
         .mockResolvedValueOnce([]); // DELETE subjects
 
       await deleteSubject('sub-uuid');
 
-      expect(mockQuery).toHaveBeenCalledTimes(2);
-      const firstSql = (mockQuery.mock.calls[0] as any[])[0] as string;
-      expect(firstSql).toContain('attempt_answers');
-      const secondSql = (mockQuery.mock.calls[1] as any[])[0] as string;
-      expect(secondSql).toContain('subjects');
+      expect(mockQuery).toHaveBeenCalledTimes(8);
+      const deleteSql = (mockQuery.mock.calls[6] as any[])[0] as string;
+      expect(deleteSql).toContain('attempt_answers');
+      const subjectSql = (mockQuery.mock.calls[7] as any[])[0] as string;
+      expect(subjectSql).toContain('subjects');
     });
   });
 });

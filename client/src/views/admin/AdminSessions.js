@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { TableSkeleton } from 'components/Skeleton.js';
 import {
   Container, Row, Col, Card, CardHeader, CardBody, CardTitle, Button,
-  Modal, ModalHeader, ModalBody, ModalFooter, Badge,
+  Modal, ModalHeader, ModalBody, ModalFooter,
   Form, FormGroup, Label, Input, FormText,
 } from 'reactstrap';
 import Header from 'components/Headers/Header.js';
