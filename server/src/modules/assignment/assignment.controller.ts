@@ -27,7 +27,7 @@ export async function createAssignment(req: Request, res: Response) {
   try {
     const userId = req.user!.id;
     const role = req.user!.role;
-    const { subjectId, title, description, due_date, max_marks, attachment_url, topicId, assignedTo } = req.body;
+    const { subjectId, title, description, duration_days, max_marks, attachment_url, topicId, assignedTo } = req.body;
     if (!subjectId || !title) {
       return res.status(400).json({ error: 'subjectId and title are required' });
     }
@@ -36,7 +36,7 @@ export async function createAssignment(req: Request, res: Response) {
       return res.status(403).json({ error: 'Insufficient permissions to create assignments in this subject' });
     }
     const assignment = await assignmentService.createAssignment({
-      subjectId, createdBy: userId, title, description, due_date, max_marks, attachment_url, topicId,
+      subjectId, createdBy: userId, title, description, duration_days, max_marks, attachment_url, topicId,
       assignedTo: assignedTo || undefined,
     });
     return res.status(201).json(assignment);
@@ -78,7 +78,9 @@ export async function getSubmissions(req: Request, res: Response) {
     if (!assignmentId) {
       return res.status(400).json({ error: 'assignmentId is required' });
     }
-    const submissions = await assignmentService.getSubmissions(assignmentId);
+    // Teachers only see submissions from their assigned students; admins see all
+    const teacherId = role === 'teacher' ? req.user!.id : undefined;
+    const submissions = await assignmentService.getSubmissions(assignmentId, teacherId);
     return res.json(submissions);
   } catch (err) {
     logger.error('[assignment] getSubmissions:', err);
@@ -100,6 +102,7 @@ export async function submitAssignment(req: Request, res: Response) {
     return res.json(result);
   } catch (err: any) {
     if (err.message === 'Assignment not found') return res.status(404).json({ error: 'Assignment not found' });
+    if (err.message === 'ALREADY_GRADED') return res.status(403).json({ error: 'This assignment has been graded and cannot be edited' });
     logger.error('[assignment] submit:', err);
     return res.status(500).json({ error: 'Failed to submit assignment' });
   }
@@ -116,18 +119,38 @@ export async function gradeSubmission(req: Request, res: Response) {
     if (role !== 'teacher' && role !== 'admin') {
       return res.status(403).json({ error: 'Only teachers can grade submissions' });
     }
-    const { marks_awarded, feedback } = req.body;
+    const { marks_awarded, feedback, feedback_file_url } = req.body;
     if (marks_awarded === undefined || marks_awarded === null) {
       return res.status(400).json({ error: 'marks_awarded is required' });
     }
     const result = await assignmentService.gradeSubmission({
-      submissionId, graderId, marks_awarded: Number(marks_awarded), feedback,
+      submissionId, graderId, marks_awarded: Number(marks_awarded), feedback, feedback_file_url,
     });
     return res.json(result);
   } catch (err: any) {
     if (err.message === 'Submission not found') return res.status(404).json({ error: 'Submission not found' });
     logger.error('[assignment] grade:', err);
     return res.status(500).json({ error: 'Failed to grade submission' });
+  }
+}
+
+export async function updateAssignment(req: Request, res: Response) {
+  try {
+    const assignmentId = req.params.assignmentId as string;
+    const requesterId = req.user!.id;
+    const role = req.user!.role;
+    if (role !== 'admin' && role !== 'teacher') {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    const { title, description, duration_days, max_marks, attachment_url, topicId, assignedTo } = req.body;
+    const updated = await assignmentService.updateAssignment(assignmentId, requesterId, {
+      title, description, duration_days, max_marks, attachment_url, topicId, assignedTo,
+    });
+    return res.json(updated);
+  } catch (err: any) {
+    if (err.message === 'FORBIDDEN') return res.status(403).json({ error: 'You can only edit your own assignments' });
+    logger.error('[assignment] update:', err);
+    return res.status(500).json({ error: err.message || 'Failed to update assignment' });
   }
 }
 

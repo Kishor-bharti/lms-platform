@@ -12,6 +12,7 @@ export interface ContentAssignment {
   assigned_by: string;
   assigner_name: string;
   assigned_at: string;
+  due_date: string | null;
 }
 
 /**
@@ -27,13 +28,27 @@ export async function assignContent(data: {
   studentIds: string[];
   assignedBy: string;
 }): Promise<void> {
+  // For assignments with duration_days, auto-calculate due_date per student
+  let dueDate: string | null = null;
+  if (data.contentType === 'assignment') {
+    const rows = await query<any>(
+      `SELECT duration_days FROM assignments WHERE id = $1`,
+      [data.contentId]
+    );
+    if (rows[0]?.duration_days) {
+      const due = new Date();
+      due.setDate(due.getDate() + rows[0].duration_days);
+      dueDate = due.toISOString();
+    }
+  }
+
   for (const studentId of data.studentIds) {
     await query(
       `INSERT INTO student_content_assignments
-         (subject_id, course_id, content_type, content_id, student_id, assigned_by)
-       VALUES ($1, $2, $3, $4, $5, $6)
+         (subject_id, course_id, content_type, content_id, student_id, assigned_by, due_date)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT (content_type, content_id, student_id) DO NOTHING`,
-      [data.subjectId ?? null, data.courseId ?? null, data.contentType, data.contentId, studentId, data.assignedBy]
+      [data.subjectId ?? null, data.courseId ?? null, data.contentType, data.contentId, studentId, data.assignedBy, dueDate]
     );
   }
 }
@@ -81,7 +96,8 @@ export async function getAssignmentsForCourse(
             u.email AS student_email,
             sca.assigned_by,
             ab.first_name || ' ' || ab.last_name AS assigner_name,
-            sca.assigned_at
+            sca.assigned_at,
+            sca.due_date
      FROM student_content_assignments sca
      JOIN users u  ON u.id  = sca.student_id
      JOIN users ab ON ab.id = sca.assigned_by
@@ -116,7 +132,8 @@ export async function getAssignmentsForContent(
             u.email AS student_email,
             sca.assigned_by,
             ab.first_name || ' ' || ab.last_name AS assigner_name,
-            sca.assigned_at
+            sca.assigned_at,
+            sca.due_date
      FROM student_content_assignments sca
      JOIN users u  ON u.id  = sca.student_id
      JOIN users ab ON ab.id = sca.assigned_by
@@ -131,8 +148,30 @@ export async function getAssignmentsForContent(
  * Get all assignments for a subject (admin / teacher overview).
  */
 export async function getAssignmentsForSubject(
-  subjectId: string
+  subjectId: string,
+  teacherId?: string
 ): Promise<ContentAssignment[]> {
+  if (teacherId) {
+    // Teacher: only see content they assigned
+    const rows = await query<any>(
+      `SELECT sca.id, sca.subject_id, sca.content_type, sca.content_id,
+              sca.student_id,
+              u.first_name || ' ' || u.last_name AS student_name,
+              u.email AS student_email,
+              sca.assigned_by,
+              ab.first_name || ' ' || ab.last_name AS assigner_name,
+              sca.assigned_at,
+              sca.due_date
+       FROM student_content_assignments sca
+       JOIN users u  ON u.id  = sca.student_id
+       JOIN users ab ON ab.id = sca.assigned_by
+       WHERE sca.subject_id = $1 AND sca.assigned_by = $2
+       ORDER BY sca.assigned_at DESC`,
+      [subjectId, teacherId]
+    );
+    return rows;
+  }
+  // Admin: see all
   const rows = await query<any>(
     `SELECT sca.id, sca.subject_id, sca.content_type, sca.content_id,
             sca.student_id,
@@ -140,7 +179,8 @@ export async function getAssignmentsForSubject(
             u.email AS student_email,
             sca.assigned_by,
             ab.first_name || ' ' || ab.last_name AS assigner_name,
-            sca.assigned_at
+            sca.assigned_at,
+            sca.due_date
      FROM student_content_assignments sca
      JOIN users u  ON u.id  = sca.student_id
      JOIN users ab ON ab.id = sca.assigned_by

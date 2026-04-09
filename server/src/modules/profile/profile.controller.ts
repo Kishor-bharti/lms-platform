@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import logger from '../../config/logger';
 import * as profileService from './profile.service';
+import { query } from '../../config/db';
 
 export async function getProfile(req: Request, res: Response) {
   try {
@@ -26,6 +27,12 @@ export async function updateProfile(req: Request, res: Response) {
 
 export async function changePassword(req: Request, res: Response) {
   try {
+    // Only super admin can change their own password via profile
+    const rows = await query<any>(`SELECT is_super_admin FROM users WHERE id = $1`, [req.user!.id]);
+    if (!rows[0]?.is_super_admin) {
+      return res.status(403).json({ error: 'Only the super admin can change passwords. Contact your administrator.' });
+    }
+
     const { current_password, new_password } = req.body;
     if (!current_password || !new_password) {
       return res.status(400).json({ error: 'current_password and new_password required' });

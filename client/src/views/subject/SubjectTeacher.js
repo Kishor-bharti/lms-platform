@@ -82,14 +82,24 @@ export default function SubjectTeacher() {
   const [scheduleError,   setScheduleError]   = useState('');
   const [schedulePreview, setSchedulePreview] = useState([]);
 
-  // Create assignment modal
+  // Assignment filters
+  const [assignFilterTitle,    setAssignFilterTitle]    = useState('');
+  const [assignFilterTopic,    setAssignFilterTopic]    = useState('all');
+  const [assignFilterDuration, setAssignFilterDuration] = useState('all');
+  const [assignFilterStatus,   setAssignFilterStatus]   = useState('all');
+  const [assignFilterCreator,  setAssignFilterCreator]  = useState('all');
+  const [assignFilterStudent,  setAssignFilterStudent]  = useState('all');
+  const [assignFilterAssigned, setAssignFilterAssigned] = useState('all'); // 'all' | 'assigned' | 'not_assigned'
+
+  // Create/Edit assignment modal
   const [assignOpen,      setAssignOpen]      = useState(false);
-  const [assignForm,      setAssignForm]      = useState({ title: '', description: '', due_date: '', max_marks: 100, attachment_url: '', topicId: '', assignedTo: '' });
+  const [assignForm,      setAssignForm]      = useState({ title: '', description: '', duration_days: '', max_marks: 100, attachment_url: '', topicId: '', assignedTo: '' });
   const [assignSaving,    setAssignSaving]    = useState(false);
   const [assignError,     setAssignError]     = useState('');
   const [assignUploading, setAssignUploading] = useState(false);
   const [assignFileName,  setAssignFileName]  = useState('');
   const assignFileRef = useRef(null);
+  const [editingAssignment, setEditingAssignment] = useState(null);
 
   // Subject students + teachers (for 1-on-1 session / assignment targeting)
   const [subjectStudents,  setSubjectStudents]  = useState([]);
@@ -100,9 +110,32 @@ export default function SubjectTeacher() {
   // Materials
   const [materials,    setMaterials]    = useState([]);
   const [matModalOpen, setMatModalOpen] = useState(false);
-  const [matForm,      setMatForm]      = useState({ title: '', description: '', material_type: 'link', file_url: '', topicId: '' });
+  const [matForm,      setMatForm]      = useState({ title: '', description: '', material_type: 'pdf', file_url: '', file_name: '', topicId: '' });
   const [matSaving,    setMatSaving]    = useState(false);
   const [matError,     setMatError]     = useState('');
+  const [matUploading, setMatUploading] = useState(false);
+  const matFileRef = useRef(null);
+  const [editingMaterial, setEditingMaterial] = useState(null);
+  // Material filters
+  const [matFilterTitle,   setMatFilterTitle]   = useState('');
+  const [matFilterType,    setMatFilterType]    = useState('all');
+  const [matFilterTopic,   setMatFilterTopic]   = useState('all');
+  const [matFilterStatus,  setMatFilterStatus]  = useState('all');
+  const [matFilterCreator, setMatFilterCreator] = useState('all');
+
+  // Student Uploads
+  const [studentUploads, setStudentUploads] = useState([]);
+  const [feedbackModal,     setFeedbackModal]     = useState({ open: false, upload: null });
+  const [feedbackForm,      setFeedbackForm]      = useState({ feedback_text: '', feedback_file_url: '' });
+  const [feedbackSaving,    setFeedbackSaving]    = useState(false);
+  const [feedbackUploading, setFeedbackUploading] = useState(false);
+  const [feedbackFileName,  setFeedbackFileName]  = useState('');
+  const feedbackFileRef = useRef(null);
+  const [uploadFilterStudent, setUploadFilterStudent] = useState('all');
+  const [uploadFilterTopic,   setUploadFilterTopic]   = useState('all');
+  const [uploadFilterTeacher, setUploadFilterTeacher] = useState('all'); // admin only
+  const [uploadFilterTitle,   setUploadFilterTitle]   = useState('');
+  const [uploadFilterFeedback, setUploadFilterFeedback] = useState('all'); // 'all' | 'given' | 'pending'
 
   // Preview modals
   const [previewAssign, setPreviewAssign] = useState(null);
@@ -110,9 +143,13 @@ export default function SubjectTeacher() {
 
   // Submissions panel
   const [viewSubs,      setViewSubs]      = useState(null); // assignmentId
+  const [viewSubsTitle, setViewSubsTitle] = useState('');
   const [submissions,   setSubmissions]   = useState([]);
   const [gradingId,     setGradingId]     = useState(null);
-  const [gradeForm,     setGradeForm]     = useState({ marks: '', feedback: '' });
+  const [gradeForm,     setGradeForm]     = useState({ marks: '', feedback: '', feedback_file_url: '' });
+  const [gradeUploading, setGradeUploading] = useState(false);
+  const [gradeFileName,  setGradeFileName]  = useState('');
+  const gradeFileRef = useRef(null);
 
   // Topics
   const [topics,        setTopics]        = useState([]);
@@ -155,7 +192,7 @@ export default function SubjectTeacher() {
 
   const fetchData = async () => {
     try {
-      const [sessRes, classRes, quizRes, assignRes, matRes, topicsRes, studentsRes, teachersRes, caRes] = await Promise.all([
+      const [sessRes, classRes, quizRes, assignRes, matRes, topicsRes, studentsRes, teachersRes, caRes, uploadsRes] = await Promise.all([
         http.get(withTimeZoneQuery('/api/classes/my-sessions-v2')),
         http.get('/api/classes/my-classes-v2'),
         http.get(`/api/quizzes/subject/${subjectId}`),
@@ -165,6 +202,7 @@ export default function SubjectTeacher() {
         http.get(`/api/classes/subjects/${subjectId}/students`),
         http.get(`/api/classes/subjects/${subjectId}/teachers`),
         http.get(`/api/content-assignments/subject/${subjectId}`).catch(() => ({ data: [] })),
+        http.get(`/api/student-uploads/subject/${subjectId}`).catch(() => ({ data: [] })),
       ]);
       setSessions((sessRes.data || []).filter((s) => s.subject_id === subjectId));
       const found = (classRes.data || []).find((c) => c.id === subjectId);
@@ -176,6 +214,7 @@ export default function SubjectTeacher() {
       setSubjectStudents(studentsRes.data || []);
       setSubjectTeachers(teachersRes.data || []);
       setContentAssignments(caRes.data || []);
+      setStudentUploads(uploadsRes.data || []);
       errorCount.current = 0;
     } catch (err) {
       console.error('[SubjectTeacher]', err);
@@ -258,18 +297,55 @@ export default function SubjectTeacher() {
     } finally { setScheduling(false); }
   };
 
+  const handleMatFileUpload = async (file) => {
+    if (!file) return;
+    setMatUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await http.post('/api/upload/assignment', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      // Auto-detect type from extension
+      const ext = (file.name.split('.').pop() || '').toLowerCase();
+      const typeMap = { pdf: 'pdf', doc: 'doc', docx: 'doc', xls: 'doc', xlsx: 'doc', ppt: 'pptx', pptx: 'pptx', jpg: 'image', jpeg: 'image', png: 'image', gif: 'image', webp: 'image', mp4: 'video', webm: 'video', mov: 'video', avi: 'video', zip: 'zip' };
+      const detectedType = typeMap[ext] || 'doc';
+      setMatForm(f => ({ ...f, file_url: res.data.url, file_name: res.data.name || file.name, material_type: detectedType }));
+    } catch (err) {
+      setMatError(err?.response?.data?.error || 'File upload failed');
+    } finally {
+      setMatUploading(false);
+    }
+  };
+
+  const openEditMaterial = (m) => {
+    setEditingMaterial(m);
+    setMatForm({
+      title: m.title || '', description: m.description || '', material_type: m.material_type || 'pdf',
+      file_url: m.file_url || '', file_name: m.file_url ? '(current file)' : '', topicId: m.topic_id || '',
+    });
+    setMatError('');
+    setMatModalOpen(true);
+  };
+
   const handleAddMaterial = async (e) => {
     e.preventDefault(); setMatError('');
-    if (!matForm.title || !matForm.file_url) { setMatError('Title and URL are required'); return; }
+    if (!matForm.title || !matForm.file_url) { setMatError('Title and file are required'); return; }
     if (!matForm.topicId) { setMatError('Topic is required'); return; }
     setMatSaving(true);
     try {
-      await http.post('/api/materials', { subjectId, ...matForm, topicId: matForm.topicId || undefined });
+      const payload = { title: matForm.title, description: matForm.description, material_type: matForm.material_type, file_url: matForm.file_url, topicId: matForm.topicId || undefined };
+      if (editingMaterial) {
+        await http.put(`/api/materials/${editingMaterial.id}`, payload);
+      } else {
+        await http.post('/api/materials', { subjectId, ...payload });
+      }
       setMatModalOpen(false);
-      setMatForm({ title: '', description: '', material_type: 'link', file_url: '', topicId: '' });
+      setEditingMaterial(null);
+      setMatForm({ title: '', description: '', material_type: 'pdf', file_url: '', file_name: '', topicId: '' });
       fetchData();
     } catch (err) {
-      setMatError(err?.response?.data?.error || 'Failed to add material');
+      setMatError(err?.response?.data?.error || 'Failed to save material');
     } finally { setMatSaving(false); }
   };
 
@@ -442,20 +518,45 @@ export default function SubjectTeacher() {
     if (!assignForm.topicId) { setAssignError('Topic is required'); return; }
     setAssignSaving(true);
     try {
-      await http.post('/api/assignments', {
+      const payload = {
         subjectId,
-        ...assignForm,
+        title: assignForm.title,
+        description: assignForm.description,
+        duration_days: assignForm.duration_days ? Number(assignForm.duration_days) : undefined,
         max_marks: Number(assignForm.max_marks),
+        attachment_url: assignForm.attachment_url || undefined,
         topicId: assignForm.topicId || undefined,
         assignedTo: assignForm.assignedTo || undefined,
-      });
+      };
+      if (editingAssignment) {
+        await http.put(`/api/assignments/${editingAssignment.id}`, payload);
+      } else {
+        await http.post('/api/assignments', payload);
+      }
       setAssignOpen(false);
-      setAssignForm({ title: '', description: '', due_date: '', max_marks: 100, attachment_url: '', topicId: '', assignedTo: '' });
+      setEditingAssignment(null);
+      setAssignForm({ title: '', description: '', duration_days: '', max_marks: 100, attachment_url: '', topicId: '', assignedTo: '' });
       setAssignFileName('');
       fetchData();
     } catch (err) {
-      setAssignError(err?.response?.data?.error || 'Failed to create assignment');
+      setAssignError(err?.response?.data?.error || 'Failed to save assignment');
     } finally { setAssignSaving(false); }
+  };
+
+  const openEditAssignment = (a) => {
+    setEditingAssignment(a);
+    setAssignForm({
+      title: a.title || '',
+      description: a.description || '',
+      duration_days: a.duration_days || '',
+      max_marks: a.max_marks || 100,
+      attachment_url: a.attachment_url || '',
+      topicId: a.topic_id || '',
+      assignedTo: a.assigned_to || '',
+    });
+    setAssignFileName(a.attachment_url ? a.attachment_url.split('/').pop() : '');
+    setAssignError('');
+    setAssignOpen(true);
   };
 
   const toggleAssignPublish = async (assignId, current) => {
@@ -505,8 +606,8 @@ export default function SubjectTeacher() {
     } catch (err) { console.error(err); }
   };
 
-  const loadSubmissions = async (assignId) => {
-    setViewSubs(assignId); setGradingId(null);
+  const loadSubmissions = async (assignId, title) => {
+    setViewSubs(assignId); setViewSubsTitle(title || ''); setGradingId(null);
     const res = await http.get(`/api/assignments/${assignId}/submissions`);
     setSubmissions(res.data || []);
   };
@@ -515,11 +616,29 @@ export default function SubjectTeacher() {
     try {
       await http.patch(`/api/assignments/submissions/${subId}/grade`, {
         marks_awarded: Number(gradeForm.marks), feedback: gradeForm.feedback,
+        feedback_file_url: gradeForm.feedback_file_url || undefined,
       });
-      setGradingId(null); setGradeForm({ marks: '', feedback: '' });
+      setGradingId(null); setGradeForm({ marks: '', feedback: '', feedback_file_url: '' });
+      setGradeFileName('');
       loadSubmissions(viewSubs);
     } catch (err) { console.error(err); }
   };
+
+  const handleGradeFileUpload = useCallback(async (file) => {
+    if (!file) return;
+    setGradeUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await http.post('/api/upload/assignment', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setGradeForm(f => ({ ...f, feedback_file_url: res.data.url }));
+      setGradeFileName(res.data.name || file.name);
+    } catch (err) {
+      console.error('Upload failed', err);
+    } finally { setGradeUploading(false); }
+  }, []);
 
   // ---- Topics CRUD ----
   const openCreateTopic = () => {
@@ -578,7 +697,7 @@ export default function SubjectTeacher() {
 
   const canStartSession = (s) => {
     if (['COMPLETED', 'MISSED'].includes(s.status)) return false;
-    return (new Date(s.scheduled_at) - Date.now()) / 60000 <= 5;
+    return (new Date(s.scheduled_at) - Date.now()) / 60000 <= 30;
   };
 
   const navSessionDate = (offset) => {
@@ -598,19 +717,59 @@ export default function SubjectTeacher() {
     .filter(s => !isAdmin || sessTeacherFilter === 'all' || s.teacher_id === sessTeacherFilter)
     .sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
 
+  // ---- Upload feedback handlers ----
+  const openFeedbackModal = (upload) => {
+    setFeedbackModal({ open: true, upload });
+    setFeedbackForm({ feedback_text: upload.feedback_text || '', feedback_file_url: upload.feedback_file_url || '' });
+    setFeedbackFileName(upload.feedback_file_url ? '(existing file)' : '');
+  };
+
+  const handleFeedbackFileUpload = async (file) => {
+    if (!file) return;
+    setFeedbackUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await http.post('/api/upload/assignment', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setFeedbackForm(f => ({ ...f, feedback_file_url: res.data.url }));
+      setFeedbackFileName(res.data.name || file.name);
+    } catch (err) {
+      console.error('Feedback file upload failed', err);
+    } finally {
+      setFeedbackUploading(false);
+    }
+  };
+
+  const handleSubmitFeedback = async () => {
+    if (!feedbackForm.feedback_text && !feedbackForm.feedback_file_url) return;
+    setFeedbackSaving(true);
+    try {
+      await http.patch(`/api/student-uploads/${feedbackModal.upload.id}/feedback`, feedbackForm);
+      setFeedbackModal({ open: false, upload: null });
+      fetchData();
+    } catch (err) {
+      console.error('Failed to save feedback', err);
+    } finally {
+      setFeedbackSaving(false);
+    }
+  };
+
   const TABS = [
-    { key: 'topics',      label: `Topics (${topics.length})` },
-    { key: 'sessions',    label: `Sessions (${sessions.length})` },
-    { key: 'quizzes',     label: `Practice (${quizzes.length})` },
-    { key: 'assignments', label: `Assignments (${assignments.length})` },
-    { key: 'materials',   label: `Materials (${materials.length})` },
+    { key: 'topics',      label: 'Topics',      count: topics.length },
+    { key: 'sessions',    label: 'Sessions',     count: sessions.length },
+    { key: 'quizzes',     label: 'Practice',     count: quizzes.length },
+    { key: 'assignments', label: 'Assignments',  count: assignments.length },
+    { key: 'materials',   label: 'Materials',    count: materials.length },
+    { key: 'uploads',     label: 'Uploads',      count: studentUploads.length },
   ];
 
   if (loading) return (
     <>
       <Header />
-      <Container className="mt--7" fluid style={{ backgroundColor: 'rgb(196,214,226)', minHeight: '100vh', paddingTop: 30 }}>
-        <Row><Col><Card><CardBody className="py-4"><TopicCardSkeleton count={6} /></CardBody></Card></Col></Row>
+      <Container className="mt--7" fluid style={{ backgroundColor: 'rgb(196,214,226)', minHeight: '100vh', paddingTop: 30, paddingBottom: 30 }}>
+        <Row><Col><Card className="shadow" style={{ borderRadius: 14, border: 'none' }}><CardBody className="py-5"><TopicCardSkeleton count={6} /></CardBody></Card></Col></Row>
       </Container>
     </>
   );
@@ -623,38 +782,48 @@ export default function SubjectTeacher() {
         {/* Subject header */}
         <Row className="mb-4">
           <Col>
-            <Card className="shadow" style={{ borderRadius: 12, borderLeft: '5px solid #fb6340' }}>
-              <CardBody>
-                <div className="d-flex align-items-center justify-content-between flex-wrap" style={{ gap: 10 }}>
-                  <div>
-                    <h2 style={{ margin: 0, color: '#32325d' }}>{subject?.title || 'Subject'}</h2>
-                    <div className="text-muted small mt-1">
-                      <span className="mr-3">Course: {subject?.course_name}</span>
-                      <Badge color="light">{subject?.code}</Badge>
+            <Card className="shadow-lg" style={{ borderRadius: 16, overflow: 'hidden', border: 'none' }}>
+              <div style={{ background: 'linear-gradient(135deg, #32325d 0%, #44467a 100%)', padding: '24px 28px 20px' }}>
+                <div className="d-flex align-items-start justify-content-between flex-wrap" style={{ gap: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                    <button onClick={() => navigate(-1)}
+                      style={{ width: 36, height: 36, borderRadius: 10, border: '1px solid rgba(255,255,255,.2)', background: 'rgba(255,255,255,.1)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0, marginTop: 2 }}>
+                      ‹
+                    </button>
+                    <div>
+                      <h2 style={{ margin: 0, color: '#fff', fontSize: 22, fontWeight: 700, letterSpacing: '-0.3px' }}>{subject?.title || 'Subject'}</h2>
+                      <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 13, color: 'rgba(255,255,255,.7)' }}>
+                          {subject?.course_name}
+                        </span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#5e72e4', background: 'rgba(255,255,255,.9)', padding: '2px 10px', borderRadius: 6 }}>
+                          {subject?.code}
+                        </span>
+                        {!isAdmin && (
+                          <span style={{ fontSize: 11, color: 'rgba(255,255,255,.6)', fontWeight: 600 }}>
+                            {teacherPermission === 'write' ? 'Write access' : 'Read-only'}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    <Button color="success" size="sm" style={{ borderRadius: 8 }} onClick={() => setScheduleOpen(true)}>+ Session</Button>
+                    <Button size="sm" style={{ borderRadius: 8, fontWeight: 600, background: '#2dce89', border: 'none', color: '#fff' }} onClick={() => setScheduleOpen(true)}>+ Session</Button>
                     {canCreateQuiz && (
-                      <Button color="primary" size="sm" style={{ borderRadius: 8 }}
+                      <Button size="sm" style={{ borderRadius: 8, fontWeight: 600, background: '#5e72e4', border: 'none', color: '#fff' }}
                         onClick={() => navigate('/admin/quiz-builder', { state: { subjectId, subjectName: subject?.title } })}>
                         + Practice
                       </Button>
                     )}
                     {canCreateContent && (
                       <>
-                        <Button color="warning" size="sm" style={{ borderRadius: 8 }} onClick={() => setAssignOpen(true)}>+ Assignment</Button>
-                        <Button color="secondary" size="sm" style={{ borderRadius: 8 }} onClick={() => setMatModalOpen(true)}>+ Material</Button>
+                        <Button size="sm" style={{ borderRadius: 8, fontWeight: 600, background: '#fb6340', border: 'none', color: '#fff' }} onClick={() => { setEditingAssignment(null); setAssignForm({ title: '', description: '', duration_days: '', max_marks: 100, attachment_url: '', topicId: '', assignedTo: '' }); setAssignFileName(''); setAssignOpen(true); }}>+ Assignment</Button>
+                        <Button size="sm" style={{ borderRadius: 8, fontWeight: 600, background: 'rgba(255,255,255,.15)', border: '1px solid rgba(255,255,255,.25)', color: '#fff' }} onClick={() => setMatModalOpen(true)}>+ Material</Button>
                       </>
-                    )}
-                    {!isAdmin && (
-                      <span style={{ fontSize: 11, color: '#8898aa', alignSelf: 'center', fontWeight: 600 }}>
-                        {teacherPermission === 'write' ? '✏️ Write access' : '👁 Read-only access'}
-                      </span>
                     )}
                   </div>
                 </div>
-              </CardBody>
+              </div>
             </Card>
           </Col>
         </Row>
@@ -662,20 +831,31 @@ export default function SubjectTeacher() {
         {actionError && <Row className="mb-2"><Col><div className="alert alert-danger py-2">{actionError}</div></Col></Row>}
 
         {/* Tab nav */}
-        <Row className="mb-3">
+        <Row className="mb-4">
           <Col>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {TABS.map((t) => (
-                <button key={t.key} onClick={() => setTab(t.key)} style={{
-                  padding: '8px 18px', borderRadius: 20, border: 'none', cursor: 'pointer',
-                  fontWeight: 700, fontSize: 13,
-                  background: tab === t.key ? '#5e72e4' : '#fff',
-                  color: tab === t.key ? '#fff' : '#525f7f',
-                  boxShadow: tab === t.key ? '0 4px 10px rgba(94,114,228,.3)' : '0 1px 3px rgba(0,0,0,.1)',
-                }}>
-                  {t.label}
-                </button>
-              ))}
+            <div style={{ display: 'flex', gap: 4, background: '#fff', borderRadius: 14, padding: 4, boxShadow: '0 2px 8px rgba(0,0,0,.06)' }}>
+              {TABS.map((t) => {
+                const isActive = tab === t.key;
+                return (
+                  <button key={t.key} onClick={() => setTab(t.key)} style={{
+                    flex: 1, padding: '10px 12px', borderRadius: 11, border: 'none', cursor: 'pointer',
+                    fontWeight: 600, fontSize: 13, transition: 'all .15s ease',
+                    background: isActive ? '#5e72e4' : 'transparent',
+                    color: isActive ? '#fff' : '#525f7f',
+                    boxShadow: isActive ? '0 4px 12px rgba(94,114,228,.35)' : 'none',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  }}>
+                    {t.label}
+                    <span style={{
+                      fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 8,
+                      background: isActive ? 'rgba(255,255,255,.2)' : '#f0f2f5',
+                      color: isActive ? '#fff' : '#8898aa',
+                    }}>
+                      {t.count}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </Col>
         </Row>
@@ -684,12 +864,12 @@ export default function SubjectTeacher() {
         {tab === 'topics' && (
           <Row>
             <Col lg="8">
-              <Card className="shadow" style={{ borderRadius: 12 }}>
-                <CardHeader style={{ background: 'linear-gradient(135deg,#f0f4ff,#e8edff)', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
+              <Card className="shadow" style={{ borderRadius: 14, border: 'none' }}>
+                <CardHeader style={{ background: 'linear-gradient(135deg,#f0f4ff,#e8edff)', borderTopLeftRadius: 14, borderTopRightRadius: 14, padding: '18px 22px' }}>
                   <div className="d-flex justify-content-between align-items-center">
                     <div>
-                      <CardTitle className="mb-0" style={{ color: '#32325d' }}>📚 Topics</CardTitle>
-                      <small className="text-muted">Topics appear as the entry screen for students when they click this subject.</small>
+                      <CardTitle className="mb-0" style={{ color: '#32325d', fontSize: 16, fontWeight: 700 }}>Topics</CardTitle>
+                      <small style={{ color: '#8898aa', fontSize: 12 }}>Organize content for students navigating this subject</small>
                     </div>
                     {isAdmin && (
                       <Button color="primary" size="sm" style={{ borderRadius: 8, fontWeight: 700 }} onClick={openCreateTopic}>
@@ -753,13 +933,12 @@ export default function SubjectTeacher() {
               </Card>
 
               {/* Info box */}
-              <div style={{ marginTop: 16, padding: '12px 16px', background: '#eef0fd', borderRadius: 10, border: '1px solid #d1d8f8' }}>
-                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                  <span style={{ fontSize: 20 }}>💡</span>
-                  <div style={{ fontSize: 13, color: '#525f7f' }}>
-                    <strong>How topics work:</strong> When a student clicks this subject in the sidebar, they first see the topic grid.
-                    Clicking a topic takes them to sessions, practice quizzes, assignments, and materials.
-                    Topics can also be tagged to individual quiz questions in the Quiz Builder.
+              <div style={{ marginTop: 16, padding: '14px 18px', background: 'linear-gradient(135deg,#eef0fd,#e8ebff)', borderRadius: 12, border: 'none', boxShadow: '0 1px 4px rgba(94,114,228,.08)' }}>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                  <span style={{ fontSize: 18, marginTop: 1 }}>💡</span>
+                  <div style={{ fontSize: 12, color: '#525f7f', lineHeight: 1.6 }}>
+                    <strong style={{ color: '#32325d' }}>How topics work:</strong> Students see the topic grid when they open this subject.
+                    Each topic links to sessions, practice, assignments, and materials. Topics can also be tagged to quiz questions.
                   </div>
                 </div>
               </div>
@@ -771,11 +950,11 @@ export default function SubjectTeacher() {
         {tab === 'sessions' && (
           <Row>
             <Col className="mb-4">
-              <Card className="shadow" style={{ borderRadius: 12 }}>
-                <CardHeader style={{ background: '#eaf3ff', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
+              <Card className="shadow" style={{ borderRadius: 14, border: 'none' }}>
+                <CardHeader style={{ background: 'linear-gradient(135deg,#eaf3ff,#dfe8ff)', borderTopLeftRadius: 14, borderTopRightRadius: 14, padding: '18px 22px' }}>
                   {/* Row 1: title + date nav */}
                   <div className="d-flex justify-content-between align-items-center flex-wrap" style={{ gap: 10, marginBottom: 10 }}>
-                    <CardTitle className="mb-0">Sessions ({sessions.length})</CardTitle>
+                    <CardTitle className="mb-0" style={{ fontSize: 16, fontWeight: 700, color: '#32325d' }}>Sessions</CardTitle>
                     <div className="d-flex align-items-center" style={{ gap: 6 }}>
                       <button onClick={() => navSessionDate(-1)}
                         style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #dee2e6', background: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -798,8 +977,7 @@ export default function SubjectTeacher() {
                   </div>
                   {/* Row 2: filters */}
                   <div className="d-flex align-items-center flex-wrap" style={{ gap: 8 }}>
-                    <select value={sessStatusFilter} onChange={e => setSessStatusFilter(e.target.value)}
-                      style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12, background: '#fff', color: '#525f7f', cursor: 'pointer' }}>
+                    <select className="filter-select" value={sessStatusFilter} onChange={e => setSessStatusFilter(e.target.value)}>
                       <option value="all">All Status</option>
                       <option value="LIVE">Live</option>
                       <option value="TODAY">Today</option>
@@ -808,22 +986,20 @@ export default function SubjectTeacher() {
                       <option value="COMPLETED">Completed</option>
                       <option value="MISSED">Missed</option>
                     </select>
-                    <select value={sessTopicFilter} onChange={e => setSessTopicFilter(e.target.value)}
-                      style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12, background: '#fff', color: '#525f7f', cursor: 'pointer' }}>
+                    <select className="filter-select" value={sessTopicFilter} onChange={e => setSessTopicFilter(e.target.value)}>
                       <option value="all">All Topics</option>
                       {topics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                     </select>
                     {isAdmin && sessionTeachers.length > 0 && (
-                      <select value={sessTeacherFilter} onChange={e => setSessTeacherFilter(e.target.value)}
-                        style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12, background: '#fff', color: '#525f7f', cursor: 'pointer' }}>
+                      <select className="filter-select" value={sessTeacherFilter} onChange={e => setSessTeacherFilter(e.target.value)}>
                         <option value="all">All Teachers</option>
                         {sessionTeachers.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
                       </select>
                     )}
                     {(sessStatusFilter !== 'all' || sessTopicFilter !== 'all' || sessTeacherFilter !== 'all') && (
                       <button onClick={() => { setSessStatusFilter('all'); setSessTopicFilter('all'); setSessTeacherFilter('all'); }}
-                        style={{ padding: '4px 10px', borderRadius: 8, border: '1px solid #f5365c', background: 'transparent', color: '#f5365c', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-                        Clear ×
+                        style={{ padding: '5px 12px', borderRadius: 8, border: 'none', background: '#f5365c', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                        Clear
                       </button>
                     )}
                   </div>
@@ -887,7 +1063,7 @@ export default function SubjectTeacher() {
                                 <Button size="sm"
                                   color={isStartable ? 'success' : 'secondary'}
                                   disabled={!isStartable || startingSession === s.id}
-                                  title={isStartable ? 'Start this session' : 'Available 5 min before start time'}
+                                  title={isStartable ? 'Start this session' : 'Available 30 min before start time'}
                                   style={{ borderRadius: 8, fontWeight: 700, opacity: isStartable ? 1 : 0.55, cursor: isStartable ? 'pointer' : 'not-allowed' }}
                                   onClick={() => { if (isStartable) handleStart(s.id); }}>
                                   {startingSession === s.id ? '...' : 'Start Session'}
@@ -937,10 +1113,10 @@ export default function SubjectTeacher() {
         {tab === 'quizzes' && (
           <Row>
             <Col>
-              <Card className="shadow" style={{ borderRadius: 12 }}>
-                <CardHeader style={{ background: '#eaf3ff', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
+              <Card className="shadow" style={{ borderRadius: 14, border: 'none' }}>
+                <CardHeader style={{ background: 'linear-gradient(135deg,#f0ecff,#e8e0ff)', borderTopLeftRadius: 14, borderTopRightRadius: 14, padding: '18px 22px' }}>
                   <div className="d-flex justify-content-between align-items-center">
-                    <CardTitle className="mb-0">Practice Sets</CardTitle>
+                    <CardTitle className="mb-0" style={{ fontSize: 16, fontWeight: 700, color: '#32325d' }}>Practice Sets</CardTitle>
                     {canCreateQuiz && (
                       <Button color="primary" size="sm" style={{ borderRadius: 8 }}
                         onClick={() => navigate('/admin/quiz-builder', { state: { subjectId, subjectName: subject?.title } })}>
@@ -961,7 +1137,7 @@ export default function SubjectTeacher() {
                       )}
                     </div>
                   ) : (
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <table className="subject-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead>
                         <tr style={{ background: '#f8f9fa' }}>
                           {['Title', 'Topic', 'Type', 'Questions', 'Duration', 'Status', 'Assigned By', 'Assigned To', 'Actions'].map((h) => (
@@ -1077,52 +1253,158 @@ export default function SubjectTeacher() {
         )}
 
         {/* ---- ASSIGNMENTS TAB ---- */}
-        {tab === 'assignments' && (
+        {tab === 'assignments' && (() => {
+          const filteredAssigns = assignments.filter(a => {
+            if (assignFilterTitle && !a.title.toLowerCase().includes(assignFilterTitle.toLowerCase())) return false;
+            if (assignFilterTopic !== 'all' && a.topic_id !== assignFilterTopic) return false;
+            if (assignFilterDuration !== 'all') {
+              if (assignFilterDuration === 'none') { if (a.duration_days) return false; }
+              else { if (String(a.duration_days) !== assignFilterDuration) return false; }
+            }
+            if (assignFilterStatus !== 'all') {
+              if (assignFilterStatus === 'published' && !a.is_published) return false;
+              if (assignFilterStatus === 'draft' && a.is_published) return false;
+            }
+            if (assignFilterCreator !== 'all' && a.created_by !== assignFilterCreator) return false;
+            if (assignFilterStudent !== 'all') {
+              const isAssignedToStudent = contentAssignments.some(
+                ca => ca.content_type === 'assignment' && ca.content_id === a.id && ca.student_id === assignFilterStudent
+              );
+              if (!isAssignedToStudent) return false;
+            }
+            if (assignFilterAssigned !== 'all') {
+              const hasAssignees = contentAssignments.some(
+                ca => ca.content_type === 'assignment' && ca.content_id === a.id
+              );
+              if (assignFilterAssigned === 'assigned' && !hasAssignees) return false;
+              if (assignFilterAssigned === 'not_assigned' && hasAssignees) return false;
+            }
+            return true;
+          });
+          return (
           <Row>
             <Col>
-              <Card className="shadow" style={{ borderRadius: 12 }}>
-                <CardHeader style={{ background: '#eaf3ff', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
-                  <div className="d-flex justify-content-between align-items-center">
-                    <CardTitle className="mb-0">Assignments</CardTitle>
+              <Card className="shadow" style={{ borderRadius: 14, border: 'none' }}>
+                <CardHeader style={{ background: 'linear-gradient(135deg,#fff5ec,#ffe8d6)', borderTopLeftRadius: 14, borderTopRightRadius: 14, padding: '18px 22px' }}>
+                  <div className="d-flex justify-content-between align-items-center mb-2">
+                    <div className="d-flex align-items-center" style={{ gap: 10 }}>
+                      <CardTitle className="mb-0" style={{ fontSize: 16, fontWeight: 700, color: '#32325d' }}>Assignments</CardTitle>
+                      <span style={{ padding: '2px 10px', borderRadius: 20, fontSize: 12, fontWeight: 700, background: '#5e72e4', color: '#fff' }}>
+                        {filteredAssigns.length}{filteredAssigns.length !== assignments.length ? ` / ${assignments.length}` : ''}
+                      </span>
+                    </div>
                     {canCreateContent && (
-                      <Button color="warning" size="sm" style={{ borderRadius: 8 }} onClick={() => setAssignOpen(true)}>
+                      <Button color="warning" size="sm" style={{ borderRadius: 8 }} onClick={() => { setEditingAssignment(null); setAssignForm({ title: '', description: '', duration_days: '', max_marks: 100, attachment_url: '', topicId: '', assignedTo: '' }); setAssignFileName(''); setAssignOpen(true); }}>
                         + Create Assignment
                       </Button>
                     )}
                   </div>
+                  {assignments.length > 0 && (
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 4, padding: '10px 0 2px' }}>
+                      <input
+                        type="text" placeholder="Search title..."
+                        className="filter-input"
+                        value={assignFilterTitle} onChange={e => setAssignFilterTitle(e.target.value)}
+                      />
+                      <select className="filter-select" value={assignFilterTopic} onChange={e => setAssignFilterTopic(e.target.value)}>
+                        <option value="all">All Topics</option>
+                        {topics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </select>
+                      <select className="filter-select" value={assignFilterDuration} onChange={e => setAssignFilterDuration(e.target.value)}>
+                        <option value="all">All Durations</option>
+                        <option value="3">3 Days</option>
+                        <option value="5">5 Days</option>
+                        <option value="7">1 Week</option>
+                        <option value="10">10 Days</option>
+                        <option value="14">2 Weeks</option>
+                        <option value="21">3 Weeks</option>
+                        <option value="30">1 Month</option>
+                        <option value="45">45 Days</option>
+                        <option value="60">2 Months</option>
+                        <option value="none">No Duration</option>
+                      </select>
+                      <select className="filter-select" value={assignFilterStatus} onChange={e => setAssignFilterStatus(e.target.value)}>
+                        <option value="all">All Status</option>
+                        <option value="published">Published</option>
+                        <option value="draft">Draft</option>
+                      </select>
+                      <select className="filter-select" value={assignFilterCreator} onChange={e => setAssignFilterCreator(e.target.value)}>
+                        <option value="all">All Creators</option>
+                        {[...new Map(assignments.filter(a => a.creator_name).map(a => [a.created_by, a.creator_name])).entries()].map(([id, name]) => (
+                          <option key={id} value={id}>{name}</option>
+                        ))}
+                      </select>
+                      <select className="filter-select" value={assignFilterStudent} onChange={e => setAssignFilterStudent(e.target.value)}>
+                        <option value="all">All Students</option>
+                        {subjectStudents.map(s => (
+                          <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>
+                        ))}
+                      </select>
+                      <div style={{ display: 'inline-flex', borderRadius: 8, overflow: 'hidden', border: '1px solid #dee2e6' }}>
+                        {[['all', 'All'], ['assigned', 'Assigned'], ['not_assigned', 'Not Assigned']].map(([val, label]) => (
+                          <button key={val} onClick={() => setAssignFilterAssigned(val)}
+                            style={{
+                              padding: '6px 12px', border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer', transition: 'all .12s',
+                              background: assignFilterAssigned === val ? '#5e72e4' : '#fff',
+                              color: assignFilterAssigned === val ? '#fff' : '#525f7f',
+                            }}>
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      {(assignFilterTitle || assignFilterTopic !== 'all' || assignFilterDuration !== 'all' || assignFilterStatus !== 'all' || assignFilterCreator !== 'all' || assignFilterStudent !== 'all' || assignFilterAssigned !== 'all') && (
+                        <button onClick={() => { setAssignFilterTitle(''); setAssignFilterTopic('all'); setAssignFilterDuration('all'); setAssignFilterStatus('all'); setAssignFilterCreator('all'); setAssignFilterStudent('all'); setAssignFilterAssigned('all'); }}
+                          style={{ padding: '5px 12px', borderRadius: 8, border: 'none', background: '#f5365c', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer', transition: 'opacity .12s' }}>
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </CardHeader>
                 <CardBody>
                   {assignments.length === 0 ? (
                     <div className="text-center py-4">
                       <p className="text-muted">No assignments yet.</p>
-                      {canCreateContent && <Button color="warning" size="sm" onClick={() => setAssignOpen(true)}>Create First</Button>}
+                      {canCreateContent && <Button color="warning" size="sm" onClick={() => { setEditingAssignment(null); setAssignForm({ title: '', description: '', duration_days: '', max_marks: 100, attachment_url: '', topicId: '', assignedTo: '' }); setAssignFileName(''); setAssignOpen(true); }}>Create First</Button>}
                     </div>
+                  ) : filteredAssigns.length === 0 ? (
+                    <p className="text-muted text-center py-3">No assignments match the filters.</p>
                   ) : (
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <table className="subject-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead>
                         <tr style={{ background: '#f8f9fa' }}>
-                          {['Title', 'Topic', 'Due Date', 'Points', 'Status', 'Submissions', 'Assigned By', 'Assigned To', 'Actions'].map(h => (
+                          {['S.No', 'Title', 'Topic', 'Duration', 'Points', 'Status', 'Created By', 'Submissions', 'Assigned By', 'Assigned To', 'Actions'].map(h => (
                             <th key={h} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
-                        {assignments.map((a) => {
+                        {filteredAssigns.map((a, idx) => {
                           const aTo = assignedCount('assignment', a.id);
                           const aBy = assignedByCount('assignment', a.id);
+                          const durationLabel = a.duration_days
+                            ? a.duration_days === 7 ? '1 Week'
+                              : a.duration_days === 14 ? '2 Weeks'
+                              : a.duration_days === 21 ? '3 Weeks'
+                              : a.duration_days === 30 ? '1 Month'
+                              : `${a.duration_days} Days`
+                            : '—';
                           return (
                             <tr key={a.id} style={{ borderBottom: '1px solid #f0f4f8' }}>
+                              <td style={{ padding: '12px 14px', fontWeight: 600, color: '#8898aa', fontSize: 12 }}>
+                                {idx + 1}
+                              </td>
                               <td style={{ padding: '12px 14px', fontWeight: 600, color: '#32325d' }}>
                                 {a.title}
                                 {a.description && <div className="small text-muted mt-1">{a.description}</div>}
                               </td>
                               <td style={{ padding: '12px 14px' }}>
                                 {a.topic_name
-                                  ? <span style={{ fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10 }}>📌 {a.topic_name}</span>
+                                  ? <span style={{ fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10 }}>{a.topic_name}</span>
                                   : <span className="text-muted small">—</span>}
                               </td>
                               <td style={{ padding: '12px 14px', color: '#525f7f', fontSize: 12, whiteSpace: 'nowrap' }}>
-                                {a.due_date ? new Date(a.due_date).toLocaleDateString('en-US') : '—'}
+                                {durationLabel}
                               </td>
                               <td style={{ padding: '12px 14px', color: '#525f7f' }}>{a.max_marks}</td>
                               <td style={{ padding: '12px 14px' }}>
@@ -1132,8 +1414,11 @@ export default function SubjectTeacher() {
                                   {a.is_published ? 'Published' : 'Draft'}
                                 </span>
                               </td>
+                              <td style={{ padding: '12px 14px', color: '#525f7f', fontSize: 12 }}>
+                                {a.creator_name || '—'}
+                              </td>
                               <td style={{ padding: '12px 14px', color: '#525f7f' }}>
-                                <button type="button" onClick={() => loadSubmissions(a.id)}
+                                <button type="button" onClick={() => loadSubmissions(a.id, a.title)}
                                   style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#fb6340', fontWeight: 700, fontSize: 13 }}>
                                   {a.submission_count || 0}
                                 </button>
@@ -1160,6 +1445,12 @@ export default function SubjectTeacher() {
                                     onClick={() => setPreviewAssign(a)}>
                                     Preview
                                   </Button>
+                                  {(isAdmin || (a.created_by === userId && (!a.is_published || teacherPermission === 'write'))) && (
+                                    <Button size="sm" color="default" outline style={{ borderRadius: 20, fontSize: 11 }}
+                                      onClick={() => openEditAssignment(a)}>
+                                      Edit
+                                    </Button>
+                                  )}
                                   {(a.is_published || isAdmin || a.created_by === userId) && (
                                     <Button size="sm" color="primary" outline style={{ borderRadius: 20, fontSize: 11 }}
                                       onClick={() => openAssignContentModal('assignment', a)}>
@@ -1195,118 +1486,102 @@ export default function SubjectTeacher() {
                 </CardBody>
               </Card>
 
-              {/* Submissions panel */}
-              {viewSubs && (
-                <Card className="shadow mt-4" style={{ borderRadius: 12 }}>
-                  <CardHeader style={{ background: '#fff5e6', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
-                    <div className="d-flex justify-content-between align-items-center">
-                      <CardTitle className="mb-0">Submissions</CardTitle>
-                      <Button size="sm" color="link" onClick={() => setViewSubs(null)}>Close</Button>
-                    </div>
-                  </CardHeader>
-                  <CardBody>
-                    {submissions.length === 0 ? (
-                      <p className="text-muted text-center py-3">No submissions yet</p>
-                    ) : submissions.map((sub) => (
-                      <div key={sub.id} className="mb-3 p-3 bg-white border rounded">
-                        <div className="d-flex justify-content-between align-items-start flex-wrap" style={{ gap: 8 }}>
-                          <div>
-                            <strong>{sub.student_name}</strong>
-                            <div className="small text-muted">{sub.student_email}</div>
-                            {sub.submission_url && (
-                              <a href={sub.submission_url} target="_blank" rel="noreferrer" className="small" style={{ color: '#5e72e4' }}>View Submission</a>
-                            )}
-                            {sub.notes && <p className="small text-muted mt-1 mb-0">{sub.notes}</p>}
-                            {sub.marks_awarded != null && (
-                              <div className="small mt-1">
-                                <strong>Points: {sub.marks_awarded}</strong>
-                                {sub.feedback && <span className="text-muted ml-2">— {sub.feedback}</span>}
-                              </div>
-                            )}
-                          </div>
-                          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                            <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
-                              background: sub.status === 'graded' ? '#d4edda' : '#fff3cd',
-                              color: sub.status === 'graded' ? '#155724' : '#856404' }}>
-                              {sub.status}
-                            </span>
-                            {sub.status === 'submitted' && (
-                              <Button size="sm" color="success" outline style={{ borderRadius: 20, fontSize: 11 }}
-                                onClick={() => { setGradingId(sub.id); setGradeForm({ marks: '', feedback: '' }); }}>
-                                Grade
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                        {gradingId === sub.id && (
-                          <div style={{ marginTop: 12, padding: 12, background: '#f8f9fa', borderRadius: 8 }}>
-                            <Row>
-                              <Col md="4">
-                                <FormGroup className="mb-2">
-                                  <Label className="small">Points Awarded</Label>
-                                  <Input type="number" bsSize="sm" value={gradeForm.marks}
-                                    onChange={(e) => setGradeForm({ ...gradeForm, marks: e.target.value })} />
-                                </FormGroup>
-                              </Col>
-                              <Col md="8">
-                                <FormGroup className="mb-2">
-                                  <Label className="small">Feedback</Label>
-                                  <Input bsSize="sm" value={gradeForm.feedback}
-                                    onChange={(e) => setGradeForm({ ...gradeForm, feedback: e.target.value })} />
-                                </FormGroup>
-                              </Col>
-                            </Row>
-                            <Button size="sm" color="success" style={{ borderRadius: 8 }} onClick={() => handleGrade(sub.id)}>Submit Grade</Button>
-                            <Button size="sm" color="link" onClick={() => setGradingId(null)}>Cancel</Button>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </CardBody>
-                </Card>
-              )}
+              {/* Submissions panel removed — moved to modal below */}
             </Col>
           </Row>
-        )}
+          );
+        })()}
 
         {/* ---- MATERIALS TAB ---- */}
-        {tab === 'materials' && (
+        {tab === 'materials' && (() => {
+          const filteredMats = materials
+            .filter(m => !matFilterTitle || m.title.toLowerCase().includes(matFilterTitle.toLowerCase()))
+            .filter(m => matFilterType === 'all' || m.material_type === matFilterType)
+            .filter(m => matFilterTopic === 'all' || (matFilterTopic === 'none' ? !m.topic_id : m.topic_id === matFilterTopic))
+            .filter(m => matFilterStatus === 'all' || (matFilterStatus === 'published' ? m.is_published : !m.is_published))
+            .filter(m => matFilterCreator === 'all' || m.uploaded_by === matFilterCreator);
+          const matTypes = [...new Set(materials.map(m => m.material_type))];
+          const matTopics = [...new Map(materials.filter(m => m.topic_id).map(m => [m.topic_id, m.topic_name])).entries()];
+          const matCreators = [...new Map(materials.map(m => [m.uploaded_by, m.uploader_name])).entries()];
+          const hasMatFilters = matFilterTitle || matFilterType !== 'all' || matFilterTopic !== 'all' || matFilterStatus !== 'all' || matFilterCreator !== 'all';
+
+          return (
           <Row>
             <Col>
-              <Card className="shadow" style={{ borderRadius: 12 }}>
-                <CardHeader style={{ background: '#eaf3ff', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
+              <Card className="shadow" style={{ borderRadius: 14, border: 'none' }}>
+                <CardHeader style={{ background: 'linear-gradient(135deg,#e8fff0,#d6f5e0)', borderTopLeftRadius: 14, borderTopRightRadius: 14, padding: '18px 22px' }}>
                   <div className="d-flex justify-content-between align-items-center">
-                    <CardTitle className="mb-0">Study Materials</CardTitle>
+                    <CardTitle className="mb-0" style={{ fontSize: 16, fontWeight: 700, color: '#32325d' }}>
+                      Study Materials {materials.length > 0 && <Badge color="dark" pill style={{ fontSize: 11, marginLeft: 8 }}>{hasMatFilters ? `${filteredMats.length} / ${materials.length}` : materials.length}</Badge>}
+                    </CardTitle>
                     {canCreateContent && (
-                      <Button color="secondary" size="sm" style={{ borderRadius: 8 }} onClick={() => setMatModalOpen(true)}>
+                      <Button color="secondary" size="sm" style={{ borderRadius: 8 }} onClick={() => { setMatForm({ title: '', description: '', material_type: 'pdf', file_url: '', file_name: '', topicId: '' }); setMatError(''); setMatModalOpen(true); }}>
                         + Add Material
                       </Button>
                     )}
                   </div>
                 </CardHeader>
+                {materials.length > 0 && (
+                  <div style={{ padding: '12px 22px', background: '#f6f9fc', display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', borderBottom: '1px solid #e9ecef' }}>
+                    <input className="filter-input" placeholder="Search title..." value={matFilterTitle}
+                      onChange={(e) => setMatFilterTitle(e.target.value)}
+                      style={{ width: 150, padding: '6px 12px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12 }} />
+                    <select className="filter-select" value={matFilterType} onChange={(e) => setMatFilterType(e.target.value)}
+                      style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12 }}>
+                      <option value="all">All Types</option>
+                      {matTypes.map(t => <option key={t} value={t}>{t.toUpperCase()}</option>)}
+                    </select>
+                    <select className="filter-select" value={matFilterTopic} onChange={(e) => setMatFilterTopic(e.target.value)}
+                      style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12 }}>
+                      <option value="all">All Topics</option>
+                      <option value="none">No Topic</option>
+                      {matTopics.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+                    </select>
+                    <select className="filter-select" value={matFilterStatus} onChange={(e) => setMatFilterStatus(e.target.value)}
+                      style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12 }}>
+                      <option value="all">All Status</option>
+                      <option value="published">Published</option>
+                      <option value="draft">Draft</option>
+                    </select>
+                    <select className="filter-select" value={matFilterCreator} onChange={(e) => setMatFilterCreator(e.target.value)}
+                      style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12 }}>
+                      <option value="all">All Creators</option>
+                      {matCreators.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+                    </select>
+                    {hasMatFilters && (
+                      <button onClick={() => { setMatFilterTitle(''); setMatFilterType('all'); setMatFilterTopic('all'); setMatFilterStatus('all'); setMatFilterCreator('all'); }}
+                        style={{ background: 'none', border: 'none', color: '#f5365c', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                )}
                 <CardBody>
                   {materials.length === 0 ? (
                     <div className="text-center py-4">
-                      <p className="text-muted">No materials yet. Add PDFs, videos, or links.</p>
-                      {canCreateContent && <Button color="secondary" size="sm" onClick={() => setMatModalOpen(true)}>Add First Material</Button>}
+                      <p className="text-muted">No materials yet. Upload PDFs, documents, or videos.</p>
+                      {canCreateContent && <Button color="secondary" size="sm" onClick={() => { setMatForm({ title: '', description: '', material_type: 'pdf', file_url: '', file_name: '', topicId: '' }); setMatError(''); setMatModalOpen(true); }}>Add First Material</Button>}
                     </div>
+                  ) : filteredMats.length === 0 ? (
+                    <div className="text-center py-4"><p className="text-muted">No materials match filters.</p></div>
                   ) : (
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <table className="subject-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead>
                         <tr style={{ background: '#f8f9fa' }}>
-                          {['Title', 'Type', 'Topic', 'Status', 'Assigned By', 'Assigned To', 'Actions'].map(h => (
+                          {['S.No', 'Title', 'Type', 'Topic', 'Created By', 'Status', 'Assigned By', 'Assigned To', 'Actions'].map(h => (
                             <th key={h} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
-                        {materials.map((m) => {
-                          const typeIcon  = { pdf: '📄', video: '🎥', link: '🔗', doc: '📝', image: '🖼' }[m.material_type] || '📁';
-                          const typeColor = { pdf: '#f5365c', video: '#825ee4', link: '#5e72e4', doc: '#fb6340', image: '#2dce89' }[m.material_type] || '#8898aa';
+                        {filteredMats.map((m, idx) => {
+                          const typeIcon  = { pdf: '📄', video: '🎥', doc: '📝', image: '🖼', pptx: '📊', zip: '📦' }[m.material_type] || '📁';
+                          const typeColor = { pdf: '#f5365c', video: '#825ee4', doc: '#fb6340', image: '#2dce89', pptx: '#5e72e4', zip: '#8898aa' }[m.material_type] || '#8898aa';
                           const mTo = assignedCount('material', m.id);
                           const mBy = assignedByCount('material', m.id);
                           return (
                             <tr key={m.id} style={{ borderBottom: '1px solid #f0f4f8' }}>
+                              <td style={{ padding: '12px 14px', fontWeight: 600, color: '#8898aa', fontSize: 13 }}>{idx + 1}</td>
                               <td style={{ padding: '12px 14px' }}>
                                 <a href={m.file_url} target="_blank" rel="noreferrer" style={{ fontWeight: 700, color: '#32325d' }}>{m.title}</a>
                                 {m.description && <div className="small text-muted mt-1">{m.description}</div>}
@@ -1318,9 +1593,10 @@ export default function SubjectTeacher() {
                               </td>
                               <td style={{ padding: '12px 14px' }}>
                                 {m.topic_name
-                                  ? <span style={{ fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10 }}>📌 {m.topic_name}</span>
+                                  ? <span style={{ fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10 }}>{m.topic_name}</span>
                                   : <span className="text-muted small">—</span>}
                               </td>
+                              <td style={{ padding: '12px 14px', fontSize: 13, color: '#525f7f' }}>{m.uploader_name}</td>
                               <td style={{ padding: '12px 14px' }}>
                                 <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
                                   background: m.is_published ? '#d4edda' : '#fff3cd',
@@ -1346,6 +1622,12 @@ export default function SubjectTeacher() {
                               </td>
                               <td style={{ padding: '12px 14px' }}>
                                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                  {isAdmin && (
+                                    <Button size="sm" color="default" outline style={{ borderRadius: 20, fontSize: 11 }}
+                                      onClick={() => openEditMaterial(m)}>
+                                      Edit
+                                    </Button>
+                                  )}
                                   <Button size="sm" color="info" outline style={{ borderRadius: 20, fontSize: 11 }}
                                     onClick={() => setPreviewMat(m)}>
                                     Preview
@@ -1368,7 +1650,7 @@ export default function SubjectTeacher() {
                                       {m.is_published ? 'Unpublish' : 'Publish'}
                                     </Button>
                                   )}
-                                  {(isAdmin || (m.uploaded_by === userId && !m.is_published)) && (
+                                  {isAdmin && (
                                     <Button size="sm" color="danger" outline style={{ borderRadius: 20, fontSize: 11 }}
                                       onClick={() => setDeleteMatModal({ open: true, mat: m })}>Remove</Button>
                                   )}
@@ -1384,7 +1666,202 @@ export default function SubjectTeacher() {
               </Card>
             </Col>
           </Row>
-        )}
+          );
+        })()}
+
+        {/* ---- UPLOADS TAB ---- */}
+        {tab === 'uploads' && (() => {
+          const filteredUploads = studentUploads
+            .filter(u => uploadFilterStudent === 'all' || u.student_id === uploadFilterStudent)
+            .filter(u => uploadFilterTopic === 'all' || (uploadFilterTopic === 'none' ? !u.topic_id : u.topic_id === uploadFilterTopic))
+            .filter(u => !uploadFilterTitle || u.title.toLowerCase().includes(uploadFilterTitle.toLowerCase()))
+            .filter(u => uploadFilterFeedback === 'all' || (uploadFilterFeedback === 'given' ? (u.feedback_text || u.feedback_file_url) : (!u.feedback_text && !u.feedback_file_url)))
+            .filter(u => !isAdmin || uploadFilterTeacher === 'all' || (uploadFilterTeacher === 'none' ? !u.teacher_id : u.teacher_id === uploadFilterTeacher));
+
+          const uniqueStudents = [...new Map(studentUploads.map(u => [u.student_id, u.student_name])).entries()];
+          const uniqueTopics   = [...new Map(studentUploads.filter(u => u.topic_id).map(u => [u.topic_id, u.topic_name])).entries()];
+          const uniqueTeachers = [...new Map(studentUploads.filter(u => u.teacher_id).map(u => [u.teacher_id, u.teacher_name])).entries()];
+          const hasFilters = uploadFilterStudent !== 'all' || uploadFilterTopic !== 'all' || uploadFilterTitle || uploadFilterFeedback !== 'all' || (isAdmin && uploadFilterTeacher !== 'all');
+
+          return (
+          <Row>
+            <Col>
+              <Card className="shadow" style={{ borderRadius: 14, border: 'none' }}>
+                <CardHeader style={{ background: 'linear-gradient(135deg,#ffecd2,#fcb69f)', borderTopLeftRadius: 14, borderTopRightRadius: 14, padding: '18px 22px' }}>
+                  <div className="d-flex justify-content-between align-items-center">
+                    <CardTitle className="mb-0" style={{ fontSize: 16, fontWeight: 700, color: '#32325d' }}>
+                      Student Uploads {studentUploads.length > 0 && <Badge color="dark" pill style={{ fontSize: 11, marginLeft: 8 }}>{hasFilters ? `${filteredUploads.length} / ${studentUploads.length}` : studentUploads.length}</Badge>}
+                    </CardTitle>
+                  </div>
+                </CardHeader>
+                {studentUploads.length > 0 && (
+                  <div style={{ padding: '12px 22px', background: '#f6f9fc', display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', borderBottom: '1px solid #e9ecef' }}>
+                    <input className="filter-input" placeholder="Search title..." value={uploadFilterTitle}
+                      onChange={(e) => setUploadFilterTitle(e.target.value)}
+                      style={{ width: 160, padding: '6px 12px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12 }} />
+                    <select className="filter-select" value={uploadFilterStudent} onChange={(e) => setUploadFilterStudent(e.target.value)}
+                      style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12 }}>
+                      <option value="all">All Students</option>
+                      {uniqueStudents.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+                    </select>
+                    <select className="filter-select" value={uploadFilterTopic} onChange={(e) => setUploadFilterTopic(e.target.value)}
+                      style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12 }}>
+                      <option value="all">All Topics</option>
+                      <option value="none">No Topic</option>
+                      {uniqueTopics.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+                    </select>
+                    <select className="filter-select" value={uploadFilterFeedback} onChange={(e) => setUploadFilterFeedback(e.target.value)}
+                      style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12 }}>
+                      <option value="all">All Feedback</option>
+                      <option value="given">Feedback Given</option>
+                      <option value="pending">Pending</option>
+                    </select>
+                    {isAdmin && (
+                      <select className="filter-select" value={uploadFilterTeacher} onChange={(e) => setUploadFilterTeacher(e.target.value)}
+                        style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #dee2e6', fontSize: 12 }}>
+                        <option value="all">All Teachers</option>
+                        <option value="none">No Teacher</option>
+                        {uniqueTeachers.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+                      </select>
+                    )}
+                    {hasFilters && (
+                      <button onClick={() => { setUploadFilterStudent('all'); setUploadFilterTopic('all'); setUploadFilterTitle(''); setUploadFilterFeedback('all'); setUploadFilterTeacher('all'); }}
+                        style={{ background: 'none', border: 'none', color: '#f5365c', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                )}
+                <CardBody>
+                  {studentUploads.length === 0 ? (
+                    <div className="text-center py-4">
+                      <p className="text-muted">No student uploads yet.</p>
+                    </div>
+                  ) : filteredUploads.length === 0 ? (
+                    <div className="text-center py-4">
+                      <p className="text-muted">No uploads match the current filters.</p>
+                    </div>
+                  ) : (
+                    <table className="subject-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ background: '#f8f9fa' }}>
+                          {['S.No', 'Student', 'Title', 'Topic', 'File', ...(isAdmin ? ['Sent To'] : []), 'Uploaded At', 'Feedback', ...(isAdmin ? ['Actions'] : [])].map(h => (
+                            <th key={h} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredUploads.map((u, idx) => (
+                          <tr key={u.id} style={{ borderBottom: '1px solid #f0f4f8' }}>
+                            <td style={{ padding: '12px 14px', fontWeight: 600, color: '#8898aa', fontSize: 13 }}>{idx + 1}</td>
+                            <td style={{ padding: '12px 14px' }}>
+                              <div style={{ fontWeight: 600, color: '#32325d', fontSize: 13 }}>{u.student_name || '—'}</div>
+                              {isAdmin && u.student_email && <div style={{ fontSize: 11, color: '#8898aa' }}>{u.student_email}</div>}
+                            </td>
+                            <td style={{ padding: '12px 14px' }}>
+                              <div style={{ fontWeight: 600, color: '#32325d', fontSize: 13 }}>{u.title}</div>
+                              {u.description && <div style={{ fontSize: 11, color: '#8898aa', marginTop: 2 }}>{u.description}</div>}
+                            </td>
+                            <td style={{ padding: '12px 14px' }}>
+                              {u.topic_name
+                                ? <span style={{ fontSize: 11, fontWeight: 700, color: '#5e72e4', background: '#eef0fd', padding: '2px 8px', borderRadius: 10 }}>{u.topic_name}</span>
+                                : <span className="text-muted small">—</span>}
+                            </td>
+                            <td style={{ padding: '12px 14px' }}>
+                              <a href={u.file_url} target="_blank" rel="noreferrer"
+                                style={{ fontSize: 12, fontWeight: 600, color: '#5e72e4' }}>
+                                {u.file_name || 'Download'}
+                              </a>
+                            </td>
+                            {isAdmin && (
+                              <td style={{ padding: '12px 14px', fontSize: 13, color: '#525f7f' }}>
+                                {u.teacher_name || <span className="text-muted small">All Teachers</span>}
+                              </td>
+                            )}
+                            <td style={{ padding: '12px 14px', fontSize: 12, color: '#8898aa' }}>
+                              {new Date(u.created_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}
+                            </td>
+                            <td style={{ padding: '12px 14px' }}>
+                              {u.feedback_text || u.feedback_file_url ? (
+                                <div>
+                                  <Badge color="success" style={{ fontSize: 10, marginBottom: 4 }}>Given</Badge>
+                                  <Button size="sm" color="info" outline style={{ borderRadius: 20, fontSize: 11, marginLeft: 6 }}
+                                    onClick={() => openFeedbackModal(u)}>Edit</Button>
+                                </div>
+                              ) : (
+                                <Button size="sm" color="warning" outline style={{ borderRadius: 20, fontSize: 11 }}
+                                  onClick={() => openFeedbackModal(u)}>Give Feedback</Button>
+                              )}
+                            </td>
+                            {isAdmin && (
+                              <td style={{ padding: '12px 14px' }}>
+                                <Button size="sm" color="danger" outline style={{ borderRadius: 20, fontSize: 11 }}
+                                  onClick={async () => { if (!window.confirm(`Delete upload "${u.title}" by ${u.student_name}?`)) return; try { await http.delete(`/api/student-uploads/${u.id}`); fetchData(); } catch(e) { console.error(e); } }}>
+                                  Delete
+                                </Button>
+                              </td>
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </CardBody>
+              </Card>
+            </Col>
+          </Row>
+          );
+        })()}
+
+        {/* Feedback Modal */}
+        <Modal isOpen={feedbackModal.open} toggle={() => setFeedbackModal({ open: false, upload: null })} centered>
+          <ModalHeader toggle={() => setFeedbackModal({ open: false, upload: null })}
+            style={{ background: 'linear-gradient(135deg,#ffecd2,#fcb69f)', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
+            Feedback — {feedbackModal.upload?.title}
+          </ModalHeader>
+          <ModalBody>
+            {feedbackModal.upload && (
+              <div style={{ marginBottom: 14, padding: '10px 14px', background: '#f6f9fc', borderRadius: 8 }}>
+                <div style={{ fontSize: 12, color: '#8898aa' }}>
+                  Student: <strong style={{ color: '#32325d' }}>{feedbackModal.upload.student_name}</strong>
+                </div>
+                <a href={feedbackModal.upload.file_url} target="_blank" rel="noreferrer"
+                  style={{ fontSize: 12, fontWeight: 600, color: '#5e72e4' }}>
+                  View Submitted File
+                </a>
+              </div>
+            )}
+            <FormGroup>
+              <Label><strong>Feedback Text</strong> <span className="text-muted small">(optional)</span></Label>
+              <Input type="textarea" rows={3} value={feedbackForm.feedback_text}
+                onChange={(e) => setFeedbackForm({ ...feedbackForm, feedback_text: e.target.value })}
+                placeholder="Write your feedback here..." />
+            </FormGroup>
+            <FormGroup>
+              <Label>Feedback File <span className="text-muted small">(optional)</span></Label>
+              <input type="file" ref={feedbackFileRef} style={{ display: 'none' }}
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.txt"
+                onChange={(e) => e.target.files?.[0] && handleFeedbackFileUpload(e.target.files[0])} />
+              <div className="d-flex align-items-center" style={{ gap: 10 }}>
+                <button type="button" onClick={() => feedbackFileRef.current?.click()}
+                  disabled={feedbackUploading}
+                  style={{ background: '#fb6340', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 16px', fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>
+                  {feedbackUploading ? 'Uploading...' : 'Choose File'}
+                </button>
+                {feedbackFileName && (
+                  <span style={{ fontSize: 13, color: '#2dce89', fontWeight: 600 }}>&#10003; {feedbackFileName}</span>
+                )}
+              </div>
+            </FormGroup>
+          </ModalBody>
+          <ModalFooter>
+            <Button color="success" disabled={feedbackSaving || feedbackUploading || (!feedbackForm.feedback_text && !feedbackForm.feedback_file_url)}
+              onClick={handleSubmitFeedback}>
+              {feedbackSaving ? 'Saving...' : 'Save Feedback'}
+            </Button>
+            <Button color="link" onClick={() => setFeedbackModal({ open: false, upload: null })}>Cancel</Button>
+          </ModalFooter>
+        </Modal>
 
         {/* Schedule Session Modal — upgraded with recurring + student checkboxes + teacher selector for admin */}
         <Modal isOpen={scheduleOpen} toggle={() => setScheduleOpen(false)} centered size="lg">
@@ -1549,15 +2026,133 @@ export default function SubjectTeacher() {
           </ModalFooter>
         </Modal>
 
-        {/* Create Assignment Modal */}
-        <Modal isOpen={assignOpen} toggle={() => setAssignOpen(false)} centered>
-          <ModalHeader toggle={() => setAssignOpen(false)}>Create Assignment</ModalHeader>
+        {/* Submissions Modal */}
+        <Modal isOpen={!!viewSubs} toggle={() => setViewSubs(null)} centered size="lg">
+          <ModalHeader toggle={() => setViewSubs(null)}
+            style={{ background: 'linear-gradient(135deg,#fb6340,#fbb140)', color: '#fff', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
+            Submissions {viewSubsTitle && <span style={{ fontWeight: 400, fontSize: 14 }}>— {viewSubsTitle}</span>}
+          </ModalHeader>
+          <ModalBody style={{ background: '#f8fbff', maxHeight: '70vh', overflowY: 'auto' }}>
+            {submissions.length === 0 ? (
+              <p className="text-muted text-center py-4">No submissions yet</p>
+            ) : submissions.map((sub) => (
+              <div key={sub.id} className="mb-3 p-3 bg-white border rounded" style={{ borderRadius: 10 }}>
+                <div className="d-flex justify-content-between align-items-start flex-wrap" style={{ gap: 8 }}>
+                  <div>
+                    <strong>{sub.student_name}</strong>
+                    <div className="small text-muted">{sub.student_email}</div>
+                    {sub.submitted_at && (
+                      <div className="small text-muted">Submitted: {new Date(sub.submitted_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</div>
+                    )}
+                    {sub.submission_url && (
+                      <a href={sub.submission_url} target="_blank" rel="noreferrer" className="small" style={{ color: '#5e72e4' }}>View Submission</a>
+                    )}
+                    {sub.notes && <p className="small text-muted mt-1 mb-0">{sub.notes}</p>}
+                    {sub.marks_awarded != null && (
+                      <div className="small mt-1">
+                        <strong>Points: {sub.marks_awarded}</strong>
+                        {sub.feedback && <span className="text-muted ml-2">— {sub.feedback}</span>}
+                      </div>
+                    )}
+                    {sub.feedback_file_url && (
+                      <a href={sub.feedback_file_url} target="_blank" rel="noreferrer" className="small d-block mt-1" style={{ color: '#2dce89' }}>
+                        View Feedback File
+                      </a>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    {sub.is_late && (
+                      <span style={{ padding: '3px 8px', borderRadius: 20, fontSize: 10, fontWeight: 700, background: '#fee2e2', color: '#dc2626' }}>Late</span>
+                    )}
+                    <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+                      background: sub.status === 'graded' ? '#d4edda' : '#fff3cd',
+                      color: sub.status === 'graded' ? '#155724' : '#856404' }}>
+                      {sub.status}
+                    </span>
+                    {sub.status === 'submitted' && (
+                      <Button size="sm" color="success" outline style={{ borderRadius: 20, fontSize: 11 }}
+                        onClick={() => { setGradingId(sub.id); setGradeForm({ marks: '', feedback: '', feedback_file_url: '' }); setGradeFileName(''); }}>
+                        Grade
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                {gradingId === sub.id && (
+                  <div style={{ marginTop: 12, padding: 12, background: '#f8f9fa', borderRadius: 8 }}>
+                    <Row>
+                      <Col md="4">
+                        <FormGroup className="mb-2">
+                          <Label className="small">Points Awarded</Label>
+                          <Input type="number" bsSize="sm" value={gradeForm.marks}
+                            onChange={(e) => setGradeForm({ ...gradeForm, marks: e.target.value })} />
+                        </FormGroup>
+                      </Col>
+                      <Col md="8">
+                        <FormGroup className="mb-2">
+                          <Label className="small">Feedback</Label>
+                          <Input bsSize="sm" value={gradeForm.feedback}
+                            onChange={(e) => setGradeForm({ ...gradeForm, feedback: e.target.value })} />
+                        </FormGroup>
+                      </Col>
+                    </Row>
+                    <FormGroup className="mb-2">
+                      <Label className="small">Feedback File <span className="text-muted">(optional — upload checked assignment)</span></Label>
+                      <div>
+                        <input type="file" ref={gradeFileRef} style={{ display: 'none' }}
+                          accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.txt"
+                          onChange={e => e.target.files?.[0] && handleGradeFileUpload(e.target.files[0])} />
+                        <div className="d-flex align-items-center" style={{ gap: 10 }}>
+                          <button type="button" onClick={() => gradeFileRef.current?.click()}
+                            disabled={gradeUploading}
+                            style={{ background: '#2dce89', color: '#fff', border: 'none', borderRadius: 8, padding: '4px 12px', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>
+                            {gradeUploading ? 'Uploading...' : 'Upload File'}
+                          </button>
+                          {gradeFileName && (
+                            <span style={{ fontSize: 12, color: '#2dce89', fontWeight: 600 }}>{gradeFileName}</span>
+                          )}
+                        </div>
+                      </div>
+                    </FormGroup>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <Button size="sm" color="success" style={{ borderRadius: 8 }} onClick={() => handleGrade(sub.id)}>Submit Grade</Button>
+                      <Button size="sm" color="link" onClick={() => setGradingId(null)}>Cancel</Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </ModalBody>
+          <ModalFooter style={{ background: '#f8fbff' }}>
+            <Button color="secondary" outline onClick={() => setViewSubs(null)}>Close</Button>
+          </ModalFooter>
+        </Modal>
+
+        {/* Create/Edit Assignment Modal */}
+        <Modal isOpen={assignOpen} toggle={() => { setAssignOpen(false); setEditingAssignment(null); }} centered>
+          <ModalHeader toggle={() => { setAssignOpen(false); setEditingAssignment(null); }}>{editingAssignment ? 'Edit Assignment' : 'Create Assignment'}</ModalHeader>
           <ModalBody>
             <Form onSubmit={handleCreateAssignment}>
               <FormGroup><Label>Title *</Label><Input value={assignForm.title} onChange={(e) => setAssignForm({ ...assignForm, title: e.target.value })} placeholder="Assignment title" /></FormGroup>
               <FormGroup><Label>Description</Label><Input type="textarea" rows={2} value={assignForm.description} onChange={(e) => setAssignForm({ ...assignForm, description: e.target.value })} /></FormGroup>
               <Row>
-                <Col md="6"><FormGroup><Label>Due Date</Label><Input type="datetime-local" value={assignForm.due_date} onChange={(e) => setAssignForm({ ...assignForm, due_date: e.target.value })} /></FormGroup></Col>
+                <Col md="6">
+                  <FormGroup>
+                    <Label>Duration</Label>
+                    <Input type="select" value={assignForm.duration_days} onChange={(e) => setAssignForm({ ...assignForm, duration_days: e.target.value })}>
+                      <option value="">— No duration —</option>
+                      <option value="3">3 Days</option>
+                      <option value="5">5 Days</option>
+                      <option value="7">1 Week</option>
+                      <option value="10">10 Days</option>
+                      <option value="14">2 Weeks</option>
+                      <option value="21">3 Weeks</option>
+                      <option value="30">1 Month</option>
+                      <option value="45">45 Days</option>
+                      <option value="60">2 Months</option>
+                    </Input>
+                    <small className="text-muted">Due date is auto-calculated when assigned to students</small>
+                  </FormGroup>
+                </Col>
                 <Col md="6"><FormGroup><Label>Max Points</Label><Input type="number" value={assignForm.max_marks} onChange={(e) => setAssignForm({ ...assignForm, max_marks: e.target.value })} /></FormGroup></Col>
               </Row>
               <FormGroup>
@@ -1599,8 +2194,8 @@ export default function SubjectTeacher() {
             </Form>
           </ModalBody>
           <ModalFooter>
-            <Button color="warning" disabled={assignSaving} onClick={handleCreateAssignment}>{assignSaving ? 'Creating...' : 'Create Assignment'}</Button>
-            <Button color="link" onClick={() => setAssignOpen(false)}>Cancel</Button>
+            <Button color="warning" disabled={assignSaving} onClick={handleCreateAssignment}>{assignSaving ? 'Saving...' : editingAssignment ? 'Update Assignment' : 'Create Assignment'}</Button>
+            <Button color="link" onClick={() => { setAssignOpen(false); setEditingAssignment(null); }}>Cancel</Button>
           </ModalFooter>
         </Modal>
 
@@ -1652,22 +2247,42 @@ export default function SubjectTeacher() {
           </ModalFooter>
         </Modal>
 
-      {/* Add Material Modal */}
-        <Modal isOpen={matModalOpen} toggle={() => setMatModalOpen(false)} centered>
-          <ModalHeader toggle={() => setMatModalOpen(false)}>Add Study Material</ModalHeader>
+      {/* Add/Edit Material Modal */}
+        <Modal isOpen={matModalOpen} toggle={() => { setMatModalOpen(false); setEditingMaterial(null); }} centered>
+          <ModalHeader toggle={() => { setMatModalOpen(false); setEditingMaterial(null); }}>{editingMaterial ? 'Edit Material' : 'Add Study Material'}</ModalHeader>
           <ModalBody>
             <Form onSubmit={handleAddMaterial}>
-              <FormGroup><Label>Title *</Label><Input value={matForm.title} onChange={(e) => setMatForm({ ...matForm, title: e.target.value })} placeholder="e.g. Chapter 3 Notes" /></FormGroup>
-              <FormGroup><Label>Type</Label>
-                <Input type="select" value={matForm.material_type} onChange={(e) => setMatForm({ ...matForm, material_type: e.target.value })}>
-                  <option value="link">Link</option>
-                  <option value="pdf">PDF</option>
-                  <option value="video">Video</option>
-                  <option value="doc">Document</option>
-                  <option value="image">Image</option>
-                </Input>
+              <FormGroup><Label><strong>Title *</strong></Label><Input value={matForm.title} onChange={(e) => setMatForm({ ...matForm, title: e.target.value })} placeholder="e.g. Chapter 3 Notes" /></FormGroup>
+              <FormGroup>
+                <Label><strong>{editingMaterial ? 'Replace File (optional)' : 'Upload File *'}</strong></Label>
+                <input type="file" ref={matFileRef} style={{ display: 'none' }}
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.webp,.mp4,.webm,.mov,.avi,.zip,.txt"
+                  onChange={(e) => e.target.files?.[0] && handleMatFileUpload(e.target.files[0])} />
+                <div className="d-flex align-items-center" style={{ gap: 10, marginBottom: 4 }}>
+                  <button type="button" onClick={() => matFileRef.current?.click()}
+                    disabled={matUploading}
+                    style={{ background: '#2dce89', color: '#fff', border: 'none', borderRadius: 8, padding: '7px 16px', fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>
+                    {matUploading ? 'Uploading...' : 'Choose File'}
+                  </button>
+                  {matForm.file_name && (
+                    <span style={{ fontSize: 13, color: '#2dce89', fontWeight: 600 }}>&#10003; {matForm.file_name}</span>
+                  )}
+                </div>
+                <small className="text-muted">PDF, Word, Excel, PowerPoint, Image, Video, ZIP (max 100 MB)</small>
               </FormGroup>
-              <FormGroup><Label>URL *</Label><Input value={matForm.file_url} onChange={(e) => setMatForm({ ...matForm, file_url: e.target.value })} placeholder="https://..." /></FormGroup>
+              {matForm.file_url && (
+                <FormGroup>
+                  <Label>Detected Type</Label>
+                  <Input type="select" value={matForm.material_type} onChange={(e) => setMatForm({ ...matForm, material_type: e.target.value })}>
+                    <option value="pdf">PDF</option>
+                    <option value="doc">Document</option>
+                    <option value="video">Video</option>
+                    <option value="image">Image</option>
+                    <option value="pptx">Presentation</option>
+                    <option value="zip">ZIP Archive</option>
+                  </Input>
+                </FormGroup>
+              )}
               <FormGroup><Label>Description</Label><Input type="textarea" rows={2} value={matForm.description} onChange={(e) => setMatForm({ ...matForm, description: e.target.value })} placeholder="Optional..." /></FormGroup>
               <FormGroup>
                 <Label>Topic <span className="text-danger">*</span></Label>
@@ -1680,8 +2295,8 @@ export default function SubjectTeacher() {
             </Form>
           </ModalBody>
           <ModalFooter>
-            <Button color="secondary" disabled={matSaving} onClick={handleAddMaterial}>{matSaving ? 'Adding...' : 'Add Material'}</Button>
-            <Button color="link" onClick={() => setMatModalOpen(false)}>Cancel</Button>
+            <Button color="secondary" disabled={matSaving || matUploading} onClick={handleAddMaterial}>{matSaving ? 'Saving...' : (editingMaterial ? 'Save Changes' : 'Add Material')}</Button>
+            <Button color="link" onClick={() => { setMatModalOpen(false); setEditingMaterial(null); }}>Cancel</Button>
           </ModalFooter>
         </Modal>
 
@@ -1841,8 +2456,16 @@ export default function SubjectTeacher() {
                 )}
                 <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 14 }}>
                   <div>
-                    <div style={{ fontSize: 11, color: '#8898aa', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>Due Date</div>
-                    <div style={{ color: '#32325d', fontWeight: 600 }}>{previewAssign.due_date ? new Date(previewAssign.due_date).toLocaleDateString('en-US') : '—'}</div>
+                    <div style={{ fontSize: 11, color: '#8898aa', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>Duration</div>
+                    <div style={{ color: '#32325d', fontWeight: 600 }}>{
+                      previewAssign.duration_days
+                        ? previewAssign.duration_days === 7 ? '1 Week'
+                          : previewAssign.duration_days === 14 ? '2 Weeks'
+                          : previewAssign.duration_days === 21 ? '3 Weeks'
+                          : previewAssign.duration_days === 30 ? '1 Month'
+                          : `${previewAssign.duration_days} Days`
+                        : '—'
+                    }</div>
                   </div>
                   <div>
                     <div style={{ fontSize: 11, color: '#8898aa', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>Max Marks</div>
@@ -2045,7 +2668,7 @@ export default function SubjectTeacher() {
             ) : quizPermissionsLoading ? (
               <p className="text-muted text-center py-3">Loading...</p>
             ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <table className="subject-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ background: '#f8f9fa' }}>
                     {['Teacher', 'Subject Access', 'Quiz Write Access', 'Granted At', 'Action'].map(h => (
@@ -2141,7 +2764,7 @@ export default function SubjectTeacher() {
                   if (r.assigned_at > byTeacher[r.assigned_by].latestAt) byTeacher[r.assigned_by].latestAt = r.assigned_at;
                 });
                 return (
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <table className="subject-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr style={{ background: '#f8f9fa' }}>
                         {['Teacher', 'Students Assigned', 'Last Assignment Date'].map(h => (
@@ -2162,11 +2785,12 @@ export default function SubjectTeacher() {
                 );
               } else {
                 // List each student
+                const isAssignmentType = detailModal.contentType === 'assignment';
                 return (
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <table className="subject-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr style={{ background: '#f8f9fa' }}>
-                        {['Student', 'Email', 'Assigned By', 'Assigned At'].map(h => (
+                        {['Student', 'Email', 'Assigned By', 'Assigned At', ...(isAssignmentType ? ['Due Date'] : [])].map(h => (
                           <th key={h} style={{ padding: '8px 12px', fontSize: 11, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase' }}>{h}</th>
                         ))}
                       </tr>
@@ -2178,6 +2802,11 @@ export default function SubjectTeacher() {
                           <td style={{ padding: '10px 12px', color: '#8898aa', fontSize: 12 }}>{r.student_email}</td>
                           <td style={{ padding: '10px 12px', color: '#525f7f' }}>{r.assigner_name}</td>
                           <td style={{ padding: '10px 12px', color: '#8898aa', fontSize: 12 }}>{new Date(r.assigned_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</td>
+                          {isAssignmentType && (
+                            <td style={{ padding: '10px 12px', color: r.due_date ? '#f5365c' : '#8898aa', fontSize: 12, fontWeight: r.due_date ? 600 : 400 }}>
+                              {r.due_date ? new Date(r.due_date).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : '—'}
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
@@ -2195,6 +2824,13 @@ export default function SubjectTeacher() {
       <style>{`
         @keyframes liveBlink { 0%,100%{opacity:1} 50%{opacity:.4} }
         .live-blink { animation: liveBlink 1s infinite; }
+        .subject-table tbody tr { transition: background .12s ease; }
+        .subject-table tbody tr:hover { background: #f7f9fc !important; }
+        .subject-table th { border-bottom: 2px solid #e9ecef; }
+        .filter-select { padding: 6px 12px; border-radius: 8px; border: 1px solid #dee2e6; font-size: 12px; background: #fff; color: #525f7f; cursor: pointer; transition: border-color .15s; }
+        .filter-select:focus { border-color: #5e72e4; outline: none; }
+        .filter-input { padding: 6px 12px; border-radius: 8px; border: 1px solid #dee2e6; font-size: 12px; background: #fff; color: #525f7f; width: 160px; transition: border-color .15s; }
+        .filter-input:focus { border-color: #5e72e4; outline: none; }
       `}</style>
     </>
   );

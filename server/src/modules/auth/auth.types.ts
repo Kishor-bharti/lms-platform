@@ -10,6 +10,7 @@ export interface UserRow {
   last_name: string;
   password_hash: string;
   is_active: boolean;
+  is_super_admin: boolean;
   roles: string[];       // array_agg result, e.g. ['admin']
 }
 
@@ -31,5 +32,6 @@ export interface LoginResponse {
     lastName: string;
     roles: string[];
     activeRole: string;
+    isSuperAdmin: boolean;
   };
 }

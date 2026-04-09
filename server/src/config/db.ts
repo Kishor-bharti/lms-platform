@@ -7,9 +7,9 @@ import logger from './logger';
 
 export const pool = new Pool({
   connectionString: env.DATABASE_URL,
-  max: 5,
-  idleTimeoutMillis: 40000,
-  connectionTimeoutMillis: 20000,
+  max: 25,                       // was 5 — 5 connections breaks at 6 concurrent requests
+  idleTimeoutMillis: 10000,      // release idle connections quickly (was 40s)
+  connectionTimeoutMillis: 5000, // fail fast instead of leaving users hanging 20s (was 20s)
   ssl: env.NODE_ENV === 'production'
     ? { rejectUnauthorized: false }
     : false,

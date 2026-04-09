@@ -26,13 +26,14 @@ export async function login(
       u.last_name,
       u.password_hash,
       u.is_active,
+      u.is_super_admin,
       array_agg(r.name) AS roles
     FROM   users u
     JOIN   user_roles ur ON ur.user_id = u.id
     JOIN   roles      r  ON r.id       = ur.role_id
     WHERE  u.email = $1
     GROUP  BY u.id, u.email, u.first_name,
-              u.last_name, u.password_hash, u.is_active
+              u.last_name, u.password_hash, u.is_active, u.is_super_admin
   `, [email]);
 
   // 2. User not found
@@ -81,6 +82,7 @@ export async function login(
       lastName: user.last_name,
       roles: user.roles,
       activeRole: loginAs,
+      isSuperAdmin: user.is_super_admin,
     },
   };
 }

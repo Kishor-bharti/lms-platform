@@ -1,4 +1,7 @@
 import { query } from '../../config/db';
+import { deleteFilesByUrls, moveFileBetweenBuckets, signFileFields } from '../../utils/storage';
+import { env } from '../../config/env';
+import logger from '../../config/logger';
 
 export interface Material {
   id: string;
@@ -63,10 +66,54 @@ export async function getMaterials(
     ORDER BY sm.order_index, sm.created_at
   `, params);
 
-  return rows;
+  return Promise.all(rows.map((r: any) => signFileFields(r, ['file_url'])));
+}
+
+export async function updateMaterial(
+  materialId: string,
+  data: { title?: string; description?: string; material_type?: string; file_url?: string; topicId?: string }
+): Promise<Material> {
+  const sets: string[] = [];
+  const params: any[] = [];
+  let idx = 1;
+
+  if (data.title !== undefined)         { sets.push(`title = $${idx++}`);         params.push(data.title); }
+  if (data.description !== undefined)   { sets.push(`description = $${idx++}`);   params.push(data.description || null); }
+  if (data.material_type !== undefined) { sets.push(`material_type = $${idx++}`); params.push(data.material_type); }
+  if (data.file_url !== undefined)      { sets.push(`file_url = $${idx++}`);      params.push(data.file_url); }
+  if (data.topicId !== undefined)       { sets.push(`topic_id = $${idx++}`);      params.push(data.topicId || null); }
+
+  if (sets.length === 0) throw new Error('Nothing to update');
+
+  sets.push(`updated_at = now()`);
+  params.push(materialId);
+
+  const rows = await query<any>(`
+    UPDATE subject_materials SET ${sets.join(', ')}
+    WHERE id = $${idx}
+    RETURNING id, subject_id, topic_id, uploaded_by, title, description, material_type,
+              file_url, file_size_kb, order_index, is_active, is_published, created_at
+  `, params);
+
+  if (!rows[0]) throw new Error('NOT_FOUND');
+  return signFileFields(rows[0], ['file_url']);
 }
 
 export async function publishMaterial(materialId: string, published: boolean): Promise<void> {
+  // When publishing, move file from temp-uploads to portal-assets
+  if (published) {
+    const rows = await query<any>(`SELECT file_url FROM subject_materials WHERE id = $1`, [materialId]);
+    if (rows[0]?.file_url) {
+      try {
+        const newUrl = await moveFileBetweenBuckets(rows[0].file_url, env.SUPABASE_PORTAL_BUCKET);
+        if (newUrl && newUrl !== rows[0].file_url) {
+          await query(`UPDATE subject_materials SET file_url = $1 WHERE id = $2`, [newUrl, materialId]);
+        }
+      } catch (err) {
+        logger.warn('[materials] Failed to move file on publish, continuing with original URL:', err);
+      }
+    }
+  }
   await query(
     `UPDATE subject_materials SET is_published = $1, updated_at = now() WHERE id = $2`,
     [published, materialId]
@@ -105,10 +152,11 @@ export async function addMaterial(data: {
     `SELECT first_name || ' ' || last_name AS name FROM users WHERE id = $1`, [data.uploadedBy]
   );
 
-  return { ...rows[0], uploader_name: uploaderRows[0]?.name ?? 'Teacher' };
+  return signFileFields({ ...rows[0], uploader_name: uploaderRows[0]?.name ?? 'Teacher' }, ['file_url']);
 }
 
 export async function deleteMaterial(materialId: string, requesterId: string): Promise<void> {
+  const fileRows = await query<any>(`SELECT file_url FROM subject_materials WHERE id = $1`, [materialId]);
   // Soft-delete: teachers can only delete their own drafts; published content requires admin
   const result = await query<any>(`
     UPDATE subject_materials SET is_active = false, updated_at = now()
@@ -124,6 +172,10 @@ export async function deleteMaterial(materialId: string, requesterId: string): P
   `, [materialId, requesterId]);
 
   if (!result[0]) throw new Error('FORBIDDEN');
+
+  if (fileRows[0]?.file_url) {
+    await deleteFilesByUrls([fileRows[0].file_url]);
+  }
 }
 
 export async function reorderMaterials(subjectId: string, orderedIds: string[]): Promise<void> {

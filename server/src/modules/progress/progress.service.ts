@@ -1,4 +1,5 @@
 import { query } from '../../config/db';
+import { signFileFields } from '../../utils/storage';
 
 // ---- Student: activity for a date range ----
 
@@ -438,7 +439,10 @@ export async function getAttemptReview(attemptId: string, studentId: string) {
     ORDER BY q.order_index
   `, [attemptId]);
 
-  return { attempt, answers: answerRows };
+  const signedAnswers = await Promise.all(answerRows.map((a: any) =>
+    signFileFields(a, ['image_url', 'explanation_image_url'])
+  ));
+  return { attempt, answers: signedAnswers };
 }
 
 // ---- Teacher: check if student belongs to one of teacher's subjects ----

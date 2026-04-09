@@ -570,47 +570,66 @@ export default function QuizTaker() {
                     </div>
                   )}
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {q?.options?.map((opt) => {
-                      const selected = answers[q.id] === opt.id;
-                      return (
-                        <button
-                          key={opt.id}
-                          disabled={isLocked}
-                          onClick={() => {
-                            if (isLocked) return;
-                            setAnswers((prev) => {
-                              const next = { ...prev };
-                              if (next[q.id] === opt.id) { delete next[q.id]; } else { next[q.id] = opt.id; }
-                              return next;
-                            });
-                          }}
-                          style={{
-                            display: 'flex', alignItems: 'center', gap: 14,
-                            padding: '14px 18px', borderRadius: 10, cursor: isLocked ? 'default' : 'pointer', textAlign: 'left',
-                            border: `2px solid ${selected ? (isLocked ? '#8898aa' : '#5e72e4') : '#e9ecef'}`,
-                            background: selected ? (isLocked ? '#f0f4f8' : '#eef0fd') : '#fff',
-                            transition: 'all 0.15s ease', fontWeight: selected ? 700 : 400,
-                            opacity: isLocked ? 0.8 : 1,
-                          }}
-                        >
-                          <span style={{
-                            width: 32, height: 32, borderRadius: '50%', display: 'flex',
-                            alignItems: 'center', justifyContent: 'center', fontWeight: 800, flexShrink: 0,
-                            background: selected ? (isLocked ? '#8898aa' : '#5e72e4') : '#f0f4f8',
-                            color: selected ? '#fff' : '#525f7f', fontSize: 14,
-                          }}>
-                            {opt.option_label}
-                          </span>
-                          {opt.option_image_url ? (
-                            <img src={opt.option_image_url} alt={`Option ${opt.option_label}`} style={{ maxWidth: '100%', maxHeight: 120, borderRadius: 6, objectFit: 'contain' }} />
-                          ) : (
-                            <span style={{ color: '#32325d' }}><LatexRenderer text={opt.option_text || ''} /></span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  {(() => {
+                    const hasImageOptions = q?.options?.some(o => o.option_image_url);
+                    return (
+                      <div style={hasImageOptions
+                        ? { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }
+                        : { display: 'flex', flexDirection: 'column', gap: 10 }
+                      }>
+                        {q?.options?.map((opt) => {
+                          const selected = answers[q.id] === opt.id;
+                          return (
+                            <button
+                              key={opt.id}
+                              disabled={isLocked}
+                              onClick={() => {
+                                if (isLocked) return;
+                                setAnswers((prev) => {
+                                  const next = { ...prev };
+                                  if (next[q.id] === opt.id) { delete next[q.id]; } else { next[q.id] = opt.id; }
+                                  return next;
+                                });
+                              }}
+                              style={{
+                                display: 'flex',
+                                flexDirection: hasImageOptions ? 'column' : 'row',
+                                alignItems: hasImageOptions ? 'stretch' : 'center',
+                                gap: hasImageOptions ? 10 : 14,
+                                padding: hasImageOptions ? '12px' : '14px 18px',
+                                borderRadius: 10, cursor: isLocked ? 'default' : 'pointer', textAlign: 'left',
+                                border: `2px solid ${selected ? (isLocked ? '#8898aa' : '#5e72e4') : '#e9ecef'}`,
+                                background: selected ? (isLocked ? '#f0f4f8' : '#eef0fd') : '#fff',
+                                transition: 'all 0.15s ease', fontWeight: selected ? 700 : 400,
+                                opacity: isLocked ? 0.8 : 1,
+                                minHeight: hasImageOptions ? 180 : 'auto',
+                              }}
+                            >
+                              <span style={{
+                                width: 32, height: 32, borderRadius: '50%', display: 'flex',
+                                alignItems: 'center', justifyContent: 'center', fontWeight: 800, flexShrink: 0,
+                                background: selected ? (isLocked ? '#8898aa' : '#5e72e4') : '#f0f4f8',
+                                color: selected ? '#fff' : '#525f7f', fontSize: 14,
+                              }}>
+                                {opt.option_label}
+                              </span>
+                              {opt.option_image_url ? (
+                                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8f9fa', borderRadius: 8, padding: 8, minHeight: 120 }}>
+                                  <img
+                                    src={opt.option_image_url}
+                                    alt={`Option ${opt.option_label}`}
+                                    style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 6, objectFit: 'contain', display: 'block' }}
+                                  />
+                                </div>
+                              ) : (
+                                <span style={{ color: '#32325d' }}><LatexRenderer text={opt.option_text || ''} /></span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24 }}>
                     <Button color="secondary" outline style={{ borderRadius: 8 }} disabled={current === 0}

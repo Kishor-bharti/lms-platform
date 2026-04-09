@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { TableSkeleton } from 'components/Skeleton.js';
 import {
   Container, Row, Col, Card, CardHeader, CardBody, CardTitle, Button,
-  Modal, ModalHeader, ModalBody, ModalFooter, Badge,
+  Modal, ModalHeader, ModalBody, ModalFooter,
   Form, FormGroup, Label, Input, FormText,
 } from 'reactstrap';
 import Header from 'components/Headers/Header.js';
@@ -296,13 +296,10 @@ export default function AdminSessions() {
     } finally { setBulkDeleting(false); }
   };
 
-  const openStudents = async (session) => {
-    if (!session.subject_id) return;
-    setStudentsModal({ open: true, session, students: [], loading: true });
-    try {
-      const res = await http.get(`/api/admin/subjects/${session.subject_id}/enrollments`);
-      setStudentsModal(p => ({ ...p, students: res.data || [], loading: false }));
-    } catch { setStudentsModal(p => ({ ...p, students: [], loading: false })); }
+  const openStudents = (session) => {
+    // session.students is already the list of students assigned to THIS session
+    // (from session_students table), not all students enrolled in the subject.
+    setStudentsModal({ open: true, session, students: session.students || [], loading: false });
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -695,36 +692,30 @@ export default function AdminSessions() {
       </Modal>
 
       {/* ── Enrolled Students Modal ──────────────────────────────────────── */}
-      <Modal isOpen={studentsModal.open} toggle={() => setStudentsModal(p => ({ ...p, open: false }))} centered size="lg">
+      <Modal isOpen={studentsModal.open} toggle={() => setStudentsModal(p => ({ ...p, open: false }))} centered size="md">
         <ModalHeader toggle={() => setStudentsModal(p => ({ ...p, open: false }))}>
-          👥 Enrolled Students — {studentsModal.session?.subject_name}
+          👥 Session Students — {studentsModal.session?.title}
           <div style={{ fontSize: 12, fontWeight: 400, color: '#8898aa', marginTop: 2 }}>
-            {studentsModal.session?.title} · {studentsModal.session?.course_name}
+            {studentsModal.session?.subject_name} · {studentsModal.session?.course_name}
           </div>
         </ModalHeader>
         <ModalBody>
-          {studentsModal.loading ? (
-            <p className="text-center text-muted py-3">Loading...</p>
-          ) : studentsModal.students.length === 0 ? (
-            <p className="text-center text-muted py-3">No enrolled students</p>
+          {studentsModal.students.length === 0 ? (
+            <p className="text-center text-muted py-3">No specific students assigned — open to all enrolled students</p>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: '#f8f9fa' }}>
-                  {['#', 'Name', 'Email', 'Status'].map(h => (
+                  {['#', 'Name'].map(h => (
                     <th key={h} style={{ padding: '8px 12px', fontSize: 11, fontWeight: 700, color: '#8898aa', textTransform: 'uppercase', letterSpacing: 0.5 }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {studentsModal.students.map((st, i) => (
-                  <tr key={st.id || i} style={{ borderBottom: '1px solid #f0f4f8' }}>
+                  <tr key={st.student_id || i} style={{ borderBottom: '1px solid #f0f4f8' }}>
                     <td style={{ padding: '10px 12px', color: '#8898aa', fontSize: 13 }}>{i + 1}</td>
-                    <td style={{ padding: '10px 12px', fontWeight: 600, color: '#32325d' }}>{st.first_name} {st.last_name}</td>
-                    <td style={{ padding: '10px 12px', color: '#525f7f', fontSize: 13 }}>{st.email}</td>
-                    <td style={{ padding: '10px 12px' }}>
-                      <Badge color={st.status === 'active' ? 'success' : 'secondary'} style={{ textTransform: 'capitalize' }}>{st.status}</Badge>
-                    </td>
+                    <td style={{ padding: '10px 12px', fontWeight: 600, color: '#32325d' }}>{st.student_name}</td>
                   </tr>
                 ))}
               </tbody>

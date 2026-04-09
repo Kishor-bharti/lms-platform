@@ -117,12 +117,18 @@ describe('assignment.service', () => {
 
   describe('deleteAssignment', () => {
     it('deletes the assignment when requester is the creator', async () => {
+      // First query: SELECT attachment_url + submission files (file-collection before delete)
+      mockQuery.mockResolvedValueOnce([{ attachment_url: null, submission_url: null, feedback_file_url: null }]);
+      // Second query: DELETE ... RETURNING id
       mockQuery.mockResolvedValueOnce([{ id: 'a-uuid' }]);
       await deleteAssignment('a-uuid', 'creator-uuid');
       expect(mockQuery).toHaveBeenCalled();
     });
 
     it('throws FORBIDDEN when the query returns no rows', async () => {
+      // First query: SELECT attachment_url + submission files (file-collection before delete)
+      mockQuery.mockResolvedValueOnce([{ attachment_url: null, submission_url: null, feedback_file_url: null }]);
+      // Second query: DELETE returns no rows → FORBIDDEN
       mockQuery.mockResolvedValueOnce([]);
       await expect(deleteAssignment('a-uuid', 'other-user-uuid'))
         .rejects.toThrow('FORBIDDEN');
@@ -140,7 +146,8 @@ describe('assignment.service', () => {
         is_late: false, marks_awarded: null, feedback: null, status: 'submitted',
       };
       mockQuery
-        .mockResolvedValueOnce([{ due_date: futureDue }]) // SELECT assignment
+        .mockResolvedValueOnce([{ effective_due_date: futureDue }]) // SELECT assignment
+        .mockResolvedValueOnce([])                         // SELECT existing submission
         .mockResolvedValueOnce([resultRow]);               // UPSERT submission
 
       const result = await submitAssignment({ assignmentId: 'a-uuid', studentId: 'student-uuid' });
@@ -157,13 +164,14 @@ describe('assignment.service', () => {
         is_late: true, marks_awarded: null, feedback: null, status: 'submitted',
       };
       mockQuery
-        .mockResolvedValueOnce([{ due_date: pastDue }])
+        .mockResolvedValueOnce([{ effective_due_date: pastDue }])
+        .mockResolvedValueOnce([])                         // SELECT existing submission
         .mockResolvedValueOnce([resultRow]);
 
       const result = await submitAssignment({ assignmentId: 'a-uuid', studentId: 'student-uuid' });
 
       // is_late is determined by the service and passed to the query
-      const insertParams = (mockQuery.mock.calls[1] as any[])[1] as any[];
+      const insertParams = (mockQuery.mock.calls[2] as any[])[1] as any[];
       expect(insertParams[4]).toBe(true); // is_late parameter
     });
 

@@ -21,9 +21,17 @@ router.patch('/users/:userId/active', adminController.toggleUserActive);
 router.post('/users/:userId/roles', adminController.assignRole);
 router.delete('/users/:userId/roles/:roleName', adminController.removeRole);
 
+// Super Admin — user detail, password, hard delete
+router.get('/users/:userId/detail', adminController.getUserDetail);
+router.post('/verify-password', adminController.verifyAdminPassword);
+router.post('/users/:userId/reset-password', adminController.resetUserPassword);
+router.delete('/users/:userId/hard-delete', adminController.hardDeleteUser);
+
 // Courses
 router.get('/courses', adminController.getCourses);
 router.post('/courses', adminController.createCourse);
+router.patch('/courses/:courseId', adminController.updateCourse);
+router.delete('/courses/:courseId/hard-delete', adminController.hardDeleteCourse);
 
 // Subjects
 router.get('/subjects', adminController.getSubjects);

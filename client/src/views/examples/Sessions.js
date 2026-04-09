@@ -95,9 +95,9 @@ function formatRecurrenceInfo(session) {
   return `Recurring (${pattern || 'regular'})`;
 }
 
-/** Returns true if now >= scheduledAt − 5 min */
+/** Returns true if now >= scheduledAt − 30 min */
 function canStartSession(scheduledAt) {
-  return Date.now() >= new Date(scheduledAt).getTime() - 5 * 60 * 1000;
+  return Date.now() >= new Date(scheduledAt).getTime() - 30 * 60 * 1000;
 }
 
 const STATUS_PRIORITY = { LIVE: 0, TODAY: 1, TOMORROW: 2, SCHEDULED: 3, MISSED: 4, COMPLETED: 5 };
@@ -676,7 +676,7 @@ const Sessions = () => {
                                         e.stopPropagation();
                                         isLive ? handleEndSession(session.id) : handleStartSession(session.id);
                                       }}
-                                      title={!isLive && !okToStart ? 'Available 5 minutes before scheduled start time' : ''}
+                                      title={!isLive && !okToStart ? 'Available 30 minutes before scheduled start time' : ''}
                                       style={{
                                         border: 'none', borderRadius: '6px', padding: '8px 20px',
                                         fontWeight: '600', fontSize: '14px',

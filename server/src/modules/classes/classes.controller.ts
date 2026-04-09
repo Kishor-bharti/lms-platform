@@ -115,7 +115,7 @@ export async function startSessionById(req: Request, res: Response) {
     if (err.message === 'Session was missed')      return res.status(409).json({ error: 'This session window has passed and was not started in time.' });
     if (err.message === 'TOO_EARLY') {
       const mins = err.minsLeft ? ` You can start it in ${err.minsLeft} min.` : '';
-      return res.status(403).json({ error: `Too early to start this session.${mins} Sessions can be started 5 minutes before scheduled time.` });
+      return res.status(403).json({ error: `Too early to start this session.${mins} Sessions can be started 30 minutes before scheduled time.` });
     }
     return res.status(500).json({ error: 'Failed to start session' });
   }
@@ -148,7 +148,7 @@ export async function getSubjectTeachersHandler(req: Request, res: Response) {
   try {
     const subjectId = req.params.subjectId as string;
     const role = req.user?.role;
-    if (role !== 'teacher' && role !== 'admin') {
+    if (role !== 'teacher' && role !== 'admin' && role !== 'student') {
       return res.status(403).json({ error: 'Forbidden' });
     }
     const teachers = await classesService.getSubjectTeachers(subjectId);

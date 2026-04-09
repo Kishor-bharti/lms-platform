@@ -32,17 +32,19 @@ CREATE TABLE roles (
 INSERT INTO roles VALUES (1,'admin'),(2,'teacher'),(3,'student');
 
 CREATE TABLE users (
-  id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-  email         VARCHAR(150) NOT NULL UNIQUE,
-  password_hash VARCHAR(255) NOT NULL,
-  first_name    VARCHAR(100) NOT NULL,
-  last_name     VARCHAR(100) NOT NULL,
-  phone         VARCHAR(20),
-  avatar_url    TEXT,
-  is_active     BOOLEAN      NOT NULL DEFAULT TRUE,
-  last_login_at TIMESTAMPTZ,
-  created_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
-  updated_at    TIMESTAMPTZ  NOT NULL DEFAULT now()
+  id             UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  email          VARCHAR(150) NOT NULL UNIQUE,
+  password_hash  VARCHAR(255) NOT NULL,
+  first_name     VARCHAR(100) NOT NULL,
+  last_name      VARCHAR(100) NOT NULL,
+  phone          VARCHAR(20),
+  avatar_url     TEXT,
+  description    TEXT,
+  is_active      BOOLEAN      NOT NULL DEFAULT TRUE,
+  is_super_admin BOOLEAN      NOT NULL DEFAULT FALSE,
+  last_login_at  TIMESTAMPTZ,
+  created_at     TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  updated_at     TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
 CREATE TABLE user_roles (
@@ -228,7 +230,7 @@ CREATE TABLE quiz_attempts (
 CREATE TABLE attempt_answers (
   id                 UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
   attempt_id         UUID         NOT NULL REFERENCES quiz_attempts(id) ON DELETE CASCADE,
-  question_id        UUID         NOT NULL REFERENCES questions(id),
+  question_id        UUID         NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
   selected_option_id UUID         REFERENCES options(id),
   is_correct         BOOLEAN,
   marks_awarded      NUMERIC(4,2),
@@ -245,6 +247,7 @@ CREATE TABLE assignments (
   title          VARCHAR(255) NOT NULL,
   description    TEXT,
   due_date       TIMESTAMPTZ,
+  duration_days  INTEGER,
   max_marks      NUMERIC(6,2) NOT NULL DEFAULT 100,
   is_published   BOOLEAN      NOT NULL DEFAULT FALSE,
   attachment_url TEXT,
@@ -263,6 +266,7 @@ CREATE TABLE assignment_submissions (
   is_late         BOOLEAN     NOT NULL DEFAULT FALSE,
   marks_awarded   NUMERIC(6,2),
   feedback        TEXT,
+  feedback_file_url TEXT,
   graded_by       UUID        REFERENCES users(id),
   graded_at       TIMESTAMPTZ,
   status          VARCHAR(20) NOT NULL DEFAULT 'pending',
@@ -330,6 +334,24 @@ CREATE TABLE sessions (
   CHECK (status IN ('scheduled','live','completed','cancelled','missed'))
 );
 
+CREATE OR REPLACE FUNCTION fn_cleanup_orphan_session_recurrence()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF OLD.recurrence_id IS NOT NULL THEN
+    DELETE FROM session_recurrence sr
+    WHERE sr.id = OLD.recurrence_id
+      AND NOT EXISTS (
+        SELECT 1 FROM sessions s WHERE s.recurrence_id = OLD.recurrence_id
+      );
+  END IF;
+  RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_cleanup_orphan_session_recurrence
+  AFTER DELETE ON sessions
+  FOR EACH ROW EXECUTE FUNCTION fn_cleanup_orphan_session_recurrence();
+
 CREATE TABLE subject_materials (
   id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
   subject_id    UUID         NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
@@ -363,9 +385,25 @@ CREATE TABLE student_content_assignments (
   student_id   UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   assigned_by  UUID        NOT NULL REFERENCES users(id),
   assigned_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  due_date     TIMESTAMPTZ,
   UNIQUE (content_type, content_id, student_id)
 );
 
+
+CREATE TABLE student_uploads (
+  id                UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  subject_id        UUID         NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+  student_id        UUID         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  teacher_id        UUID         REFERENCES users(id) ON DELETE SET NULL,
+  topic_id          UUID         REFERENCES topics(id) ON DELETE SET NULL,
+  title             VARCHAR(255) NOT NULL,
+  description       TEXT,
+  file_url          TEXT         NOT NULL,
+  file_name         VARCHAR(255),
+  feedback_text     TEXT,
+  feedback_file_url TEXT,
+  created_at        TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
 
 -- ============================================================
 -- Indexes
@@ -378,6 +416,8 @@ CREATE UNIQUE INDEX idx_one_correct_per_question
 -- Identity
 CREATE INDEX idx_users_email     ON users(email);
 CREATE INDEX idx_users_is_active ON users(is_active);
+-- Only one super admin can exist
+CREATE UNIQUE INDEX idx_single_super_admin ON users(is_super_admin) WHERE is_super_admin = TRUE;
 
 -- Course & Enrollment
 CREATE INDEX idx_subject_teachers_teacher  ON subject_teachers(teacher_id);

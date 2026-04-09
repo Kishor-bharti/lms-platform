@@ -73,6 +73,9 @@ describe('materials.service', () => {
 
   describe('deleteMaterial', () => {
     it('soft-deletes the material (sets is_active=false)', async () => {
+      // First query: SELECT file_url (file-collection before delete)
+      mockQuery.mockResolvedValueOnce([{ file_url: null }]);
+      // Second query: UPDATE ... RETURNING id
       mockQuery.mockResolvedValueOnce([{ id: 'm-uuid' }]);
       await deleteMaterial('m-uuid', 'teacher-uuid');
       expect(mockQuery).toHaveBeenCalledWith(

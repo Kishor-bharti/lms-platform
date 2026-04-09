@@ -157,12 +157,13 @@ describe('quiz.service', () => {
   describe('deleteQuiz', () => {
     it('soft-deletes questions and the quiz', async () => {
       mockQuery
+        .mockResolvedValueOnce([]) // SELECT image/option files (file-collection before delete)
         .mockResolvedValueOnce([]) // UPDATE questions SET is_active=false
         .mockResolvedValueOnce([]); // UPDATE quizzes SET is_active=false
 
       await deleteQuiz('q-uuid');
 
-      expect(mockQuery).toHaveBeenCalledTimes(2);
+      expect(mockQuery).toHaveBeenCalledTimes(3);
     });
   });
 
