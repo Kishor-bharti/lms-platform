@@ -759,6 +759,24 @@ export async function createAdminSession(input: AdminCreateSessionInput): Promis
     isRecurring, recurPattern, recurDays, recurEndDate,
   } = input;
 
+  // Validate: if specific students are given, every one of them must be
+  // allocated to this teacher for this subject. Otherwise the teacher would
+  // have a session with a student they have never been assigned to teach.
+  if (studentIds && studentIds.length > 0) {
+    const allocRows = await query<{ student_id: string }>(`
+      SELECT student_id FROM subject_teacher_students
+      WHERE subject_id = $1 AND teacher_id = $2
+    `, [subjectId, teacherId]);
+    const allocatedSet = new Set(allocRows.map((r) => r.student_id));
+    const unallocated = studentIds.filter((id) => !allocatedSet.has(id));
+    if (unallocated.length > 0) {
+      throw Object.assign(
+        new Error('One or more students are not allocated to this teacher for this subject'),
+        { statusCode: 400, code: 'STUDENTS_NOT_ALLOCATED' }
+      );
+    }
+  }
+
   return withTransaction(async (client) => {
     let recurrenceId: string | null = null;
     let sessionDates: string[]      = [sessionDate];
