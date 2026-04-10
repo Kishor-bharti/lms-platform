@@ -105,7 +105,7 @@ export async function publishMaterial(materialId: string, published: boolean): P
     const rows = await query<any>(`SELECT file_url FROM subject_materials WHERE id = $1`, [materialId]);
     if (rows[0]?.file_url) {
       try {
-        const newUrl = await moveFileBetweenBuckets(rows[0].file_url, env.SUPABASE_PORTAL_BUCKET);
+        const newUrl = await moveFileBetweenBuckets(rows[0].file_url, env.S3_PORTAL_BUCKET);
         if (newUrl && newUrl !== rows[0].file_url) {
           await query(`UPDATE subject_materials SET file_url = $1 WHERE id = $2`, [newUrl, materialId]);
         }

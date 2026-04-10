@@ -23,10 +23,8 @@ import logger           from './config/logger';
 const app = express();
 
 app.set('trust proxy', 1);
-// Build the Supabase storage origin for CSP (e.g. "https://abc.supabase.co")
-const supabaseOrigin = env.SUPABASE_URL_PUBLIC
-  ? new URL(env.SUPABASE_URL_PUBLIC).origin
-  : 'https://*.supabase.co';
+// S3 presigned URLs use virtual-hosted-style: https://<bucket>.s3.<region>.amazonaws.com/...
+const s3Origin = `https://*.s3.${env.AWS_REGION}.amazonaws.com`;
 
 app.use(helmet({
   crossOriginEmbedderPolicy: false, // needed for Zoom iframes
@@ -35,8 +33,8 @@ app.use(helmet({
     : {
         directives: {
           ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-          // Allow images from self, Supabase storage, and inline data URIs (base64 previews)
-          'img-src': ["'self'", 'data:', supabaseOrigin],
+          // Allow images from self, S3 presigned URLs, and inline data URIs (base64 previews)
+          'img-src': ["'self'", 'data:', s3Origin],
           // Allow Zoom iframes in production too
           'frame-src': ["'self'", 'https://zoom.us', 'https://*.zoom.us'],
         },

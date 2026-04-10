@@ -25,12 +25,13 @@ export const env = {
     .map((o) => o.trim())
     .filter(Boolean),
 
-  // Supabase Storage
-  SUPABASE_URL_PUBLIC:          process.env.SUPABASE_URL_PUBLIC          || '',
-  SUPABASE_ANON_KEY:            process.env.SUPABASE_ANON_KEY            || '',
-  SUPABASE_SERVICE_ROLE_KEY:    process.env.SUPABASE_SERVICE_ROLE_KEY    || '',
-  SUPABASE_PORTAL_BUCKET: process.env.SUPABASE_PORTAL_BUCKET || 'portal-assets',
-  SUPABASE_TEMP_BUCKET:   process.env.SUPABASE_TEMP_BUCKET   || 'temp-uploads',
+  // AWS S3 Storage
+  AWS_REGION:            process.env.AWS_REGION            || 'ap-south-1',
+  AWS_ACCESS_KEY_ID:     process.env.AWS_ACCESS_KEY_ID     || '',
+  AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY || '',
+  S3_PORTAL_BUCKET:      process.env.S3_PORTAL_BUCKET      || 'portal-assets',
+  S3_TEMP_BUCKET:        process.env.S3_TEMP_BUCKET        || 'temp-uploads',
+  S3_QUIZ_BUCKET:        process.env.S3_QUIZ_BUCKET        || 'quiz-images',
 
   // Zoom
   ZOOM_ACCOUNT_ID:    process.env.ZOOM_ACCOUNT_ID || '',

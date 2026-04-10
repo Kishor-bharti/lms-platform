@@ -279,7 +279,7 @@ export async function setAssignmentPublished(assignmentId: string, published: bo
     const rows = await query<any>(`SELECT attachment_url FROM assignments WHERE id = $1`, [assignmentId]);
     if (rows[0]?.attachment_url) {
       try {
-        const newUrl = await moveFileBetweenBuckets(rows[0].attachment_url, env.SUPABASE_PORTAL_BUCKET);
+        const newUrl = await moveFileBetweenBuckets(rows[0].attachment_url, env.S3_PORTAL_BUCKET);
         if (newUrl && newUrl !== rows[0].attachment_url) {
           await query(`UPDATE assignments SET attachment_url = $1 WHERE id = $2`, [newUrl, assignmentId]);
         }
