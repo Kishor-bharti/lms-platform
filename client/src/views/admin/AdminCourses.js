@@ -87,6 +87,7 @@ export default function AdminCourses() {
     try {
       await http.delete(`/api/admin/courses/${deleteTarget.id}/hard-delete`, {
         data: { password: deletePassword },
+        timeout: 60000,
       });
       setDeleteOpen(false);
       fetchCourses();
