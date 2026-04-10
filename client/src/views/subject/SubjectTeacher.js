@@ -2171,7 +2171,7 @@ export default function SubjectTeacher() {
                       <span style={{ fontSize: 13, color: '#2dce89', fontWeight: 600 }}>✓ {assignFileName}</span>
                     )}
                   </div>
-                  <small className="text-muted mt-1 d-block">PDF, Word, Excel, image (max 10 MB)</small>
+                  <small className="text-muted mt-1 d-block">PDF, Word, Excel, image (max 100 MB)</small>
                 </div>
               </FormGroup>
               <FormGroup>
@@ -2179,15 +2179,6 @@ export default function SubjectTeacher() {
                 <Input type="select" value={assignForm.topicId} onChange={(e) => setAssignForm({ ...assignForm, topicId: e.target.value })}>
                   <option value="">— Select topic —</option>
                   {topics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </Input>
-              </FormGroup>
-              <FormGroup>
-                <Label>Assign To <span className="text-muted small">(leave empty = all enrolled students)</span></Label>
-                <Input type="select" value={assignForm.assignedTo} onChange={(e) => setAssignForm({ ...assignForm, assignedTo: e.target.value })}>
-                  <option value="">— All students —</option>
-                  {subjectStudents.map(s => (
-                    <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>
-                  ))}
                 </Input>
               </FormGroup>
               {assignError && <p className="text-danger small">{assignError}</p>}

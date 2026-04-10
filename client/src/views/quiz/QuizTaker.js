@@ -562,10 +562,10 @@ export default function QuizTaker() {
                     <LatexRenderer text={q?.question_text || ''} />
                   </div>
                   {q?.image_url && (
-                    <div style={{ background: '#f8f9fa', padding: 12, borderRadius: 10, marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 150, maxHeight: 350 }}>
+                    <div style={{ background: '#f8f9fa', padding: 12, borderRadius: 10, marginBottom: 20, textAlign: 'center', overflow: 'hidden' }}>
                       <img src={q.image_url} alt="Question" style={{
-                        maxWidth: '100%', maxHeight: '100%', borderRadius: 8,
-                        objectFit: 'contain'
+                        maxWidth: '100%', maxHeight: 240, borderRadius: 8,
+                        objectFit: 'contain', display: 'block', margin: '0 auto',
                       }} />
                     </div>
                   )}
@@ -594,15 +594,14 @@ export default function QuizTaker() {
                               style={{
                                 display: 'flex',
                                 flexDirection: hasImageOptions ? 'column' : 'row',
-                                alignItems: hasImageOptions ? 'stretch' : 'center',
-                                gap: hasImageOptions ? 10 : 14,
-                                padding: hasImageOptions ? '12px' : '14px 18px',
+                                alignItems: hasImageOptions ? 'center' : 'center',
+                                gap: hasImageOptions ? 8 : 14,
+                                padding: hasImageOptions ? '10px' : '14px 18px',
                                 borderRadius: 10, cursor: isLocked ? 'default' : 'pointer', textAlign: 'left',
                                 border: `2px solid ${selected ? (isLocked ? '#8898aa' : '#5e72e4') : '#e9ecef'}`,
                                 background: selected ? (isLocked ? '#f0f4f8' : '#eef0fd') : '#fff',
                                 transition: 'all 0.15s ease', fontWeight: selected ? 700 : 400,
                                 opacity: isLocked ? 0.8 : 1,
-                                minHeight: hasImageOptions ? 180 : 'auto',
                               }}
                             >
                               <span style={{
@@ -614,11 +613,11 @@ export default function QuizTaker() {
                                 {opt.option_label}
                               </span>
                               {opt.option_image_url ? (
-                                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8f9fa', borderRadius: 8, padding: 8, minHeight: 120 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8f9fa', borderRadius: 8, padding: 6, overflow: 'hidden' }}>
                                   <img
                                     src={opt.option_image_url}
                                     alt={`Option ${opt.option_label}`}
-                                    style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 6, objectFit: 'contain', display: 'block' }}
+                                    style={{ maxWidth: '100%', maxHeight: 130, borderRadius: 6, objectFit: 'contain', display: 'block' }}
                                   />
                                 </div>
                               ) : (
@@ -836,8 +835,8 @@ export default function QuizTaker() {
                       <div style={{ marginTop: 10, padding: '8px 12px', background: '#fff8e6', borderRadius: 8, fontSize: 13, color: '#525f7f' }}>
                         <span style={{ fontWeight: 700 }}>Explanation: </span><LatexRenderer text={a.explanation} />
                         {a.explanation_image_url && (
-                          <div style={{ marginTop: 8, background: '#f8f9fa', padding: 8, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <img src={a.explanation_image_url} alt="Explanation" style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 6, objectFit: 'contain', display: 'block' }} />
+                          <div style={{ marginTop: 8, background: '#f8f9fa', padding: 8, borderRadius: 8, textAlign: 'center', overflow: 'hidden' }}>
+                            <img src={a.explanation_image_url} alt="Explanation" style={{ maxWidth: '100%', maxHeight: 180, borderRadius: 6, objectFit: 'contain', display: 'block', margin: '0 auto' }} />
                           </div>
                         )}
                       </div>
@@ -995,8 +994,8 @@ export default function QuizTaker() {
                       <div style={{ marginTop: 10, padding: '8px 12px', background: '#fff8e6', borderRadius: 8, fontSize: 13, color: '#525f7f' }}>
                         <span style={{ fontWeight: 700 }}>Explanation: </span><LatexRenderer text={a.explanation} />
                         {a.explanation_image_url && (
-                          <div style={{ marginTop: 8, background: '#f8f9fa', padding: 8, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <img src={a.explanation_image_url} alt="Explanation" style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 6, objectFit: 'contain', display: 'block' }} />
+                          <div style={{ marginTop: 8, background: '#f8f9fa', padding: 8, borderRadius: 8, textAlign: 'center', overflow: 'hidden' }}>
+                            <img src={a.explanation_image_url} alt="Explanation" style={{ maxWidth: '100%', maxHeight: 180, borderRadius: 6, objectFit: 'contain', display: 'block', margin: '0 auto' }} />
                           </div>
                         )}
                       </div>
