@@ -67,6 +67,19 @@ if (!isDev) {
     }) as unknown as winston.transport
   );
 
+  // Warnings — slow requests, RBAC denials, auth failures (easy to grep in production)
+  transports.push(
+    new DailyRotateFile({
+      dirname: logsDir,
+      filename: 'warn-%DATE%.log',
+      datePattern: 'YYYY-MM-DD',
+      maxFiles: '14d',
+      maxSize: '20m',
+      level: 'warn',
+      format: prodFormat,
+    }) as unknown as winston.transport
+  );
+
   // HTTP access log — every request/response for traffic analysis
   transports.push(
     new DailyRotateFile({

@@ -3,12 +3,28 @@ import { env, validateEnv } from './config/env';
 import { pool } from './config/db';
 import logger from './config/logger';
 
-// Startup diagnostics
+// ── Startup diagnostics ────────────────────────────────────────
+// Log complete config summary so production deployments are self-documenting.
+// Never log secrets — only presence/absence.
 logger.info('[startup] Server initializing', {
-  node_env: process.env.NODE_ENV,
-  port: process.env.PORT,
-  database_url_set: !!process.env.DATABASE_URL,
-  frontend_origins: process.env.FRONTEND_ORIGINS,
+  node_env: env.NODE_ENV,
+  port: env.PORT,
+  // Auth
+  jwt_secret_set: !!env.JWT_SECRET,
+  jwt_refresh_secret_set: !!env.JWT_REFRESH_SECRET,
+  // Database
+  database_url_set: !!env.DATABASE_URL,
+  // CORS
+  frontend_origins: env.FRONTEND_ORIGINS,
+  // AWS S3
+  aws_region: env.AWS_REGION,
+  aws_credentials_set: !!(env.AWS_ACCESS_KEY_ID && env.AWS_SECRET_ACCESS_KEY),
+  s3_portal_bucket: env.S3_PORTAL_BUCKET,
+  s3_temp_bucket: env.S3_TEMP_BUCKET,
+  s3_quiz_bucket: env.S3_QUIZ_BUCKET,
+  // Zoom
+  zoom_configured: !!(env.ZOOM_ACCOUNT_ID && env.ZOOM_CLIENT_ID && env.ZOOM_CLIENT_SECRET),
+  zoom_host_email: env.ZOOM_HOST_EMAIL || null,
 });
 
 validateEnv();
