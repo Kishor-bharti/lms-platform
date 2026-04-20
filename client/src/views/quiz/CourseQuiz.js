@@ -50,7 +50,7 @@ export default function CourseQuiz() {
       setCourseAssignments(caRes.data || []);
     }).catch(console.error)
       .finally(() => setLoading(false));
-  }, [courseId]);
+  }, [courseId, isStaff]);
 
   const openAssignModal = async (quiz) => {
     setAssignModal({ open: true, quiz });
