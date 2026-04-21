@@ -118,3 +118,16 @@ export async function deleteUpload(req: Request, res: Response) {
     return res.status(500).json({ error: 'Failed to delete upload' });
   }
 }
+
+export async function getUploadUrl(req: Request, res: Response) {
+  try {
+    const { uploadId } = req.params;
+    const field = (req.query.field as string) === 'feedback' ? 'feedback_file_url' : 'file_url';
+    const url = await uploadService.getUploadFileUrl(uploadId!, field);
+    if (!url) return res.status(404).json({ error: 'File not found' });
+    return res.json({ url });
+  } catch (err) {
+    logger.error('[student-uploads] url:', err);
+    return res.status(500).json({ error: 'Failed to get file URL' });
+  }
+}

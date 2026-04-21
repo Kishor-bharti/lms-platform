@@ -154,6 +154,31 @@ export async function updateAssignment(req: Request, res: Response) {
   }
 }
 
+export async function getAssignmentUrl(req: Request, res: Response) {
+  try {
+    const { assignmentId } = req.params;
+    const url = await assignmentService.getAssignmentFileUrl(assignmentId!);
+    if (!url) return res.status(404).json({ error: 'Attachment not found' });
+    return res.json({ url });
+  } catch (err) {
+    logger.error('[assignment] url:', err);
+    return res.status(500).json({ error: 'Failed to get file URL' });
+  }
+}
+
+export async function getSubmissionUrl(req: Request, res: Response) {
+  try {
+    const { submissionId } = req.params;
+    const field = (req.query.field as string) === 'feedback' ? 'feedback_file_url' : 'submission_url';
+    const url = await assignmentService.getSubmissionFileUrl(submissionId!, field);
+    if (!url) return res.status(404).json({ error: 'File not found' });
+    return res.json({ url });
+  } catch (err) {
+    logger.error('[assignment] submission url:', err);
+    return res.status(500).json({ error: 'Failed to get file URL' });
+  }
+}
+
 export async function deleteAssignment(req: Request, res: Response) {
   try {
     const assignmentId = req.params.assignmentId as string;

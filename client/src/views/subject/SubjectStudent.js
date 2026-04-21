@@ -82,6 +82,19 @@ export default function SubjectStudent() {
   const [uploadFileUploading, setUploadFileUploading] = useState(false);
   const uploadFileRef = useRef(null);
 
+  const openFile = async (type, id, field) => {
+    try {
+      let endpoint;
+      if (type === 'material')   endpoint = `/api/materials/${id}/url`;
+      else if (type === 'assignment') endpoint = `/api/assignments/${id}/url`;
+      else if (type === 'upload')     endpoint = `/api/student-uploads/${id}/url${field === 'feedback' ? '?field=feedback' : ''}`;
+      const res = await http.get(endpoint);
+      if (res.data?.url) window.open(res.data.url, '_blank');
+    } catch (err) {
+      console.error('[openFile]', err);
+    }
+  };
+
   useEffect(() => {
     fetchData();
     const iv = setInterval(fetchData, 15000);
@@ -143,7 +156,7 @@ export default function SubjectStudent() {
       const res = await http.post('/api/upload/assignment', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      setSubmitForm(f => ({ ...f, submission_url: res.data.url }));
+      setSubmitForm(f => ({ ...f, submission_url: res.data.ref || res.data.url }));
       setSubmitFileName(res.data.name || file.name);
     } catch (err) {
       setSubmitError(err?.response?.data?.error || 'File upload failed');
@@ -182,7 +195,7 @@ export default function SubjectStudent() {
       const res = await http.post('/api/upload/assignment', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      setUploadForm(f => ({ ...f, file_url: res.data.url, file_name: res.data.name || file.name }));
+      setUploadForm(f => ({ ...f, file_url: res.data.ref || res.data.url, file_name: res.data.name || file.name }));
     } catch (err) {
       setUploadError(err?.response?.data?.error || 'File upload failed');
     } finally {
@@ -705,9 +718,9 @@ export default function SubjectStudent() {
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px', fontSize: 12, color: '#525f7f' }}>
                                 <span>Max points: <strong>{a.max_marks}</strong></span>
                                 {a.attachment_url && (
-                                  <a href={a.attachment_url} target="_blank" rel="noreferrer" style={{ color: '#5e72e4', fontWeight: 600 }}>
+                                  <button type="button" onClick={() => openFile('assignment', a.id)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#5e72e4', fontWeight: 600 }}>
                                     View Materials
-                                  </a>
+                                  </button>
                                 )}
                               </div>
                               {(a.assigned_by_name || a.student_assigned_at) && (
@@ -728,9 +741,9 @@ export default function SubjectStudent() {
                                       </span>
                                       {sub.feedback && <p className="small text-muted mb-0 mt-1">Feedback: {sub.feedback}</p>}
                                       {sub.feedback_file_url && (
-                                        <a href={sub.feedback_file_url} target="_blank" rel="noreferrer" className="small d-block mt-1" style={{ color: '#5e72e4', fontWeight: 600 }}>
+                                        <button type="button" onClick={() => openFile('upload', sub.id, 'feedback')} className="small d-block mt-1" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#5e72e4', fontWeight: 600 }}>
                                           View Checked File
-                                        </a>
+                                        </button>
                                       )}
                                     </div>
                                   ) : (
@@ -836,7 +849,7 @@ export default function SubjectStudent() {
                         const typeColor = { pdf: '#f5365c', video: '#825ee4', doc: '#fb6340', image: '#2dce89', pptx: '#5e72e4', zip: '#8898aa' }[m.material_type] || '#8898aa';
                         return (
                           <Col key={m.id} md="6" lg="4" className="mb-3">
-                            <a href={m.file_url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
+                            <div onClick={() => openFile('material', m.id)} style={{ textDecoration: 'none', cursor: 'pointer' }}>
                               <Card className="shadow-sm h-100" style={{ borderRadius: 12, borderTop: `3px solid ${typeColor}`, cursor: 'pointer', transition: 'transform 0.15s ease' }}
                                 onMouseEnter={(e) => e.currentTarget.style.transform='translateY(-2px)'}
                                 onMouseLeave={(e) => e.currentTarget.style.transform='translateY(0)'}>
@@ -852,7 +865,7 @@ export default function SubjectStudent() {
                                   </div>
                                 </CardBody>
                               </Card>
-                            </a>
+                            </div>
                           </Col>
                         );
                       })}
@@ -952,20 +965,20 @@ export default function SubjectStudent() {
                                   <div style={{ fontSize: 11, fontWeight: 700, color: '#2dce89', marginBottom: 2 }}>Teacher Feedback</div>
                                   {u.feedback_text && <div style={{ fontSize: 13, color: '#32325d' }}>{u.feedback_text}</div>}
                                   {u.feedback_file_url && (
-                                    <a href={u.feedback_file_url} target="_blank" rel="noreferrer"
-                                      style={{ fontSize: 12, fontWeight: 600, color: '#5e72e4', marginTop: 4, display: 'inline-block' }}>
+                                    <button type="button" onClick={() => openFile('upload', u.id, 'feedback')}
+                                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#5e72e4', marginTop: 4, display: 'inline-block' }}>
                                       View Feedback File
-                                    </a>
+                                    </button>
                                   )}
                                 </div>
                               )}
                             </div>
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end', marginLeft: 12, flexShrink: 0 }}>
-                            <a href={u.file_url} target="_blank" rel="noreferrer"
-                              style={{ fontSize: 12, fontWeight: 600, color: '#5e72e4', textDecoration: 'none' }}>
+                            <button type="button" onClick={() => openFile('upload', u.id)}
+                              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#5e72e4' }}>
                               {u.file_name || 'Download'}
-                            </a>
+                            </button>
                             {(u.feedback_text || u.feedback_file_url) ? (
                               <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: '#d4edda', color: '#155724' }}>Reviewed</span>
                             ) : (

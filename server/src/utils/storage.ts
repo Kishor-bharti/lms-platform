@@ -96,6 +96,12 @@ export function resolveStorageRef(stored: string): { bucket: string; path: strin
   const signedMatch = stored.match(/\/storage\/v1\/object\/sign\/([^/]+)\/(.+?)(?:\?|$)/);
   if (signedMatch) return { bucket: signedMatch[1]!, path: signedMatch[2]! };
 
+  // Backwards compat: AWS S3 presigned URL (virtual-hosted style)
+  // e.g. https://bucket.s3.amazonaws.com/key?X-Amz-...
+  //   or https://bucket.s3.us-east-1.amazonaws.com/key?X-Amz-...
+  const awsMatch = stored.match(/^https?:\/\/([^.]+)\.s3(?:\.[^.]+)?\.amazonaws\.com\/([^?]+)/);
+  if (awsMatch) return { bucket: awsMatch[1]!, path: decodeURIComponent(awsMatch[2]!) };
+
   // Current format: "bucket/path" — first segment is bucket, rest is path
   const slashIdx = stored.indexOf('/');
   if (slashIdx > 0 && !stored.startsWith('http')) {

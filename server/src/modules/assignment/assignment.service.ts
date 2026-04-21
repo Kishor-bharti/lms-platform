@@ -1,5 +1,5 @@
 import { query } from '../../config/db';
-import { deleteFilesByUrls, moveFileBetweenBuckets, signFileFields } from '../../utils/storage';
+import { deleteFilesByUrls, moveFileBetweenBuckets, resolveSignedUrl, signFileFields } from '../../utils/storage';
 import { env } from '../../config/env';
 import logger from '../../config/logger';
 
@@ -454,4 +454,22 @@ export async function gradeSubmission(data: {
 
   if (!rows[0]) throw new Error('Submission not found');
   return signFileFields(rows[0], ['submission_url', 'feedback_file_url']);
+}
+
+export async function getAssignmentFileUrl(assignmentId: string): Promise<string | null> {
+  const rows = await query<any>(
+    `SELECT attachment_url FROM assignments WHERE id = $1`,
+    [assignmentId]
+  );
+  if (!rows[0]?.attachment_url) return null;
+  return resolveSignedUrl(rows[0].attachment_url);
+}
+
+export async function getSubmissionFileUrl(submissionId: string, field: 'submission_url' | 'feedback_file_url'): Promise<string | null> {
+  const rows = await query<any>(
+    `SELECT submission_url, feedback_file_url FROM assignment_submissions WHERE id = $1`,
+    [submissionId]
+  );
+  if (!rows[0]?.[field]) return null;
+  return resolveSignedUrl(rows[0][field]);
 }

@@ -162,6 +162,20 @@ export default function SubjectTeacher() {
 
   const errorCount = useRef(0);
 
+  const openFile = async (type, id, field) => {
+    try {
+      let endpoint;
+      if (type === 'material')   endpoint = `/api/materials/${id}/url`;
+      else if (type === 'assignment') endpoint = `/api/assignments/${id}/url`;
+      else if (type === 'upload')     endpoint = `/api/student-uploads/${id}/url${field === 'feedback' ? '?field=feedback' : ''}`;
+      else if (type === 'submission') endpoint = `/api/assignments/submissions/${id}/url${field === 'feedback' ? '?field=feedback' : ''}`;
+      const res = await http.get(endpoint);
+      if (res.data?.url) window.open(res.data.url, '_blank');
+    } catch (err) {
+      console.error('[openFile]', err);
+    }
+  };
+
   useEffect(() => {
     fetchData();
     const iv = setInterval(() => {
@@ -310,7 +324,7 @@ export default function SubjectTeacher() {
       const ext = (file.name.split('.').pop() || '').toLowerCase();
       const typeMap = { pdf: 'pdf', doc: 'doc', docx: 'doc', xls: 'doc', xlsx: 'doc', ppt: 'pptx', pptx: 'pptx', jpg: 'image', jpeg: 'image', png: 'image', gif: 'image', webp: 'image', mp4: 'video', webm: 'video', mov: 'video', avi: 'video', zip: 'zip' };
       const detectedType = typeMap[ext] || 'doc';
-      setMatForm(f => ({ ...f, file_url: res.data.url, file_name: res.data.name || file.name, material_type: detectedType }));
+      setMatForm(f => ({ ...f, file_url: res.data.ref || res.data.url, file_name: res.data.name || file.name, material_type: detectedType }));
     } catch (err) {
       setMatError(err?.response?.data?.error || 'File upload failed');
     } finally {
@@ -503,7 +517,7 @@ export default function SubjectTeacher() {
       const res = await http.post('/api/upload/assignment', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      setAssignForm(f => ({ ...f, attachment_url: res.data.url }));
+      setAssignForm(f => ({ ...f, attachment_url: res.data.ref || res.data.url }));
       setAssignFileName(res.data.name || file.name);
     } catch (err) {
       setAssignError(err?.response?.data?.error || 'File upload failed');
@@ -633,7 +647,7 @@ export default function SubjectTeacher() {
       const res = await http.post('/api/upload/assignment', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      setGradeForm(f => ({ ...f, feedback_file_url: res.data.url }));
+      setGradeForm(f => ({ ...f, feedback_file_url: res.data.ref || res.data.url }));
       setGradeFileName(res.data.name || file.name);
     } catch (err) {
       console.error('Upload failed', err);
@@ -733,7 +747,7 @@ export default function SubjectTeacher() {
       const res = await http.post('/api/upload/assignment', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      setFeedbackForm(f => ({ ...f, feedback_file_url: res.data.url }));
+      setFeedbackForm(f => ({ ...f, feedback_file_url: res.data.ref || res.data.url }));
       setFeedbackFileName(res.data.name || file.name);
     } catch (err) {
       console.error('Feedback file upload failed', err);
@@ -1583,7 +1597,7 @@ export default function SubjectTeacher() {
                             <tr key={m.id} style={{ borderBottom: '1px solid #f0f4f8' }}>
                               <td style={{ padding: '12px 14px', fontWeight: 600, color: '#8898aa', fontSize: 13 }}>{idx + 1}</td>
                               <td style={{ padding: '12px 14px' }}>
-                                <a href={m.file_url} target="_blank" rel="noreferrer" style={{ fontWeight: 700, color: '#32325d' }}>{m.title}</a>
+                                <button type="button" onClick={() => openFile('material', m.id)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontWeight: 700, color: '#32325d', textAlign: 'left' }}>{m.title}</button>
                                 {m.description && <div className="small text-muted mt-1">{m.description}</div>}
                               </td>
                               <td style={{ padding: '12px 14px' }}>
@@ -1768,10 +1782,10 @@ export default function SubjectTeacher() {
                                 : <span className="text-muted small">—</span>}
                             </td>
                             <td style={{ padding: '12px 14px' }}>
-                              <a href={u.file_url} target="_blank" rel="noreferrer"
-                                style={{ fontSize: 12, fontWeight: 600, color: '#5e72e4' }}>
+                              <button type="button" onClick={() => openFile('upload', u.id)}
+                                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#5e72e4' }}>
                                 {u.file_name || 'Download'}
-                              </a>
+                              </button>
                             </td>
                             {isAdmin && (
                               <td style={{ padding: '12px 14px', fontSize: 13, color: '#525f7f' }}>
@@ -1825,10 +1839,10 @@ export default function SubjectTeacher() {
                 <div style={{ fontSize: 12, color: '#8898aa' }}>
                   Student: <strong style={{ color: '#32325d' }}>{feedbackModal.upload.student_name}</strong>
                 </div>
-                <a href={feedbackModal.upload.file_url} target="_blank" rel="noreferrer"
-                  style={{ fontSize: 12, fontWeight: 600, color: '#5e72e4' }}>
+                <button type="button" onClick={() => openFile('upload', feedbackModal.upload.id)}
+                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#5e72e4' }}>
                   View Submitted File
-                </a>
+                </button>
               </div>
             )}
             <FormGroup>
@@ -2045,7 +2059,7 @@ export default function SubjectTeacher() {
                       <div className="small text-muted">Submitted: {new Date(sub.submitted_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</div>
                     )}
                     {sub.submission_url && (
-                      <a href={sub.submission_url} target="_blank" rel="noreferrer" className="small" style={{ color: '#5e72e4' }}>View Submission</a>
+                      <button type="button" onClick={() => openFile('submission', sub.id)} className="small" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#5e72e4' }}>View Submission</button>
                     )}
                     {sub.notes && <p className="small text-muted mt-1 mb-0">{sub.notes}</p>}
                     {sub.marks_awarded != null && (
@@ -2055,9 +2069,9 @@ export default function SubjectTeacher() {
                       </div>
                     )}
                     {sub.feedback_file_url && (
-                      <a href={sub.feedback_file_url} target="_blank" rel="noreferrer" className="small d-block mt-1" style={{ color: '#2dce89' }}>
+                      <button type="button" onClick={() => openFile('submission', sub.id, 'feedback')} className="small d-block mt-1" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#2dce89' }}>
                         View Feedback File
-                      </a>
+                      </button>
                     )}
                   </div>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -2478,10 +2492,10 @@ export default function SubjectTeacher() {
                   )}
                 </div>
                 {previewAssign.attachment_url && (
-                  <a href={previewAssign.attachment_url} target="_blank" rel="noreferrer"
-                    style={{ color: '#5e72e4', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <button type="button" onClick={() => openFile('assignment', previewAssign.id)}
+                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#5e72e4', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                     📎 View Attachment
-                  </a>
+                  </button>
                 )}
               </div>
             )}
@@ -2535,10 +2549,10 @@ export default function SubjectTeacher() {
                     </div>
                   )}
                 </div>
-                <a href={previewMat.file_url} target="_blank" rel="noreferrer"
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#5e72e4', color: '#fff', padding: '8px 18px', borderRadius: 8, fontWeight: 600, textDecoration: 'none' }}>
+                <button type="button" onClick={() => openFile('material', previewMat.id)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#5e72e4', color: '#fff', padding: '8px 18px', borderRadius: 8, fontWeight: 600, border: 'none', cursor: 'pointer' }}>
                   🔗 Open Material
-                </a>
+                </button>
               </div>
             )}
           </ModalBody>

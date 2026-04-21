@@ -76,6 +76,18 @@ export async function publishMaterial(req: Request, res: Response) {
   }
 }
 
+export async function getMaterialUrl(req: Request, res: Response) {
+  try {
+    const { materialId } = req.params;
+    const url = await materialsService.getMaterialFileUrl(materialId!);
+    if (!url) return res.status(404).json({ error: 'Material not found' });
+    return res.json({ url });
+  } catch (err) {
+    logger.error('[materials] url:', err);
+    return res.status(500).json({ error: 'Failed to get file URL' });
+  }
+}
+
 export async function deleteMaterial(req: Request, res: Response) {
   try {
     const { materialId } = req.params;

@@ -1,5 +1,5 @@
 import { query } from '../../config/db';
-import { deleteFilesByUrls, signFileFields } from '../../utils/storage';
+import { deleteFilesByUrls, resolveSignedUrl, signFileFields } from '../../utils/storage';
 
 export interface StudentUpload {
   id: string;
@@ -207,4 +207,13 @@ export async function getStudentTeachers(
     WHERE sts.subject_id = $1 AND sts.student_id = $2
     ORDER BY u.first_name, u.last_name
   `, [subjectId, studentId]);
+}
+
+export async function getUploadFileUrl(uploadId: string, field: 'file_url' | 'feedback_file_url'): Promise<string | null> {
+  const rows = await query<any>(
+    `SELECT file_url, feedback_file_url FROM student_uploads WHERE id = $1`,
+    [uploadId]
+  );
+  if (!rows[0]?.[field]) return null;
+  return resolveSignedUrl(rows[0][field]);
 }

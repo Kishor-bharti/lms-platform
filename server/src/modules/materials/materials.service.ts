@@ -1,5 +1,5 @@
 import { query } from '../../config/db';
-import { deleteFilesByUrls, moveFileBetweenBuckets, signFileFields } from '../../utils/storage';
+import { deleteFilesByUrls, moveFileBetweenBuckets, resolveSignedUrl, signFileFields } from '../../utils/storage';
 import { env } from '../../config/env';
 import logger from '../../config/logger';
 
@@ -176,6 +176,15 @@ export async function deleteMaterial(materialId: string, requesterId: string): P
   if (fileRows[0]?.file_url) {
     await deleteFilesByUrls([fileRows[0].file_url]);
   }
+}
+
+export async function getMaterialFileUrl(materialId: string): Promise<string | null> {
+  const rows = await query<any>(
+    `SELECT file_url FROM subject_materials WHERE id = $1 AND is_active = true`,
+    [materialId]
+  );
+  if (!rows[0]?.file_url) return null;
+  return resolveSignedUrl(rows[0].file_url);
 }
 
 export async function reorderMaterials(subjectId: string, orderedIds: string[]): Promise<void> {
