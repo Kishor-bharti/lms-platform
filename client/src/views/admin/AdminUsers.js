@@ -21,6 +21,9 @@ export default function AdminUsers() {
   const [formError,    setFormError]    = useState('');
   const [emailError,   setEmailError]   = useState('');
   const [showPw,       setShowPw]       = useState(false);
+  const [showAdminPw,  setShowAdminPw]  = useState(false);
+  const [showNewPw,    setShowNewPw]    = useState(false);
+  const [showConfirmPw, setShowConfirmPw] = useState(false);
   const [form, setForm] = useState({ email: '', password: '', first_name: '', last_name: '', phone: '', description: '', role: 'student' });
   const [page,       setPage]       = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -175,6 +178,9 @@ export default function AdminUsers() {
     setPwForm({ admin_password: '', new_password: '', confirm: '' });
     setPwError('');
     setPwSuccess('');
+    setShowAdminPw(false);
+    setShowNewPw(false);
+    setShowConfirmPw(false);
     setPwModalOpen(true);
   };
 
@@ -393,7 +399,7 @@ export default function AdminUsers() {
                     tabIndex={-1}
                     title={showPw ? 'Hide password' : 'Show password'}
                   >
-                    {showPw ? '🙈' : '👁'}
+                    👁
                   </button>
                 </div>
               </FormGroup>
@@ -566,22 +572,40 @@ export default function AdminUsers() {
             <Form onSubmit={handlePwReset}>
               <FormGroup>
                 <Label style={{ fontWeight: 700 }}>Your Admin Password *</Label>
-                <Input type="password" value={pwForm.admin_password}
-                  onChange={(e) => setPwForm({ ...pwForm, admin_password: e.target.value })}
-                  placeholder="Enter YOUR password to confirm" />
+                <div style={{ position: 'relative' }}>
+                  <Input type={showAdminPw ? 'text' : 'password'} value={pwForm.admin_password}
+                    onChange={(e) => setPwForm({ ...pwForm, admin_password: e.target.value })}
+                    placeholder="Enter YOUR password to confirm" style={{ paddingRight: 44 }} />
+                  <button type="button" tabIndex={-1} onClick={() => setShowAdminPw(v => !v)}
+                    style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: showAdminPw ? '#32325d' : '#8898aa', fontSize: 16, padding: 0, lineHeight: 1 }}>
+                    👁
+                  </button>
+                </div>
               </FormGroup>
               <hr />
               <FormGroup>
                 <Label style={{ fontWeight: 700 }}>New Password for User *</Label>
-                <Input type="password" value={pwForm.new_password}
-                  onChange={(e) => setPwForm({ ...pwForm, new_password: e.target.value })}
-                  placeholder="Min 6 characters" />
+                <div style={{ position: 'relative' }}>
+                  <Input type={showNewPw ? 'text' : 'password'} value={pwForm.new_password}
+                    onChange={(e) => setPwForm({ ...pwForm, new_password: e.target.value })}
+                    placeholder="Min 6 characters" style={{ paddingRight: 44 }} />
+                  <button type="button" tabIndex={-1} onClick={() => setShowNewPw(v => !v)}
+                    style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: showNewPw ? '#32325d' : '#8898aa', fontSize: 16, padding: 0, lineHeight: 1 }}>
+                    👁
+                  </button>
+                </div>
               </FormGroup>
               <FormGroup>
                 <Label style={{ fontWeight: 700 }}>Confirm New Password *</Label>
-                <Input type="password" value={pwForm.confirm}
-                  onChange={(e) => setPwForm({ ...pwForm, confirm: e.target.value })}
-                  placeholder="Repeat new password" />
+                <div style={{ position: 'relative' }}>
+                  <Input type={showConfirmPw ? 'text' : 'password'} value={pwForm.confirm}
+                    onChange={(e) => setPwForm({ ...pwForm, confirm: e.target.value })}
+                    placeholder="Repeat new password" style={{ paddingRight: 44 }} />
+                  <button type="button" tabIndex={-1} onClick={() => setShowConfirmPw(v => !v)}
+                    style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: showConfirmPw ? '#32325d' : '#8898aa', fontSize: 16, padding: 0, lineHeight: 1 }}>
+                    👁
+                  </button>
+                </div>
               </FormGroup>
               {pwError   && <div style={{ background: '#fde8ec', border: '1px solid #f8c4cf', borderRadius: 8, padding: '8px 12px', color: '#f5365c', fontWeight: 600, fontSize: 13, marginBottom: 10 }}>{pwError}</div>}
               {pwSuccess && <div style={{ background: '#e8fbf0', border: '1px solid #b8f0d3', borderRadius: 8, padding: '8px 12px', color: '#2dce89', fontWeight: 600, fontSize: 13, marginBottom: 10 }}>{pwSuccess}</div>}
