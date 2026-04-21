@@ -46,6 +46,27 @@ export async function createUser(req: Request, res: Response) {
   }
 }
 
+export async function updateUser(req: Request, res: Response) {
+  try {
+    const adminId = req.user!.id;
+    const { userId } = req.params;
+    if (!userId) return res.status(400).json({ error: 'userId is required' });
+
+    const isSuper = await adminService.isSuperAdmin(adminId);
+    if (!isSuper) return res.status(403).json({ error: 'Only super admin can edit users' });
+
+    const { first_name, last_name, phone, email, description } = req.body;
+    await adminService.updateUser(userId, { first_name, last_name, phone, email, description });
+    return res.json({ success: true });
+  } catch (err: any) {
+    logger.error('[admin] updateUser:', err);
+    if (err.message === 'NOTHING_TO_UPDATE') return res.status(400).json({ error: 'No fields to update' });
+    if (err.message === 'USER_NOT_FOUND') return res.status(404).json({ error: 'User not found' });
+    if (err.code === '23505') return res.status(409).json({ error: 'Email already in use' });
+    return res.status(500).json({ error: 'Failed to update user' });
+  }
+}
+
 export async function toggleUserActive(req: Request, res: Response) {
   try {
     const { userId } = req.params;
@@ -412,6 +433,9 @@ export async function createSession(req: Request, res: Response) {
     return res.status(201).json(result);
   } catch (err: any) {
     logger.error('[admin] createSession:', err);
+    if (err.message?.includes('sessions_check') || err.constraint === 'sessions_check' || err.message?.includes('check constraint')) {
+      return res.status(400).json({ error: 'End time must be after start time. Please check the session times.' });
+    }
     return res.status(500).json({ error: err.message || 'Failed to create session' });
   }
 }
@@ -433,6 +457,9 @@ export async function updateSession(req: Request, res: Response) {
     return res.json({ success: true });
   } catch (err: any) {
     logger.error('[admin] updateSession:', err);
+    if (err.message?.includes('sessions_check') || err.constraint === 'sessions_check' || err.message?.includes('check constraint')) {
+      return res.status(400).json({ error: 'End time must be after start time. Please check the session times.' });
+    }
     return res.status(500).json({ error: 'Failed to update session' });
   }
 }

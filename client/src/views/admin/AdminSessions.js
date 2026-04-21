@@ -67,6 +67,7 @@ export default function AdminSessions() {
   const [editSession, setEditSession] = useState(null);
   const [editForm,    setEditForm]    = useState({ title: '', sessionDate: '', startTime: '', endTime: '', recurMode: 'this' });
   const [editSaving,  setEditSaving]  = useState(false);
+  const [editError,   setEditError]   = useState('');
 
   // Recurring delete modal
   const [deleteModal, setDeleteModal] = useState({ open: false, session: null, scope: 'this' });
@@ -75,10 +76,14 @@ export default function AdminSessions() {
   // Students detail modal
   const [studentsModal, setStudentsModal] = useState({ open: false, session: null, students: [], loading: false });
 
+  // Create modal error
+  const [createError, setCreateError] = useState('');
+
   // Create-form data
-  const [allSubjects,     setAllSubjects]     = useState([]);
-  const [subjectStudents, setSubjectStudents] = useState([]);
-  const [subjectTeachers, setSubjectTeachers] = useState([]);
+  const [allSubjects,       setAllSubjects]       = useState([]);
+  const [subjectStudents,   setSubjectStudents]   = useState([]);
+  const [subjectTeachers,   setSubjectTeachers]   = useState([]);
+  const [subjectAllocations, setSubjectAllocations] = useState([]);
 
   const fetchSessions = useCallback(async () => {
     setLoading(true);
@@ -104,18 +109,36 @@ export default function AdminSessions() {
   }, []);
 
   useEffect(() => {
-    if (!form.subjectId) { setSubjectStudents([]); setSubjectTeachers([]); return; }
+    if (!form.subjectId) {
+      setSubjectStudents([]); setSubjectTeachers([]); setSubjectAllocations([]);
+      return;
+    }
     const sub = allSubjects.find(s => s.id === form.subjectId);
     if (sub) {
       const teachers = (sub.teacher_ids || []).map((id, i) => ({ id, name: (sub.teacher_names || [])[i] || id }));
       setSubjectTeachers(teachers);
-      setForm(f => ({ ...f, teacherId: teachers.length === 1 ? teachers[0].id : '' }));
+      setForm(f => ({ ...f, teacherId: teachers.length === 1 ? teachers[0].id : '', studentIds: [] }));
     }
-    http.get(`/api/admin/subjects/${form.subjectId}/enrollments`)
-      .then(r => setSubjectStudents(Array.isArray(r?.data) ? r.data : []))
-      .catch(() => setSubjectStudents([]));
-    setForm(f => ({ ...f, studentIds: [] }));
+    // Fetch all enrolled students and teacher→student allocations in parallel
+    Promise.all([
+      http.get(`/api/admin/subjects/${form.subjectId}/enrollments`).then(r => r.data).catch(() => []),
+      http.get(`/api/admin/subjects/${form.subjectId}/allocations`).then(r => r.data).catch(() => []),
+    ]).then(([enrolled, allocations]) => {
+      setSubjectStudents(Array.isArray(enrolled) ? enrolled : []);
+      setSubjectAllocations(Array.isArray(allocations) ? allocations : []);
+    });
   }, [form.subjectId, allSubjects]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When teacher changes, filter students to only those allocated to that teacher
+  useEffect(() => {
+    if (!form.teacherId || subjectAllocations.length === 0) return;
+    const teacherAlloc = subjectAllocations.find(a => a.teacher_id === form.teacherId);
+    if (teacherAlloc && teacherAlloc.students && teacherAlloc.students.length > 0) {
+      const allocatedIds = new Set(teacherAlloc.students.map(s => s.student_id));
+      setSubjectStudents(prev => prev.filter(s => allocatedIds.has(s.id)));
+    }
+    setForm(f => ({ ...f, studentIds: [] }));
+  }, [form.teacherId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!form.isRecurring || !form.sessionDate || !form.recurEndDate) { setPreview([]); return; }
@@ -180,8 +203,14 @@ export default function AdminSessions() {
   // ── Actions ───────────────────────────────────────────────────────────────
 
   const handleCreate = async () => {
+    setCreateError('');
     if (!form.teacherId || !form.subjectId || !form.title || !form.sessionDate || !form.startTime || !form.endTime) {
-      alert('Please fill all required fields (Teacher, Subject, Title, Date, Start, End Time).'); return;
+      setCreateError('Please fill all required fields: Teacher, Subject, Title, Date, Start and End Time.');
+      return;
+    }
+    if (form.startTime && form.endTime && form.endTime <= form.startTime) {
+      setCreateError('End time must be after start time.');
+      return;
     }
     setSaving(true);
     try {
@@ -196,9 +225,10 @@ export default function AdminSessions() {
         recurDays: form.recurDays, recurEndDate: form.recurEndDate || undefined,
       });
       setCreateOpen(false);
+      setCreateError('');
       fetchSessions();
     } catch (err) {
-      alert(err?.response?.data?.error || 'Failed to create session');
+      setCreateError(err?.response?.data?.error || 'Failed to create session');
     } finally { setSaving(false); }
   };
 
@@ -216,6 +246,11 @@ export default function AdminSessions() {
 
   const handleEdit = async () => {
     if (!editSession) return;
+    setEditError('');
+    if (editForm.startTime && editForm.endTime && editForm.endTime <= editForm.startTime) {
+      setEditError('End time must be after start time.');
+      return;
+    }
     setEditSaving(true);
     try {
       const payload = {
@@ -237,10 +272,11 @@ export default function AdminSessions() {
       }
       await http.patch(`/api/admin/sessions/${editSession.id}`, payload);
       setEditOpen(false);
+      setEditError('');
       setSelected(new Set());
       fetchSessions();
     } catch (err) {
-      alert(err?.response?.data?.error || 'Failed to update session');
+      setEditError(err?.response?.data?.error || 'Failed to update session');
     } finally { setEditSaving(false); }
   };
 
@@ -519,17 +555,42 @@ export default function AdminSessions() {
               <Label><strong>Session Title *</strong></Label>
               <Input value={form.title} onChange={e => setField('title', e.target.value)} placeholder="e.g. Algebra — Week 5" />
             </FormGroup>
-            <Row form>
-              <Col md={4}><FormGroup><Label><strong>Date *</strong></Label>
-                <Input type="date" value={form.sessionDate} onChange={e => setField('sessionDate', e.target.value)} />
-              </FormGroup></Col>
-              <Col md={4}><FormGroup><Label><strong>Start Time *</strong></Label>
-                <Input type="time" value={form.startTime} onChange={e => setField('startTime', e.target.value)} />
-              </FormGroup></Col>
-              <Col md={4}><FormGroup><Label><strong>End Time *</strong></Label>
-                <Input type="time" value={form.endTime} onChange={e => setField('endTime', e.target.value)} />
-              </FormGroup></Col>
-            </Row>
+            <div style={{ background: '#f0f4ff', borderRadius: 10, padding: '14px 16px', marginBottom: 16 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#5e72e4', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                📅 Date &amp; Time
+              </div>
+              <Row form>
+                <Col md={4}>
+                  <FormGroup>
+                    <Label style={{ fontSize: 12, fontWeight: 700, color: '#525f7f' }}>Date *</Label>
+                    <Input type="date" value={form.sessionDate} onChange={e => setField('sessionDate', e.target.value)}
+                      style={{ borderRadius: 8, border: '1.5px solid #c5cae9', fontSize: 14 }} />
+                  </FormGroup>
+                </Col>
+                <Col md={4}>
+                  <FormGroup>
+                    <Label style={{ fontSize: 12, fontWeight: 700, color: '#525f7f' }}>Start Time *</Label>
+                    <Input type="time" value={form.startTime} onChange={e => setField('startTime', e.target.value)}
+                      style={{ borderRadius: 8, border: '1.5px solid #c5cae9', fontSize: 14 }} />
+                  </FormGroup>
+                </Col>
+                <Col md={4}>
+                  <FormGroup>
+                    <Label style={{ fontSize: 12, fontWeight: 700, color: '#525f7f' }}>End Time *</Label>
+                    <Input type="time" value={form.endTime} onChange={e => setField('endTime', e.target.value)}
+                      style={{ borderRadius: 8, border: form.endTime && form.startTime && form.endTime <= form.startTime ? '1.5px solid #f5365c' : '1.5px solid #c5cae9', fontSize: 14 }} />
+                    {form.endTime && form.startTime && form.endTime <= form.startTime && (
+                      <div style={{ color: '#f5365c', fontSize: 11, marginTop: 3, fontWeight: 600 }}>End time must be after start time</div>
+                    )}
+                  </FormGroup>
+                </Col>
+              </Row>
+              {form.startTime && form.endTime && form.endTime > form.startTime && (
+                <div style={{ fontSize: 12, color: '#2dce89', fontWeight: 600, marginTop: -8 }}>
+                  ✓ Duration: {(() => { const [sh, sm] = form.startTime.split(':').map(Number); const [eh, em] = form.endTime.split(':').map(Number); const mins = (eh * 60 + em) - (sh * 60 + sm); return mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60 > 0 ? mins % 60 + 'm' : ''}` : `${mins}m`; })()}
+                </div>
+              )}
+            </div>
             {subjectStudents.length > 0 && (
               <FormGroup>
                 <Label><strong>Target Students</strong> <span style={{ fontWeight: 400, color: '#8898aa', fontSize: 13 }}>(leave blank = all enrolled)</span></Label>
@@ -597,11 +658,18 @@ export default function AdminSessions() {
             )}
           </Form>
         </ModalBody>
-        <ModalFooter style={{ background: '#f8fbff' }}>
-          <Button color="primary" onClick={handleCreate} disabled={saving}>
-            {saving ? 'Scheduling…' : form.isRecurring && preview.length > 1 ? `Create ${preview.length} Sessions` : 'Create Session'}
-          </Button>
-          <Button color="link" onClick={() => setCreateOpen(false)}>Cancel</Button>
+        <ModalFooter style={{ background: '#f8fbff', flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+          {createError && (
+            <div style={{ background: '#fde8ec', border: '1px solid #f8c4cf', borderRadius: 8, padding: '8px 12px', color: '#f5365c', fontWeight: 600, fontSize: 13, width: '100%' }}>
+              ⚠ {createError}
+            </div>
+          )}
+          <div className="d-flex" style={{ gap: 8, justifyContent: 'flex-end' }}>
+            <Button color="primary" onClick={handleCreate} disabled={saving}>
+              {saving ? 'Scheduling…' : form.isRecurring && preview.length > 1 ? `Create ${preview.length} Sessions` : 'Create Session'}
+            </Button>
+            <Button color="link" onClick={() => { setCreateOpen(false); setCreateError(''); }}>Cancel</Button>
+          </div>
         </ModalFooter>
       </Modal>
 
@@ -639,14 +707,27 @@ export default function AdminSessions() {
                 <Input type="date" value={editForm.sessionDate} onChange={e => setEditForm(f => ({ ...f, sessionDate: e.target.value }))} />
               </FormGroup>
             )}
-            <Row form>
-              <Col md={6}><FormGroup><Label><strong>Start Time</strong></Label>
-                <Input type="time" value={editForm.startTime} onChange={e => setEditForm(f => ({ ...f, startTime: e.target.value }))} />
-              </FormGroup></Col>
-              <Col md={6}><FormGroup><Label><strong>End Time</strong></Label>
-                <Input type="time" value={editForm.endTime} onChange={e => setEditForm(f => ({ ...f, endTime: e.target.value }))} />
-              </FormGroup></Col>
-            </Row>
+            <div style={{ background: '#f0f4ff', borderRadius: 10, padding: '12px 14px', marginBottom: 8 }}>
+              <Row form>
+                <Col md={6}>
+                  <FormGroup>
+                    <Label style={{ fontSize: 12, fontWeight: 700, color: '#525f7f' }}>Start Time</Label>
+                    <Input type="time" value={editForm.startTime} onChange={e => setEditForm(f => ({ ...f, startTime: e.target.value }))}
+                      style={{ borderRadius: 8, border: '1.5px solid #c5cae9', fontSize: 14 }} />
+                  </FormGroup>
+                </Col>
+                <Col md={6}>
+                  <FormGroup>
+                    <Label style={{ fontSize: 12, fontWeight: 700, color: '#525f7f' }}>End Time</Label>
+                    <Input type="time" value={editForm.endTime} onChange={e => setEditForm(f => ({ ...f, endTime: e.target.value }))}
+                      style={{ borderRadius: 8, border: editForm.endTime && editForm.startTime && editForm.endTime <= editForm.startTime ? '1.5px solid #f5365c' : '1.5px solid #c5cae9', fontSize: 14 }} />
+                    {editForm.endTime && editForm.startTime && editForm.endTime <= editForm.startTime && (
+                      <div style={{ color: '#f5365c', fontSize: 11, marginTop: 3, fontWeight: 600 }}>End time must be after start time</div>
+                    )}
+                  </FormGroup>
+                </Col>
+              </Row>
+            </div>
             {editSession?.is_recurring && editForm.recurMode !== 'this' && (
               <div style={{ fontSize: 12, color: '#8898aa', marginTop: -8, marginBottom: 8 }}>
                 Note: date changes only apply when editing "This event" only.
@@ -654,11 +735,18 @@ export default function AdminSessions() {
             )}
           </Form>
         </ModalBody>
-        <ModalFooter>
-          <Button color="primary" onClick={handleEdit} disabled={editSaving}>
-            {editSaving ? 'Saving…' : 'Save Changes'}
-          </Button>
-          <Button color="link" onClick={() => setEditOpen(false)}>Cancel</Button>
+        <ModalFooter style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+          {editError && (
+            <div style={{ background: '#fde8ec', border: '1px solid #f8c4cf', borderRadius: 8, padding: '8px 12px', color: '#f5365c', fontWeight: 600, fontSize: 13, width: '100%' }}>
+              ⚠ {editError}
+            </div>
+          )}
+          <div className="d-flex" style={{ gap: 8, justifyContent: 'flex-end' }}>
+            <Button color="primary" onClick={handleEdit} disabled={editSaving}>
+              {editSaving ? 'Saving…' : 'Save Changes'}
+            </Button>
+            <Button color="link" onClick={() => { setEditOpen(false); setEditError(''); }}>Cancel</Button>
+          </div>
         </ModalFooter>
       </Modal>
 

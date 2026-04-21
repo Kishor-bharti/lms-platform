@@ -117,7 +117,7 @@ export function buildStorageRef(bucket: string, path: string): string {
 // Signed URL generation (with cache)
 // ---------------------------------------------------------------------------
 
-const DEFAULT_SIGNED_URL_EXPIRY = 900; // 15 minutes
+const DEFAULT_SIGNED_URL_EXPIRY = 1800; // 30 minutes
 
 /**
  * Generate a presigned GET URL for an S3 object.

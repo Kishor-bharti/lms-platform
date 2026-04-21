@@ -162,13 +162,14 @@ export async function createUser(data: {
   adminId: string;
 }): Promise<AdminUser> {
   const hash = await hashPassword(data.password);
+  const emailLower = data.email.trim().toLowerCase();
 
   return withTransaction(async (client) => {
     const userRows = await queryWithClient<any>(client, `
       INSERT INTO users (email, password_hash, first_name, last_name, phone, description)
       VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING id, email, first_name, last_name, phone, description, is_active, is_super_admin, created_at
-    `, [data.email, hash, data.first_name, data.last_name, data.phone ?? null, data.description ?? null]);
+    `, [emailLower, hash, data.first_name, data.last_name, data.phone ?? null, data.description ?? null]);
 
     const user = userRows[0];
 
@@ -195,6 +196,29 @@ export async function toggleUserActive(userId: string, isActive: boolean): Promi
   await query(`
     UPDATE users SET is_active = $1, updated_at = now() WHERE id = $2
   `, [isActive, userId]);
+}
+
+export async function updateUser(
+  userId: string,
+  data: { first_name?: string; last_name?: string; phone?: string | null; email?: string; description?: string | null }
+): Promise<void> {
+  const sets: string[] = [];
+  const params: any[] = [];
+  let idx = 1;
+
+  if (data.first_name !== undefined) { sets.push(`first_name  = $${idx++}`); params.push(data.first_name); }
+  if (data.last_name  !== undefined) { sets.push(`last_name   = $${idx++}`); params.push(data.last_name); }
+  if (data.phone      !== undefined) { sets.push(`phone       = $${idx++}`); params.push(data.phone ?? null); }
+  if (data.email      !== undefined) { sets.push(`email       = $${idx++}`); params.push(data.email.trim().toLowerCase()); }
+  if (data.description !== undefined) { sets.push(`description = $${idx++}`); params.push(data.description ?? null); }
+
+  if (sets.length === 0) throw new Error('NOTHING_TO_UPDATE');
+  params.push(userId);
+  const rows = await query<any>(`
+    UPDATE users SET ${sets.join(', ')}, updated_at = now()
+    WHERE id = $${idx} RETURNING id
+  `, params);
+  if (!rows[0]) throw new Error('USER_NOT_FOUND');
 }
 
 export async function assignRole(userId: string, roleName: string, adminId: string): Promise<void> {

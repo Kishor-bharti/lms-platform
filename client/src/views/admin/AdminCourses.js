@@ -19,6 +19,14 @@ export default function AdminCourses() {
   const [submitting, setSubmitting] = useState(false);
   const [formError,  setFormError]  = useState('');
   const [form, setForm] = useState({ name: '', code: '', description: '' });
+
+  // Edit modal state (super admin only)
+  const [editOpen,       setEditOpen]       = useState(false);
+  const [editTarget,     setEditTarget]     = useState(null);
+  const [editForm,       setEditForm]       = useState({ name: '', code: '', description: '' });
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editError,      setEditError]      = useState('');
+
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deletePassword, setDeletePassword] = useState('');
@@ -60,6 +68,32 @@ export default function AdminCourses() {
       setFormError(err?.response?.data?.error || 'Failed to create course');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const openEdit = (course) => {
+    setEditTarget(course);
+    setEditForm({ name: course.name, code: course.code, description: course.description || '' });
+    setEditError('');
+    setEditOpen(true);
+  };
+
+  const handleEdit = async (e) => {
+    e.preventDefault();
+    setEditError('');
+    if (!editForm.name || !editForm.code) {
+      setEditError('Name and code are required');
+      return;
+    }
+    setEditSubmitting(true);
+    try {
+      await http.patch(`/api/admin/courses/${editTarget.id}`, editForm);
+      setEditOpen(false);
+      fetchCourses();
+    } catch (err) {
+      setEditError(err?.response?.data?.error || 'Failed to update course');
+    } finally {
+      setEditSubmitting(false);
     }
   };
 
@@ -156,7 +190,10 @@ export default function AdminCourses() {
                             </span>
                           </div>
                           {isSuperAdmin && (
-                            <div className="mt-3" style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                            <div className="mt-3" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                              <Button color="info" size="sm" style={{ borderRadius: 8 }} onClick={() => openEdit(c)}>
+                                ✏️ Edit
+                              </Button>
                               <Button color="danger" size="sm" style={{ borderRadius: 8 }} onClick={() => openHardDelete(c)}>
                                 Hard Delete
                               </Button>
@@ -211,6 +248,62 @@ export default function AdminCourses() {
               {submitting ? 'Creating...' : 'Create Course'}
             </Button>
             <Button color="link" onClick={() => setModalOpen(false)}>Cancel</Button>
+          </ModalFooter>
+        </Modal>
+
+        {/* Edit Course Modal (super admin only) */}
+        <Modal isOpen={editOpen} toggle={() => setEditOpen(false)} centered>
+          <ModalHeader toggle={() => setEditOpen(false)}
+            style={{ background: '#eaf3ff' }}>
+            Edit Course — {editTarget?.name}
+          </ModalHeader>
+          <ModalBody>
+            <Form onSubmit={handleEdit}>
+              <FormGroup>
+                <Label>Course Name *</Label>
+                <Input
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  placeholder="e.g. SAT Prep"
+                />
+              </FormGroup>
+              <FormGroup>
+                <Label>Course Code *</Label>
+                <Input
+                  value={editForm.code}
+                  onChange={(e) => setEditForm({ ...editForm, code: e.target.value.toUpperCase() })}
+                  placeholder="e.g. SAT"
+                />
+              </FormGroup>
+              <FormGroup>
+                <Label>Description</Label>
+                <Input
+                  type="textarea"
+                  rows={3}
+                  value={editForm.description}
+                  onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                  placeholder="Optional description..."
+                />
+              </FormGroup>
+              <FormGroup>
+                <Label>Status</Label>
+                <Input
+                  type="select"
+                  value={editForm.is_active === false ? 'inactive' : 'active'}
+                  onChange={(e) => setEditForm({ ...editForm, is_active: e.target.value === 'active' })}
+                >
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </Input>
+              </FormGroup>
+              {editError && <p className="text-danger small mt-2">{editError}</p>}
+            </Form>
+          </ModalBody>
+          <ModalFooter>
+            <Button color="info" disabled={editSubmitting} onClick={handleEdit}>
+              {editSubmitting ? 'Saving...' : 'Save Changes'}
+            </Button>
+            <Button color="link" onClick={() => setEditOpen(false)}>Cancel</Button>
           </ModalFooter>
         </Modal>
 

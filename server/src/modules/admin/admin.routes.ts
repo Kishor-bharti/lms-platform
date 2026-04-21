@@ -17,6 +17,7 @@ router.get('/overview', adminController.getAdminOverview);
 // Users
 router.get('/users', adminController.getUsers);
 router.post('/users', adminController.createUser);
+router.patch('/users/:userId', adminController.updateUser);
 router.patch('/users/:userId/active', adminController.toggleUserActive);
 router.post('/users/:userId/roles', adminController.assignRole);
 router.delete('/users/:userId/roles/:roleName', adminController.removeRole);
